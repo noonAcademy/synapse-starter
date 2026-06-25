@@ -5,9 +5,10 @@ entrypoint = "server/index.ts"
 # install failed because GITHUB_TOKEN wasn't set yet, setting the secret and
 # pressing Run installs the SDK and boots in one go. Subsequent runs are fast
 # (npm is a no-op when node_modules is already up to date).
-# `--include=dev` guarantees the build toolchain (vite, tsx, tailwind) installs
-# even if the environment sets NODE_ENV=production, which would otherwise prune it.
-run = "npm install --include=dev && npm run build && npm run start"
+# `--omit=dev` installs ONLY runtime + build deps (sdk, express, react, vite, tsx,
+# tailwind) and skips test/lint tooling (vitest, biome). Replit's package firewall
+# blocks CVE-flagged dev packages, and they aren't needed to build or run the app.
+run = "npm install --omit=dev && npm run build && npm run start"
 
 [env]
 # SYNAPSE_APP_ID, SYNAPSE_APP_SECRET and GITHUB_TOKEN come from the Secrets pane.
