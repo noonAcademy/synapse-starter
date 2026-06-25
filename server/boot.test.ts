@@ -3,14 +3,14 @@ import { formatBootLog } from './boot.js';
 
 describe('formatBootLog', () => {
   it('reports the eventId when Citadel accepted the event', () => {
-    expect(formatBootLog({ status: 'accepted', eventId: 42 }, 'starter-boot-abcd1234')).toBe(
-      '[synapse] OK — accepted eventId=42 runId=starter-boot-abcd1234',
+    expect(formatBootLog('app_booted', { status: 'accepted', eventId: 42 })).toBe(
+      '[synapse] OK — app_booted accepted eventId=42',
     );
   });
 
   it('reports a queued fallback when Citadel was unreachable on the first try', () => {
-    expect(formatBootLog({ status: 'queued' }, 'starter-boot-abcd1234')).toBe(
-      "[synapse] queued (couldn't reach Citadel on first try) runId=starter-boot-abcd1234",
+    expect(formatBootLog('app_booted', { status: 'queued' })).toBe(
+      "[synapse] app_booted queued (couldn't reach Citadel on first try)",
     );
   });
 });

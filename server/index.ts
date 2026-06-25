@@ -1,13 +1,14 @@
-import { randomBytes } from 'node:crypto';
 import { createServer as createHttpServer, type Server } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { formatBootLog } from './boot.js';
+import { recentPublishes } from './events.js';
 import { synapse, synapseConfigError } from './synapse.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.NODE_ENV === 'development';
+const isReplitDeployment = Boolean(process.env.REPLIT_DEPLOYMENT);
 const port = Number(process.env.PORT ?? 3000);
 const host = '0.0.0.0';
 
@@ -15,7 +16,14 @@ async function createServerInstance(): Promise<Server> {
   const app = express();
   const httpServer = createHttpServer(app);
 
-  // Slice 2+: API routes mount here, before the client middleware below.
+  // Workspace-only inspection surface for the Events tab. Registered before the
+  // client middleware so the SPA catch-all doesn't swallow it, and hidden once
+  // the app is a published Replit deployment so it isn't exposed to end users.
+  if (!isReplitDeployment) {
+    app.get('/__synapse/events', (_req, res) => {
+      res.json(recentPublishes(synapse));
+    });
+  }
 
   if (isDev) {
     const { createServer } = await import('vite');
@@ -42,11 +50,10 @@ function publishBootEvent(): void {
     console.error(`[synapse] ${synapseConfigError}`);
     return;
   }
-  const runId = `starter-boot-${randomBytes(4).toString('hex')}`;
   void synapse
-    .publishEvent('synapse_smoke_test', { runId })
+    .publishEvent('app_booted', { startedAt: new Date().toISOString() })
     .then((result) => {
-      console.log(formatBootLog(result, runId));
+      console.log(formatBootLog('app_booted', result));
     })
     .catch((err: unknown) => {
       console.error('[synapse] publish failed:', err instanceof Error ? err.message : err);
