@@ -1,0 +1,19 @@
+modules = ["nodejs-20"]
+entrypoint = "server/index.ts"
+
+# Re-running `npm install` on every Run is intentional: if the first import-time
+# install failed because GITHUB_TOKEN wasn't set yet, setting the secret and
+# pressing Run installs the SDK and boots in one go. Subsequent runs are fast
+# (npm is a no-op when node_modules is already up to date).
+# `--include=dev` guarantees the build toolchain (vite, tsx, tailwind) installs
+# even if the environment sets NODE_ENV=production, which would otherwise prune it.
+run = "npm install --include=dev && npm run build && npm run start"
+
+[env]
+# SYNAPSE_APP_ID, SYNAPSE_APP_SECRET and GITHUB_TOKEN come from the Secrets pane.
+# SYNAPSE_BASE_URL defaults to staging in code; set it here only to override.
+
+# The server binds to process.env.PORT (Replit provides it), falling back to 3000.
+[[ports]]
+localPort = 3000
+externalPort = 80
