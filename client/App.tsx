@@ -1,23 +1,33 @@
 import { useState } from 'react';
+import { CatalogTab } from './CatalogTab';
 import { EventsTab } from './EventsTab';
+import { OverviewTab } from './OverviewTab';
+import { ReadTab } from './ReadTab';
+import { TablesTab } from './TablesTab';
 
-const TABS = [{ id: 'events', label: 'Events' }] as const;
+const TABS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'tables', label: 'Tables' },
+  { id: 'read', label: 'Read' },
+  { id: 'events', label: 'Events' },
+  { id: 'catalog', label: 'Catalog' },
+] as const;
 type TabId = (typeof TABS)[number]['id'];
 
 export function App() {
-  const [active, setActive] = useState<TabId>('events');
+  const [active, setActive] = useState<TabId>('overview');
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-3xl px-6 py-4">
           <h1 className="text-lg font-semibold">Synapse starter</h1>
-          <p className="text-sm text-slate-500">Settings</p>
+          <p className="text-sm text-slate-500">Builder console</p>
         </div>
       </header>
 
       <div className="mx-auto max-w-3xl px-6">
-        <nav className="flex gap-1 border-b border-slate-200" aria-label="Settings sections">
+        <nav className="flex gap-1 border-b border-slate-200" aria-label="Console sections">
           {TABS.map((tab) => (
             <button
               key={tab.id}
@@ -35,7 +45,13 @@ export function App() {
           ))}
         </nav>
 
-        <main className="py-6">{active === 'events' && <EventsTab />}</main>
+        <main className="py-6">
+          {active === 'overview' && <OverviewTab />}
+          {active === 'tables' && <TablesTab />}
+          {active === 'read' && <ReadTab />}
+          {active === 'events' && <EventsTab />}
+          {active === 'catalog' && <CatalogTab />}
+        </main>
       </div>
     </div>
   );

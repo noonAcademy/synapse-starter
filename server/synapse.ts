@@ -23,3 +23,8 @@ export const synapseConfigError =
 
 export const synapse: SynapseClient | null =
   appId && appSecret ? createSynapseClient({ baseUrl, appId, appSecret }) : null;
+
+// App identity for the Overview tab. appId is an identifier, not a secret, so it's safe to
+// surface; appSecret is never exported. baseUrl is config (which Citadel we point at).
+export const synapseAppId: string | null = appId ?? null;
+export const synapseBaseUrl: string = baseUrl;
