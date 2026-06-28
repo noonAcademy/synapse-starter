@@ -42,7 +42,11 @@ describe('<TablesTab />', () => {
   beforeEach(() => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({ ok: true, json: async () => TABLES })),
+      vi.fn(async () => ({
+        ok: true,
+        headers: { get: () => 'application/json' },
+        json: async () => TABLES,
+      })),
     );
   });
   afterEach(() => {

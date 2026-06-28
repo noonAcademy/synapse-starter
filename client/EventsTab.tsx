@@ -51,7 +51,9 @@ function EventsTable({ events }: { events: PublishLogEntry[] }) {
                 <StatusBadge status={event.status} />
               </td>
               <td className="px-3 py-2 text-slate-700">
-                {event.status === 'accepted' ? `#${event.eventId}` : (event.error ?? '—')}
+                {event.status === 'accepted' && event.eventId != null
+                  ? `#${event.eventId}`
+                  : (event.error ?? '—')}
               </td>
               <td className="px-3 py-2 tabular-nums text-slate-700">{event.attempts}</td>
               <td className="px-3 py-2 text-slate-500">{formatTime(event.at)}</td>

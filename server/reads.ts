@@ -15,6 +15,7 @@ export interface ReadResult {
   skillVersion: string;
   columns: string[];
   rows: Record<string, unknown>[];
+  truncated: boolean; // rows capped at the framework MAX_ROWS backstop
   dataAsOf: string | null; // ISO time the rows were fetched from the lake; null if not fetched
   cached: boolean;
   configured: boolean;
@@ -47,6 +48,7 @@ export async function runRead(
       ...base,
       columns: [],
       rows: [],
+      truncated: false,
       dataAsOf: null,
       cached: false,
       configured: false,
@@ -63,6 +65,7 @@ export async function runRead(
       ...base,
       columns: value.columns,
       rows: value.rows,
+      truncated: value.truncated,
       dataAsOf: new Date(fetchedAt).toISOString(),
       cached,
       configured: true,
@@ -73,6 +76,7 @@ export async function runRead(
       ...base,
       columns: [],
       rows: [],
+      truncated: false,
       dataAsOf: null,
       cached: false,
       configured: true,

@@ -173,9 +173,9 @@ Also exclude Noon-internal courses (country_names containing 'Noon internal').
 - **MCQ ID ≠ Question ID.** Always join `mcq.question_id = question.id`.
 - Polls seen: `poll_seen = 1`. Answered: `poll_answered = 1` or `selected_choice_id > 0`. The same `poll_id` can exist across poll types — always filter by `poll_type` too.
 - `poll_type_2` gives finer granularity: CUSTOM, QUESTION, MARATHON, TEAM_DUEL, TEAM_EXERCISE, EXIT_TICKET, etc.
-- `is_heatmap` (0/1) flags ODM practices started from a heatmap tile. ODM only; NULL for polls/MCQs.
+- `is_heatmap` (0/1) flags ODM practices started from a heatmap tile. ODM only; NULL for polls/MCQs. Use `WHERE is_heatmap = 1` to isolate heatmap-driven practice, or combine with `poll_type = 'on-demand mastery'` for explicit ODM+heatmap filtering.
 - **Poll subject comes from the question, NOT the course.** Resolve via `JOIN d_question q ON p.question_id = q.question_id` then `GROUP BY q.subject_id`. Using `d_course.subject_id` misattributes ~6% of rows.
-- **Non-graded polls produce false 0% accuracy.** Opinion polls (`chapter_name = 'محتوى خاص'`) have no correct answer. Before computing accuracy: exclude `chapter_name = 'محتوى خاص'`, require `total_answered >= 30`, and flag exactly-0% clusters as likely non-graded.
+- **Non-graded polls produce false 0% accuracy.** Opinion polls (`chapter_name = 'محتوى خاص'`) have no correct answer — every response shows `is_correct_answer = 0`, which is why naive accuracy reads 0%. Before computing accuracy: exclude `chapter_name = 'محتوى خاص'`, require `total_answered >= 30`, and flag exactly-0% clusters as likely non-graded.
 
 ## Playbacks & recaps
 - "Playback" = "Recap" (internal vs student-facing naming). `playback_session_id` is unique per viewing attempt.
@@ -220,6 +220,7 @@ Also exclude Noon-internal courses (country_names containing 'Noon internal').
 ## Belief Loop / Heatmap predictions (DA-81)
 - Prediction data lives in `noon2_core.prediction`. Always join through `noon2_core.prediction_run` on `prediction_run_id = pr.id` and filter `pr.trigger_type = 'CRON' AND pr.model_id = 'xgboost'`.
 - Resolve `entity_id` → subject via the documented chains (CHAPTER: `prediction.entity_id → chapter.id → chapter.subject_id`; TOPIC: `prediction.entity_id → topic.id → topic.chapter_id → chapter.subject_id`), each filtered `is_deleted = 0`. Fallback for unresolved TOPIC: `subject_id = 248`.
+- When comparing predictions to actual exam results, anchor on `as_of_date` = the date of the exam.
 - Tile colour thresholds (canonical): Quant red `< 0.4`, green `> 0.65812`; Verbal red `< 0.55`, green `> 0.80812` (`q_mean = 0.108120`). Between = amber; no prediction = grey.
 
 ## User & account structure
@@ -322,7 +323,8 @@ start) and a **Post** (EOC / End of Course, level-differentiated) assessment.
   `COUNT(DISTINCT CASE WHEN submitted_choice_id IS NOT NULL THEN question_id END)` and
   `COUNT(DISTINCT CASE WHEN is_correct = 1 THEN question_id END)`.
 - Group by `subject_id`, `chapter_id`, `difficulty_level`, and `level` (for EOC). Do NOT join Pre
-  and Post on `level` — the Diagnostic has no level (level comes from the EOC side / student-info view).
+  and Post on `level` — the Diagnostic has no level (level comes from the EOC side or from the
+  student-info view, `datamart_v.nn_student_info`).
 - Always ask up front: product/exam type, school year/semester, market, campus type, levels, unit
   of analysis, and the assessment IDs (Pre + Post).
 

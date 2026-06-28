@@ -66,15 +66,21 @@ async function createServerInstance(): Promise<Server> {
       );
     });
 
-    // Run one baked read (cache -> athenaQuery -> rows). Never 500s: unknown name -> 404,
-    // missing secrets -> empty configured:false result, read failure -> error field.
+    // Run one baked read (cache -> athenaQuery -> rows). runRead never rejects (read failures
+    // become an `error` field), but Express 4 doesn't forward a rejected async handler to error
+    // middleware, so the try/catch keeps that guarantee from resting on runRead's discipline.
     app.get('/__synapse/reads/:name', async (req, res) => {
-      const result = await runRead(asAthenaClient(synapse), req.params.name);
-      if (!result) {
-        res.status(404).json({ error: `unknown read: ${req.params.name}` });
-        return;
+      try {
+        const result = await runRead(asAthenaClient(synapse), req.params.name);
+        if (!result) {
+          res.status(404).json({ error: `unknown read: ${req.params.name}` });
+          return;
+        }
+        res.json(result);
+      } catch (err) {
+        console.error('[synapse] read route failed:', err instanceof Error ? err.message : err);
+        res.status(500).json({ error: 'read failed' });
       }
-      res.json(result);
     });
   }
 

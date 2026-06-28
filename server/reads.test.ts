@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AthenaQueryClient } from './athena.js';
+import type { AthenaQueryClient, AthenaRows } from './athena.js';
 import { createQueryCache } from './query-cache.js';
 import { runRead } from './reads.js';
 
@@ -37,7 +37,7 @@ describe('runRead', () => {
       { course_type: 'SCHOOL', course_count: 12 },
       { course_type: 'O2O', course_count: 5 },
     ]);
-    const cache = createQueryCache<{ columns: string[]; rows: Record<string, unknown>[] }>({
+    const cache = createQueryCache<AthenaRows>({
       now: () => 1_700_000_000_000,
     });
 
@@ -52,7 +52,7 @@ describe('runRead', () => {
 
   it('serves the second call from cache (the SDK is hit once)', async () => {
     const { client, calls } = mockClient([{ course_type: 'SCHOOL', course_count: 1 }]);
-    const cache = createQueryCache<{ columns: string[]; rows: Record<string, unknown>[] }>({
+    const cache = createQueryCache<AthenaRows>({
       now: () => 0,
     });
 

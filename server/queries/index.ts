@@ -24,9 +24,11 @@ function toBakedQuery(m: typeof coursesByType): BakedQuery {
   };
 }
 
-export const BAKED_QUERIES: Record<string, BakedQuery> = {
+// Null-prototype map so a request for an inherited key (e.g. `__proto__`) resolves to
+// undefined instead of Object.prototype — otherwise getBakedQuery would treat it as a hit.
+export const BAKED_QUERIES: Record<string, BakedQuery> = Object.assign(Object.create(null), {
   [coursesByType.name]: toBakedQuery(coursesByType),
-};
+});
 
 export function getBakedQuery(name: string): BakedQuery | null {
   return BAKED_QUERIES[name] ?? null;

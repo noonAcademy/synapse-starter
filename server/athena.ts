@@ -5,6 +5,21 @@ import type { SynapseClient } from '@noonacademy/synapse-sdk';
 export interface AthenaRows {
   columns: string[];
   rows: Record<string, unknown>[];
+  truncated: boolean; // true when the result was capped at MAX_ROWS (surfaced in the UI)
+}
+
+// Framework-level backstop: cap rows before they reach the in-memory cache and the browser, so
+// an unexpectedly large baked query can't OOM the cache or freeze the page. The shipped example
+// returns a handful of rows; this guards future reads. `truncated` is surfaced, never silent.
+const MAX_ROWS = 10_000;
+
+function capRows(rows: Record<string, unknown>[]): {
+  rows: Record<string, unknown>[];
+  truncated: boolean;
+} {
+  return rows.length > MAX_ROWS
+    ? { rows: rows.slice(0, MAX_ROWS), truncated: true }
+    : { rows, truncated: false };
 }
 
 // The slice of the SDK (>=0.1.2) the read path depends on. We declare it locally
@@ -41,22 +56,24 @@ function deriveColumns(rows: Record<string, unknown>[]): string[] {
 // `athenaQuery`'s payload shape isn't pinned by this template, so normalise defensively.
 // Accept the canonical `{ columns, rows }`, a `{ rows }` object without columns, or a bare
 // array of row objects; anything else collapses to an empty result rather than throwing.
+// NOTE: an unrecognised payload is indistinguishable from a genuinely empty read here — both
+// yield `{ columns: [], rows: [] }` and are cached as a successful empty result for the TTL.
 export function normalizeAthenaResult(raw: unknown): AthenaRows {
   if (Array.isArray(raw)) {
-    const rows = raw.filter(isRecord);
-    return { columns: deriveColumns(rows), rows };
+    const { rows, truncated } = capRows(raw.filter(isRecord));
+    return { columns: deriveColumns(rows), rows, truncated };
   }
 
   if (isRecord(raw) && Array.isArray(raw.rows)) {
-    const rows = raw.rows.filter(isRecord);
+    const { rows, truncated } = capRows(raw.rows.filter(isRecord));
     const columns =
       Array.isArray(raw.columns) && raw.columns.every((c) => typeof c === 'string')
         ? (raw.columns as string[])
         : deriveColumns(rows);
-    return { columns, rows };
+    return { columns, rows, truncated };
   }
 
-  return { columns: [], rows: [] };
+  return { columns: [], rows: [], truncated: false };
 }
 
 // Run one baked SELECT app-wide and hand back rendered rows. The SQL is built at

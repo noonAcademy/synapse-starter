@@ -10,6 +10,7 @@ interface ReadResult {
   skillVersion: string;
   columns: string[];
   rows: Record<string, unknown>[];
+  truncated: boolean;
   dataAsOf: string | null;
   cached: boolean;
   configured: boolean;
@@ -58,10 +59,17 @@ export function ReadTab() {
           </EmptyState>
         ) : read.error ? (
           <p className="text-sm text-red-600">Read failed: {read.error}</p>
-        ) : read.rows.length === 0 ? (
+        ) : read.rows.length === 0 || read.columns.length === 0 ? (
           <EmptyState>The read returned no rows.</EmptyState>
         ) : (
-          <RowsTable columns={read.columns} rows={read.rows} />
+          <>
+            {read.truncated && (
+              <p className="mb-2 text-xs text-amber-700">
+                Showing the first {read.rows.length.toLocaleString()} rows (result was capped).
+              </p>
+            )}
+            <RowsTable columns={read.columns} rows={read.rows} />
+          </>
         )}
       </div>
     </section>

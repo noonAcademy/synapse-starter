@@ -10,7 +10,7 @@ describe('normalizeAthenaResult', () => {
         { course_type: 'O2O', course_count: 4 },
       ],
     };
-    expect(normalizeAthenaResult(raw)).toEqual(raw);
+    expect(normalizeAthenaResult(raw)).toEqual({ ...raw, truncated: false });
   });
 
   it('derives columns (first-seen order) from a bare array of row objects', () => {
@@ -28,9 +28,17 @@ describe('normalizeAthenaResult', () => {
   });
 
   it('collapses unexpected shapes to an empty result instead of throwing', () => {
-    expect(normalizeAthenaResult(null)).toEqual({ columns: [], rows: [] });
-    expect(normalizeAthenaResult('nope')).toEqual({ columns: [], rows: [] });
-    expect(normalizeAthenaResult({ data: 1 })).toEqual({ columns: [], rows: [] });
+    const empty = { columns: [], rows: [], truncated: false };
+    expect(normalizeAthenaResult(null)).toEqual(empty);
+    expect(normalizeAthenaResult('nope')).toEqual(empty);
+    expect(normalizeAthenaResult({ data: 1 })).toEqual(empty);
+  });
+
+  it('caps oversized results and flags truncation', () => {
+    const big = Array.from({ length: 10_005 }, (_, i) => ({ i }));
+    const result = normalizeAthenaResult(big);
+    expect(result.rows).toHaveLength(10_000);
+    expect(result.truncated).toBe(true);
   });
 });
 
@@ -45,6 +53,6 @@ describe('runAthenaQuery', () => {
     };
     const result = await runAthenaQuery(client, 'SELECT 1');
     expect(calls).toEqual([{ sql: 'SELECT 1' }]);
-    expect(result).toEqual({ columns: ['n'], rows: [{ n: 1 }] });
+    expect(result).toEqual({ columns: ['n'], rows: [{ n: 1 }], truncated: false });
   });
 });
