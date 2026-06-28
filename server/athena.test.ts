@@ -55,4 +55,10 @@ describe('runAthenaQuery', () => {
     expect(calls).toEqual([{ sql: 'SELECT 1' }]);
     expect(result).toEqual({ columns: ['n'], rows: [{ n: 1 }], truncated: false });
   });
+
+  it('throws a clear, actionable error when the SDK build has no athenaQuery (pre-0.1.2)', async () => {
+    // Cast: a 0.1.1 client genuinely lacks the method at runtime.
+    const legacyClient = {} as unknown as Parameters<typeof runAthenaQuery>[0];
+    await expect(runAthenaQuery(legacyClient, 'SELECT 1')).rejects.toThrow(/0\.1\.2/);
+  });
 });
