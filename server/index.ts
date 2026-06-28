@@ -1,10 +1,17 @@
 import { createServer as createHttpServer, type Server } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SYNAPSE_EVENT_TYPES } from '@noonacademy/synapse-catalog';
 import express from 'express';
+import { asAthenaClient } from './athena.js';
 import { formatBootLog } from './boot.js';
+import { buildCatalog } from './catalog.js';
 import { recentPublishes } from './events.js';
-import { synapse, synapseConfigError } from './synapse.js';
+import { buildOverview } from './overview.js';
+import { listBakedQueries } from './queries/index.js';
+import { runRead } from './reads.js';
+import { synapse, synapseAppId, synapseBaseUrl, synapseConfigError } from './synapse.js';
+import { projectTables } from './tables.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.NODE_ENV === 'development';
@@ -16,12 +23,64 @@ async function createServerInstance(): Promise<Server> {
   const app = express();
   const httpServer = createHttpServer(app);
 
-  // Workspace-only inspection surface for the Events tab. Registered before the
-  // client middleware so the SPA catch-all doesn't swallow it, and hidden once
-  // the app is a published Replit deployment so it isn't exposed to end users.
+  // Workspace-only inspection surface for the builder console (Overview / Tables / Read /
+  // Catalog / Events tabs). Registered before the client middleware so the SPA catch-all
+  // doesn't swallow it, and hidden once the app is a published Replit deployment so none of
+  // it is exposed to end users.
   if (!isReplitDeployment) {
+    // Settled publish outcomes since boot.
     app.get('/__synapse/events', (_req, res) => {
       res.json(recentPublishes(synapse));
+    });
+
+    // App identity + live-ish connection check.
+    app.get('/__synapse/overview', (_req, res) => {
+      res.json(
+        buildOverview({
+          appId: synapseAppId,
+          baseUrl: synapseBaseUrl,
+          configError: synapseConfigError,
+          recentPublishes: recentPublishes(synapse),
+        }),
+      );
+    });
+
+    // Bundled Citadel registry, projected for the Tables browser.
+    app.get('/__synapse/tables', (_req, res) => {
+      res.json(projectTables());
+    });
+
+    // Catalogued event types the SDK knows about (read-only).
+    app.get('/__synapse/catalog', (_req, res) => {
+      res.json(buildCatalog(SYNAPSE_EVENT_TYPES));
+    });
+
+    // List the baked reads this app ships.
+    app.get('/__synapse/reads', (_req, res) => {
+      res.json(
+        listBakedQueries().map((q) => ({
+          name: q.name,
+          title: q.title,
+          description: q.description,
+        })),
+      );
+    });
+
+    // Run one baked read (cache -> athenaQuery -> rows). runRead never rejects (read failures
+    // become an `error` field), but Express 4 doesn't forward a rejected async handler to error
+    // middleware, so the try/catch keeps that guarantee from resting on runRead's discipline.
+    app.get('/__synapse/reads/:name', async (req, res) => {
+      try {
+        const result = await runRead(asAthenaClient(synapse), req.params.name);
+        if (!result) {
+          res.status(404).json({ error: `unknown read: ${req.params.name}` });
+          return;
+        }
+        res.json(result);
+      } catch (err) {
+        console.error('[synapse] read route failed:', err instanceof Error ? err.message : err);
+        res.status(500).json({ error: 'read failed' });
+      }
     });
   }
 

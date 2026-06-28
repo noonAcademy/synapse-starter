@@ -4,15 +4,54 @@ A clone-and-own template that connects a Replit app to Noon's Citadel via the Sy
 
 A builder clones this repo into Replit, pastes three secrets, and presses **Run**. On boot
 the server publishes an `app_booted` event to **staging** Citadel, then serves a small
-Settings page whose **Events** tab shows the outcome of every publish. That round trip
-exercises the whole runtime: the published SDK installs from GitHub Packages, Replit Secrets
-reach the server, the server boots, the request is HMAC-signed, the network reaches staging
-Citadel, and the event lands attributed to your app.
+**builder console** whose tabs let you watch publishes, browse the data registry, and run a
+read against the lake. That round trip exercises the whole runtime: the published SDK installs
+from GitHub Packages, Replit Secrets reach the server, the server boots, the request is
+HMAC-signed, the network reaches staging Citadel, and the event lands attributed to your app.
 
 > **Where this is in the ladder.** Slice 1 proved the clone→secrets→connect→publish runtime.
-> Slice 2 (this) adds the Settings page with the Events tab. Reads, self-service event types,
-> and the Slack provisioning flow are later slices. Event history is in-memory for now
-> (durable history is slice 2b).
+> Slice 2 added the Settings page with the Events tab. **Slice 3 (this)** adds **reads** — a
+> baked-query helper over the Synapse SDK's `athenaQuery`, an app-side cache, a **Tables** tab
+> (registry browser), an **Overview** tab (identity + connection check), an **Event catalog**
+> view, and a bundled SQL-analyst **skill** so the in-Replit agent writes correct reads.
+> Self-service event types and the Slack provisioning flow are later slices. Event history and
+> the read cache are in-memory for now (durable history is slice 2b).
+
+## The builder console
+
+The page served by the app is a workspace-only console with five tabs:
+
+- **Overview** — this app's Synapse identity (app id, staging base URL) and a live connection
+  check derived from the boot round-trip, plus a "try this next" list.
+- **Tables** — a searchable browser over the bundled Citadel data registry
+  (`server/citadel-schema.ts`): per-table grain, refresh cadence, an informational access
+  badge, the full column grid with enum chips, and copyable example queries.
+- **Read** — runs the one bundled example read (active courses by type) end to end: baked
+  `SELECT` → `synapse.athenaQuery` → app-side cache → rendered rows, with a "data as of …"
+  freshness note and the SQL on display.
+- **Events** — settled publish outcomes since boot (from slice 2).
+- **Catalog** — a read-only view of the event types the SDK knows about, grouped by namespace.
+
+All of these are served from `/__synapse/*` endpoints that are mounted **only in the Replit
+workspace** (when `REPLIT_DEPLOYMENT` is unset) — they are not exposed in a published
+deployment.
+
+## Reads (slice 3)
+
+Reads go through **`synapse.athenaQuery({ sql })`** — the HMAC-signed, **app-wide** SDK helper
+(requires `@noonacademy/synapse-sdk` ≥ 0.1.2). Never a raw `fetch`. They are app-wide, not
+per-user; per-user reads and runtime NL→SQL are later slices.
+
+- **Baked queries.** Each read is a file at `server/queries/<name>.sql.ts` exporting
+  `{ sql, registryVersion, skillVersion }` (plus a `name`/`title`/`description` for wiring) —
+  no params, so the SQL is reviewable in the PR diff and traceable to the schema it targets.
+- **App-side cache.** Rows are cached in memory per query name with a 1h TTL — well under the
+  lake's ~12h refresh — so the console stays responsive and cheap. A missing client (no
+  secrets) yields an empty result, never a 500. The cache resets on restart.
+- **The skill.** [`skill/SKILL.md`](skill/SKILL.md) is a Replit-adapted SQL-analyst skill
+  (Trino/Presto, the full Noon business-rules brain) that writes correct reads and bakes the
+  final `SELECT`. [`AGENTS.md`](AGENTS.md) briefs the in-Replit agent on how reads and events
+  work. To add a read: describe the data you want and let the skill write + bake it.
 
 ## Setup (4 steps + Run)
 
@@ -82,22 +121,32 @@ Other scripts:
 
 - **`server/synapse.ts`** constructs the SDK client once from env. If the required secrets
   are missing it exports `null` plus a human-readable `synapseConfigError` instead of
-  throwing, so the server still boots and the page still renders.
-- **`server/index.ts`** starts Express, exposes `GET /__synapse/events` (workspace only —
-  see below), serves the client (built static in production, Vite middleware in dev — one
-  port either way), then publishes one `app_booted` event on boot. A publish failure is
-  logged, never fatal. The long-lived client is closed only on `SIGTERM` / `SIGINT`.
+  throwing, so the server still boots and the page still renders. Also exports `synapseAppId`
+  / `synapseBaseUrl` for the Overview tab.
+- **`server/index.ts`** starts Express, mounts the workspace-only `/__synapse/*` endpoints
+  (`events`, `overview`, `tables`, `catalog`, `reads`, `reads/:name` — see below), serves the
+  client (built static in production, Vite middleware in dev — one port either way), then
+  publishes one `app_booted` event on boot. A publish failure is logged, never fatal. The
+  long-lived client is closed only on `SIGTERM` / `SIGINT`.
+- **`server/citadel-schema.ts`** is the bundled Citadel data **registry** — the one in-app
+  source of truth for Athena tables (columns, types, enums, grain, example queries) plus
+  `BUSINESS_RULES`. **`server/tables.ts`** projects it for the Tables tab.
+- **`server/queries/`** holds the baked reads (`<name>.sql.ts`) and their registry
+  (`index.ts`). **`server/reads.ts`** orchestrates registry-lookup → cache → `athenaQuery`;
+  **`server/athena.ts`** wraps `synapse.athenaQuery` and normalises the result;
+  **`server/query-cache.ts`** is the in-memory, per-name, 1h-TTL cache.
 - **`server/events.ts`** returns `synapse.getRecentPublishes({ limit: 50 })` (newest-first,
-  terminal outcomes only), or an empty list when there's no client.
-- **`client/`** is the Settings page (`App.tsx`) with the **Events** tab (`EventsTab.tsx`),
-  which fetches `/__synapse/events` and renders the publish-log table.
+  terminal outcomes only), or an empty list when there's no client. **`server/catalog.ts`**
+  and **`server/overview.ts`** build the Catalog and Overview projections.
+- **`client/`** is the builder console (`App.tsx`) with the Overview / Tables / Read / Events /
+  Catalog tabs, each fetching one `/__synapse/*` endpoint through the shared `useJson` hook.
 
 ## Notes (real Replit-flow findings)
 
-- **`/__synapse/events` is workspace-only.** It's mounted only when
-  `process.env.REPLIT_DEPLOYMENT` is unset — so the Events tab works while you build in the
-  Replit workspace, but the endpoint is not exposed once the app is a published deployment
-  (it falls through to the SPA, returning no data).
+- **All `/__synapse/*` endpoints are workspace-only.** They're mounted only when
+  `process.env.REPLIT_DEPLOYMENT` is unset — so the console works while you build in the
+  Replit workspace, but none of the endpoints are exposed once the app is a published
+  deployment (they fall through to the SPA, returning no data).
 - **Single port.** In production (`npm start`) Express serves the built static client; in dev
   (`npm run dev`) Express mounts Vite in middleware mode with HMR multiplexed over the *same*
   HTTP server (`hmr.server` in `server/index.ts`) — so both modes listen on one `PORT`, with
@@ -115,11 +164,27 @@ Other scripts:
 - **No lockfile (yet).** The template ships without a `package-lock.json`: one generated
   outside Replit is incomplete (the private SDK can't be resolved without a token), and a
   partial lockfile is worse than none. Versions resolve fresh per clone — the SDK is bounded
-  by its `^0.1.0` range. Your first authenticated `npm install` writes a correct lockfile you
+  by its `^0.1.2` range. Your first authenticated `npm install` writes a correct lockfile you
   can commit if you want fully reproducible installs.
+- **Reads need SDK ≥ 0.1.2.** `synapse.athenaQuery` lands in `@noonacademy/synapse-sdk`
+  0.1.2; the read path is written against it. The app type-checks against 0.1.1 too (the
+  `athenaQuery` contract is declared locally in `server/athena.ts`), so local dev on an older
+  SDK still builds — but the example read only returns rows once 0.1.2 is installed (Replit
+  installs the pinned version at Run).
+- **Component tests use jsdom.** `npm test` runs server units in the node environment and the
+  one `client/*.test.tsx` in jsdom (via `@vitejs/plugin-react` + a `@vitest-environment`
+  docblock). All test tooling is `devDependencies`, so `--omit=dev` skips it on Replit.
+
+## Event types are catalogued, not yet self-service
+
+The **Catalog** tab lists the event types this SDK build knows about. You can publish any of
+them today with `synapse.publishEvent(type, payload)`. Declaring a **brand-new** event type
+still requires cataloguing it in noon-citadel and republishing the SDK — true self-service
+event declaration is a later slice.
 
 ## What's next
 
-- **Slice 2b** — durable event history (persist outcomes so the Events tab survives restarts).
-- **Slice 3** — reads (an Athena-backed query helper + cache).
+- **Slice 2b** — durable event/read history (persist outcomes + cache so they survive restarts).
 - **Slice 5 / 6** — self-service event types, and the `/build-app` Slack provisioning flow.
+- **Later reads** — per-user (scoped) reads, runtime NL→SQL, and a Citadel-served registry
+  (this slice bundles the registry in-repo for the POC).
