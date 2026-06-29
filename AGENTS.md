@@ -3,6 +3,12 @@
 This app connects a Replit project to Noon's **Citadel** via the **Synapse SDK**. It does two
 things: **publishes events** and **runs reads**. Read this before adding either.
 
+> **Your data lives in Citadel, not locally.** All Noon analytics data (students, sessions,
+> courses, …) is in the Citadel warehouse, reached *only* through `synapse.athenaQuery`. The
+> Replit Postgres / `DATABASE_URL` is **empty by design** — never query it for Noon data and
+> don't create local tables for it. If you're looking for Noon data, it's a `synapse.athenaQuery`
+> read (see "To add a read" below).
+
 ## The two rules that matter most
 
 1. **Reads go through `synapse.athenaQuery({ sql })` — never a raw `fetch` or a direct
