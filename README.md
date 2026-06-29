@@ -39,7 +39,7 @@ deployment.
 ## Reads (slice 3)
 
 Reads go through **`synapse.athenaQuery({ sql })`** — the HMAC-signed, **app-wide** SDK helper
-(requires `@noonacademy/synapse-sdk` ≥ 0.1.2). Never a raw `fetch`. They are app-wide, not
+that lands in `@noonacademy/synapse-sdk` 0.1.2. Never a raw `fetch`. They are app-wide, not
 per-user; per-user reads and runtime NL→SQL are later slices.
 
 - **Baked queries.** Each read is a file at `server/queries/<name>.sql.ts` exporting
@@ -164,13 +164,17 @@ Other scripts:
 - **No lockfile (yet).** The template ships without a `package-lock.json`: one generated
   outside Replit is incomplete (the private SDK can't be resolved without a token), and a
   partial lockfile is worse than none. Versions resolve fresh per clone — the SDK is bounded
-  by its `^0.1.2` range. Your first authenticated `npm install` writes a correct lockfile you
+  by its `^0.1.1` range. Your first authenticated `npm install` writes a correct lockfile you
   can commit if you want fully reproducible installs.
-- **Reads need SDK ≥ 0.1.2.** `synapse.athenaQuery` lands in `@noonacademy/synapse-sdk`
-  0.1.2; the read path is written against it. The app type-checks against 0.1.1 too (the
-  `athenaQuery` contract is declared locally in `server/athena.ts`), so local dev on an older
-  SDK still builds — but the example read only returns rows once 0.1.2 is installed (Replit
-  installs the pinned version at Run).
+- **Reads light up when SDK 0.1.2 publishes.** `synapse.athenaQuery` lands in
+  `@noonacademy/synapse-sdk` 0.1.2; the read path is written against it. The dependency is
+  pinned **`^0.1.1`** (not `^0.1.2`) on purpose: `^0.1.2` would fail to install until 0.1.2 is
+  published, breaking the clone-and-Run flow — whereas `^0.1.1` installs today **and** picks up
+  0.1.2 automatically the moment it ships (`^0.1.1` resolves to the highest `0.1.x`). Until then
+  the app boots and every tab works except the **Read** tab, which shows a clear "reads need SDK
+  ≥ 0.1.2" message rather than crashing. The `athenaQuery` contract is declared locally in
+  `server/athena.ts`, so the app type-checks and builds on 0.1.1 too. Bump to `^0.1.2` once the
+  SDK is published if you want to hard-require it.
 - **Component tests use jsdom.** `npm test` runs server units in the node environment and the
   one `client/*.test.tsx` in jsdom (via `@vitejs/plugin-react` + a `@vitest-environment`
   docblock). All test tooling is `devDependencies`, so `--omit=dev` skips it on Replit.

@@ -79,5 +79,14 @@ export function normalizeAthenaResult(raw: unknown): AthenaRows {
 // Run one baked SELECT app-wide and hand back rendered rows. The SQL is built at
 // authoring time (see server/queries/*.sql.ts), so there are no params to bind here.
 export async function runAthenaQuery(client: AthenaQueryClient, sql: string): Promise<AthenaRows> {
+  // athenaQuery lands in @noonacademy/synapse-sdk 0.1.2. Until that publishes, the dependency
+  // range resolves to 0.1.1 (which has no athenaQuery), so surface a clear, actionable message
+  // in the Read tab instead of a raw "athenaQuery is not a function".
+  if (typeof client.athenaQuery !== 'function') {
+    throw new Error(
+      'This SDK build has no athenaQuery — reads need @noonacademy/synapse-sdk >= 0.1.2. ' +
+        'Update once it publishes (the dependency range already allows it).',
+    );
+  }
   return normalizeAthenaResult(await client.athenaQuery({ sql }));
 }
