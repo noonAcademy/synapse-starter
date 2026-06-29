@@ -28,6 +28,19 @@ things: **publishes events** and **runs reads**. Read this before adding either.
 
 Don't hand-write SQL transport, and don't read data any other way.
 
+## To publish an event
+
+Events go through `synapse.publishEvent(type, payload)`, and the `type` **must already be in the
+catalog** (browse it in the **Catalog** tab, or `@noonacademy/synapse-catalog`). When you build a
+feature that would emit a new kind of event:
+
+1. **Reuse an existing catalogued type** if one reasonably fits — prefer this.
+2. If none fits, **stop and tell the user**: "this needs a new event type added to Citadel's
+   catalog — a Noon-side step today (self-service is a later slice)." Don't invent one.
+
+**Never call `publishEvent` with an uncatalogued type.** Citadel rejects it (and the SDK warns), so
+it won't land — silently publishing it just looks broken to the user. The catalog is the contract.
+
 ## Where things live
 
 | Path | What it is |

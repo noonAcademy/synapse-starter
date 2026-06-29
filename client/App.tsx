@@ -12,7 +12,7 @@ const TABS = [
   { id: 'events', label: 'Events' },
   { id: 'catalog', label: 'Catalog' },
 ] as const;
-type TabId = (typeof TABS)[number]['id'];
+export type TabId = (typeof TABS)[number]['id'];
 
 export function App() {
   const [active, setActive] = useState<TabId>('overview');
@@ -22,7 +22,7 @@ export function App() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-3xl px-6 py-4">
           <h1 className="text-lg font-semibold">Synapse starter</h1>
-          <p className="text-sm text-slate-500">Builder console</p>
+          <p className="text-sm text-slate-500">Your app's window into Noon data</p>
         </div>
       </header>
 
@@ -46,7 +46,7 @@ export function App() {
         </nav>
 
         <main className="py-6">
-          {active === 'overview' && <OverviewTab />}
+          {active === 'overview' && <OverviewTab onNavigate={setActive} />}
           {active === 'tables' && <TablesTab />}
           {active === 'read' && <ReadTab />}
           {active === 'events' && <EventsTab />}

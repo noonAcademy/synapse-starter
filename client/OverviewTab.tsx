@@ -1,3 +1,4 @@
+import type { TabId } from './App';
 import { useJson } from './useJson';
 
 // Mirrors server/overview.ts OverviewProjection (served by /__synapse/overview).
@@ -12,44 +13,122 @@ interface Overview {
   };
 }
 
-const TRY_NEXT = [
-  <>
-    Open the <strong>Tables</strong> tab to browse the bundled data registry.
-  </>,
-  <>
-    Open the <strong>Read</strong> tab to run the example read against staging.
-  </>,
-  <>
-    Add your own read: describe the data you want and let <code className="font-mono">/skill</code>{' '}
-    bake the SELECT into <code className="font-mono">server/queries/</code> (see{' '}
-    <code className="font-mono">AGENTS.md</code>).
-  </>,
-  <>
-    Publish an event with <code className="font-mono">synapse.publishEvent</code> — outcomes show in
-    the <strong>Events</strong> tab.
-  </>,
+// The "Here's what you can do" cards. Each one jumps to another tab, described in plain
+// English — no jargon, so a first-time builder knows what each section is for.
+const WHAT_YOU_CAN_DO: { tab: TabId; title: string; blurb: string }[] = [
+  {
+    tab: 'tables',
+    title: 'Browse Noon data',
+    blurb: 'See the Noon data you can pull into your app — students, sessions, courses and more.',
+  },
+  {
+    tab: 'read',
+    title: 'See live data in a page',
+    blurb: 'A read is a page that pulls live Noon data. Open the example — or ask for your own.',
+  },
+  {
+    tab: 'events',
+    title: 'See what your app told Noon',
+    blurb: 'Events are things your app reports back to Noon. Check what has been sent so far.',
+  },
+  {
+    tab: 'catalog',
+    title: 'See which events you can send',
+    blurb: 'The list of event types your app is allowed to send to Noon.',
+  },
 ];
 
-export function OverviewTab() {
+export function OverviewTab({ onNavigate }: { onNavigate: (tab: TabId) => void }) {
   const state = useJson<Overview>('/__synapse/overview');
 
   if (state.status === 'loading') {
-    return <p className="text-sm text-slate-500">Checking connection…</p>;
+    return <p className="text-sm text-slate-500">Checking your connection to Noon…</p>;
   }
   if (state.status === 'error') {
-    return <p className="text-sm text-red-600">Couldn't load overview: {state.message}</p>;
+    return <p className="text-sm text-red-600">Couldn't load this page: {state.message}</p>;
   }
 
   const o = state.data;
 
   return (
     <section className="space-y-6">
-      <div>
-        <h2 className="text-base font-semibold">Overview</h2>
-        <p className="text-sm text-slate-500">This app's Synapse identity and connection status.</p>
+      <div className="space-y-1">
+        <h2 className="text-xl font-semibold">Welcome 👋</h2>
+        <p className="text-sm text-slate-600">
+          This is your app's window into Noon. It does two things: it pulls{' '}
+          <strong>live Noon data</strong> into your pages, and it tells Noon when{' '}
+          <strong>things happen</strong> in your app.
+        </p>
       </div>
 
-      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <ConnectionCard o={o} />
+
+      <div>
+        <h3 className="text-sm font-semibold text-slate-900">Here's what you can do</h3>
+        <p className="text-sm text-slate-500">Tap a card to jump in.</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {WHAT_YOU_CAN_DO.map((item) => (
+            <button
+              key={item.tab}
+              type="button"
+              onClick={() => onNavigate(item.tab)}
+              className="rounded-lg border border-slate-200 bg-white p-4 text-left transition-colors hover:border-slate-300 hover:bg-slate-50"
+            >
+              <span className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-slate-900">{item.title}</span>
+                <span aria-hidden className="text-slate-300">
+                  →
+                </span>
+              </span>
+              <span className="mt-1 block text-sm text-slate-500">{item.blurb}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <ConnectionDetails o={o} />
+    </section>
+  );
+}
+
+function ConnectionCard({ o }: { o: Overview }) {
+  if (o.connection.ok) {
+    return (
+      <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+        <p className="text-sm font-semibold text-green-800">✓ Connected to Noon</p>
+        <p className="mt-1 text-sm text-green-700">{o.connection.detail}</p>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+      <p className="text-sm font-semibold text-amber-900">Not connected yet</p>
+      <p className="mt-1 text-sm text-amber-800">
+        {o.configured ? (
+          o.connection.detail
+        ) : (
+          <>
+            Add your Noon keys in Replit's <strong>Secrets</strong> (
+            <code className="font-mono">SYNAPSE_APP_ID</code> and{' '}
+            <code className="font-mono">SYNAPSE_APP_SECRET</code>), then press <strong>Run</strong>{' '}
+            again.
+          </>
+        )}
+      </p>
+      {o.configError && <p className="mt-1 text-sm text-amber-800">{o.configError}</p>}
+    </div>
+  );
+}
+
+// The raw identity values, tucked away — useful for debugging, but not what a first-time
+// builder needs front-and-centre.
+function ConnectionDetails({ o }: { o: Overview }) {
+  return (
+    <details className="rounded-lg border border-slate-200 bg-white">
+      <summary className="cursor-pointer px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+        Connection details
+      </summary>
+      <dl className="grid grid-cols-1 gap-3 px-4 pb-4 sm:grid-cols-2">
         <Field label="App ID">
           {o.appId ? <span className="font-mono">{o.appId}</span> : <Muted>not set</Muted>}
         </Field>
@@ -57,36 +136,7 @@ export function OverviewTab() {
           <span className="font-mono break-all">{o.baseUrl}</span>
         </Field>
       </dl>
-
-      <div className="rounded-md border border-slate-200 p-4">
-        <div className="flex items-center gap-2">
-          <span
-            className={`inline-block h-2.5 w-2.5 rounded-full ${o.connection.ok ? 'bg-green-500' : 'bg-red-500'}`}
-            aria-hidden
-          />
-          <span className="text-sm font-medium">
-            {o.connection.ok ? 'Connected' : 'Not connected'}
-          </span>
-        </div>
-        <p className="mt-1 text-sm text-slate-500">{o.connection.detail}</p>
-        {o.configError && <p className="mt-1 text-sm text-red-600">{o.configError}</p>}
-      </div>
-
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Try this next
-        </h3>
-        <ul className="mt-2 space-y-1.5 text-sm text-slate-700">
-          {TRY_NEXT.map((item, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: static list, never reordered
-            <li key={i} className="flex gap-2">
-              <span className="text-slate-300">→</span>
-              <span>{item}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
+    </details>
   );
 }
 

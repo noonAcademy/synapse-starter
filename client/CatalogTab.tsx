@@ -24,14 +24,14 @@ export function CatalogTab() {
 
   return (
     <section>
-      <h2 className="text-base font-semibold">Event catalog</h2>
+      <h2 className="text-base font-semibold">Catalog — events your app can send</h2>
       <p className="mb-1 text-sm text-slate-500">
-        The {catalog.total} event types this SDK build knows about. Publish any of them with{' '}
-        <code className="font-mono">synapse.publishEvent(type, payload)</code>.
+        These are the {catalog.total} kinds of event your app is allowed to send to Noon. In code,
+        you send one with <code className="font-mono">synapse.publishEvent(type, payload)</code>.
       </p>
       <p className="mb-4 text-xs text-slate-400">
-        Read-only. Declaring a brand-new event type still requires cataloguing it in noon-citadel
-        and republishing the SDK — self-service declaration is a later slice.
+        This list is read-only. Adding a brand-new kind of event is a Noon-side step today (it has
+        to be added to Noon's catalog first) — self-service is coming.
       </p>
 
       <div className="space-y-4">

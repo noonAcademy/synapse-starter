@@ -58,10 +58,11 @@ function TablesBrowser({ tables }: { tables: TableProjection[] }) {
 
   return (
     <section>
-      <h2 className="text-base font-semibold">Tables</h2>
+      <h2 className="text-base font-semibold">Tables — Noon data you can use</h2>
       <p className="mb-4 text-sm text-slate-500">
-        The bundled Citadel data registry ({tables.length} tables). Browse it to write reads — the
-        source of truth is <code className="font-mono">server/citadel-schema.ts</code>.
+        These are the {tables.length} sets of Noon data your app can pull from — things like
+        students, sessions and courses. Pick one to see what's inside, then tap{' '}
+        <strong>“Use this in my app”</strong> to turn it into a page.
       </p>
 
       <input
@@ -98,7 +99,7 @@ function TablesBrowser({ tables }: { tables: TableProjection[] }) {
             ))}
           </ul>
 
-          {selected && <TableDetail table={selected} />}
+          {selected && <TableDetail key={selected.key} table={selected} />}
         </div>
       )}
     </section>
@@ -116,7 +117,9 @@ function TableDetail({ table }: { table: TableProjection }) {
       </div>
       <p className="mt-1 text-sm text-slate-600">{table.description}</p>
 
-      <dl className="mt-3 grid grid-cols-1 gap-1 text-xs text-slate-500 sm:grid-cols-2">
+      <UseInAppPanel table={table} />
+
+      <dl className="mt-4 grid grid-cols-1 gap-1 text-xs text-slate-500 sm:grid-cols-2">
         <div>
           <dt className="inline font-medium text-slate-600">Grain: </dt>
           <dd className="inline">{table.grain}</dd>
@@ -165,7 +168,7 @@ function TableDetail({ table }: { table: TableProjection }) {
           </h4>
           <div className="mt-2 space-y-2">
             {table.exampleQueries.map((sql) => (
-              <CopyableQuery key={sql} sql={sql} />
+              <CopyBox key={sql} text={sql} />
             ))}
           </div>
         </>
@@ -190,18 +193,85 @@ function AccessBadge({ level }: { level: string }) {
   );
 }
 
-function CopyableQuery({ sql }: { sql: string }) {
+// Builds the copy-paste message a builder hands to the Replit agent. The app can't bake a
+// new read at runtime (reads are written at build time — see AGENTS.md), so the "Use this in
+// my app" flow produces a ready-to-paste instruction scoped to this table instead. Exported
+// for unit testing.
+export function buildAgentPrompt(tableName: string, want: string): string {
+  const ask = want.trim() || '(describe what you want to see here)';
+  return [
+    `Using the \`${tableName}\` table, build me a page that shows:`,
+    '',
+    ask,
+    '',
+    'Follow AGENTS.md: bake this as a read in server/queries (a baked SELECT run through ' +
+      'synapse.athenaQuery — app-wide, no raw fetch, no per-user scope) and register it so the ' +
+      'Read tab renders it.',
+  ].join('\n');
+}
+
+// "Use this in my app" — the bridge from a table to action. Opens a panel where the builder
+// says what they want in plain English; we turn it into a prompt for the Replit agent.
+function UseInAppPanel({ table }: { table: TableProjection }) {
+  const [open, setOpen] = useState(false);
+  // Pre-fill with the table's vetted example query as a starting point — the builder can
+  // replace it with plain English or tweak it.
+  const [want, setWant] = useState(table.exampleQueries[0] ?? '');
+
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-700"
+      >
+        Use this in my app
+      </button>
+
+      {open && (
+        <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+          <label htmlFor="use-in-app-want" className="block text-xs font-medium text-slate-700">
+            What do you want from this table?
+          </label>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Describe it in plain English (or tweak the example we've started you with). We'll turn
+            it into a message you can paste to the Replit agent — it writes the query for you.
+          </p>
+          <textarea
+            id="use-in-app-want"
+            value={want}
+            onChange={(e) => setWant(e.target.value)}
+            rows={4}
+            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-xs text-slate-800 focus:border-slate-900 focus:outline-none"
+          />
+
+          <p className="mt-3 text-xs font-medium text-slate-700">
+            Paste this to the Replit agent (chat):
+          </p>
+          <div className="mt-1">
+            <CopyBox text={buildAgentPrompt(table.table, want)} wrap />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// A copyable text block with a one-tap copy button. `wrap` keeps prose (the agent prompt)
+// readable; SQL is left to scroll horizontally so lines stay intact.
+function CopyBox({ text, wrap = false }: { text: string; wrap?: boolean }) {
   const [copied, setCopied] = useState(false);
 
   const copy = () => {
-    void navigator.clipboard?.writeText(sql).then(() => {
+    void navigator.clipboard?.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
   };
 
   return (
-    <div className="relative rounded-md border border-slate-200 bg-slate-50">
+    <div className="relative rounded-md border border-slate-200 bg-white">
       <button
         type="button"
         onClick={copy}
@@ -209,7 +279,11 @@ function CopyableQuery({ sql }: { sql: string }) {
       >
         {copied ? 'copied' : 'copy'}
       </button>
-      <pre className="overflow-x-auto px-3 py-2 pr-16 text-xs text-slate-700">{sql}</pre>
+      <pre
+        className={`overflow-x-auto px-3 py-2 pr-16 text-xs text-slate-700 ${wrap ? 'whitespace-pre-wrap' : ''}`}
+      >
+        {text}
+      </pre>
     </div>
   );
 }
