@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { filterTables, type TableProjection, TablesTab } from './TablesTab';
+import { buildAgentPrompt, filterTables, type TableProjection, TablesTab } from './TablesTab';
 
 const TABLES: TableProjection[] = [
   {
@@ -24,7 +24,7 @@ const TABLES: TableProjection[] = [
     refreshCadence: 'Every 12 hours',
     accessLevel: 'all',
     columns: [{ name: 'learning_time', type: 'decimal', description: 'minutes with teacher' }],
-    exampleQueries: [],
+    exampleQueries: ['SELECT user_id FROM noon2_datamart.f_user_session'],
   },
 ];
 
@@ -35,6 +35,21 @@ describe('filterTables', () => {
     expect(filterTables(TABLES, 'attendance').map((t) => t.key)).toEqual(['f_user_session']);
     expect(filterTables(TABLES, '')).toHaveLength(2);
     expect(filterTables(TABLES, 'nomatch')).toHaveLength(0);
+  });
+});
+
+describe('buildAgentPrompt', () => {
+  it('scopes the prompt to the table and hands off to the agent per AGENTS.md', () => {
+    const prompt = buildAgentPrompt('f_user_session', 'students who attended last week');
+    expect(prompt).toContain('`f_user_session`');
+    expect(prompt).toContain('students who attended last week');
+    expect(prompt).toContain('AGENTS.md');
+    expect(prompt).toContain('server/queries');
+    expect(prompt).toContain('synapse.athenaQuery');
+  });
+
+  it('falls back to a placeholder when no text is given', () => {
+    expect(buildAgentPrompt('d_course', '   ')).toContain('describe what you want');
   });
 });
 
@@ -66,5 +81,31 @@ describe('<TablesTab />', () => {
 
     expect(screen.queryByText('d_course')).toBeNull();
     expect(screen.getByText('f_user_session')).toBeTruthy();
+  });
+
+  it('offers a "Use this in my app" handoff that builds a copy-paste agent prompt', async () => {
+    render(<TablesTab />);
+
+    // Select the table that ships an example query, then open the handoff panel.
+    fireEvent.click(await screen.findByText('f_user_session'));
+    fireEvent.click(screen.getByRole('button', { name: /use this in my app/i }));
+
+    // The textarea is pre-filled with the table's vetted example query as a starting point.
+    const textarea = screen.getByLabelText(/what do you want from this table/i);
+    expect((textarea as HTMLTextAreaElement).value).toContain(
+      'SELECT user_id FROM noon2_datamart.f_user_session',
+    );
+
+    // It's a guide-to-agent handoff, not an in-app query runner. The prompt block is the only
+    // place "Follow AGENTS.md" appears, so it uniquely identifies the generated prompt.
+    expect(screen.getByText(/paste this to the replit agent/i)).toBeTruthy();
+    const prompt = screen.getByText(/Follow AGENTS\.md/i);
+    expect(prompt.textContent).toContain('`f_user_session`');
+
+    // Typing what you want flows straight into the generated prompt.
+    fireEvent.change(textarea, { target: { value: 'top 10 students by learning time' } });
+    expect(screen.getByText(/Follow AGENTS\.md/i).textContent).toContain(
+      'top 10 students by learning time',
+    );
   });
 });
