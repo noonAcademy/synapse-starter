@@ -8,10 +8,11 @@ things: **publishes events** and **runs reads**. Read this before adding either.
 1. **Reads go through `synapse.athenaQuery({ sql })` — never a raw `fetch` or a direct
    Athena/Presto/HTTP client.** It's the HMAC-signed, app-wide SDK helper. The app-side
    plumbing (cache, route, rendering) already exists; you add SQL, not transport.
-2. **Events go through `synapse.publishEvent(type, payload)`.** Types are catalogued — see the
-   **Catalog** tab (or `@noonacademy/synapse-catalog`). You can only publish a type that
-   already exists; declaring a brand-new type is a later slice (needs cataloguing in
-   noon-citadel + an SDK republish).
+2. **Events go through `synapse.publishEvent(type, payload)`.** Built-in types are catalogued —
+   browse them under "Events your app can send" on the **My app** tab (or
+   `@noonacademy/synapse-catalog`). If a feature you're building needs a kind of event no built-in
+   covers, **YOU (the agent) declare it** with `synapse.declareEvent(...)` and then publish it —
+   there's no Noon-side step, and you never hand this off to the user.
 
 ## To add a read
 
@@ -30,16 +31,47 @@ Don't hand-write SQL transport, and don't read data any other way.
 
 ## To publish an event
 
-Events go through `synapse.publishEvent(type, payload)`, and the `type` **must already be in the
-catalog** (browse it in the **Catalog** tab, or `@noonacademy/synapse-catalog`). When you build a
-feature that would emit a new kind of event:
+Events go through `synapse.publishEvent(type, payload)`. When a feature you're building emits a
+new kind of event:
 
-1. **Reuse an existing catalogued type** if one reasonably fits — prefer this.
-2. If none fits, **stop and tell the user**: "this needs a new event type added to Citadel's
-   catalog — a Noon-side step today (self-service is a later slice)." Don't invent one.
+1. **Reuse a catalogued built-in** if one reasonably fits — prefer this. Built-ins are browsable
+   under "Events your app can send" on the **My app** tab (or `@noonacademy/synapse-catalog`), and
+   they keep their payload autocomplete.
+2. **If none fits, declare it yourself** — don't stop, don't ask the user:
 
-**Never call `publishEvent` with an uncatalogued type.** Citadel rejects it (and the SDK warns), so
-it won't land — silently publishing it just looks broken to the user. The catalog is the contract.
+   ```ts
+   const res = await synapse.declareEvent('task.reassigned', {
+     description: 'Sent when a task is moved from one assignee to another.',
+     examplePayload: { taskId: 90210, fromUserId: 11, toUserId: 42 },
+   });
+   ```
+
+   Then handle the result:
+   - **created** → it's yours; publish it now.
+   - **suggested** → an existing type already covers this — use the suggested type instead.
+   - **blocked** → read the reason, fix the name or description, and retry.
+
+   Names are **per-app** (the same name in another app is fine; you can't reuse a built-in or one
+   you've already declared in this app), **lowercase-dotted**, and **past-tense** —
+   `namespace.thing_happened`.
+3. **Then publish it:** `synapse.publishEvent('task.reassigned', payload)`.
+
+(Declared types are runtime strings, so they get **no payload autocomplete** — built-ins still do.
+That's expected.)
+
+### Payload conventions
+
+The **example payload you pass to `declareEvent` IS the contract** — Citadel derives the shape from
+it, so nobody hand-authors a schema. Make it realistic but schematic, and follow these conventions
+(Citadel enforces only a minimum shape, so they're on you, here):
+
+- **Reference Noon entities by ID — never paste whole records.** `{ "courseId": 12345 }`, not the
+  course object.
+- **Keep it flat and minimal** — just the fields that define what happened.
+
+**Defining the event is the agent's job.** Never tell the user to "ask Noon" or hand them a form —
+you declare it in the server code you're writing, the same way you call `synapse.athenaQuery` for
+reads.
 
 ## Where things live
 
