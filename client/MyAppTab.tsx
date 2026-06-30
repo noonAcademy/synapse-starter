@@ -312,8 +312,13 @@ function CatalogSection() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-500">
-        The {catalog.total} kinds of thing your app is allowed to tell Noon about. Adding a
-        brand-new kind is a Noon-side step today (self-service is coming).
+        These are the kinds of thing your app can tell Noon about.{' '}
+        <strong className="font-medium text-slate-700">
+          Need a new one? Just ask the Replit agent to build the feature that needs it
+        </strong>{' '}
+        — it defines and sends the event for you. Nothing to set up here. What your app has actually
+        sent shows under{' '}
+        <strong className="font-medium text-slate-700">“What your app has sent”</strong> above.
       </p>
 
       {catalog.groups.map((group) => (

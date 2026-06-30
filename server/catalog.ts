@@ -3,9 +3,10 @@
 // plus a runtime list of type names (SYNAPSE_EVENT_TYPES) — payload field shapes are types
 // only and erased at runtime, so this view lists the type names grouped by namespace.
 //
-// NOTE: this is a *view*, not declaration. Today, a genuinely new event type still has to be
-// catalogued in noon-citadel and the SDK republished; self-service declaration is a later
-// slice (see README).
+// NOTE: this is a *view*, not declaration — but declaration now exists. When a feature needs a
+// new event type, the agent calls `synapse.declareEvent` (server-side) and then publishes it;
+// there's no Noon-side step. This view lists the built-in type names only — declared types are
+// runtime strings, so they don't appear here.
 
 export interface CatalogGroup {
   namespace: string; // dotted prefix, e.g. "task" / "sanad_ticket"; "(core)" for unprefixed

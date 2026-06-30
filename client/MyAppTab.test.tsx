@@ -92,4 +92,15 @@ describe('<MyAppTab />', () => {
     expect(await screen.findByText('Delivered')).toBeTruthy();
     expect(screen.getByText("Couldn't deliver")).toBeTruthy();
   });
+
+  it('points to the agent for new event types instead of dead-ending', async () => {
+    render(<MyAppTab onNavigate={vi.fn()} />);
+
+    // The new copy hands new event types to the Replit agent…
+    expect(await screen.findByText(/ask the Replit agent to build the feature/i)).toBeTruthy();
+
+    // …and the old "Noon-side step / self-service is coming" dead-end is gone.
+    expect(screen.queryByText(/self-service is coming/i)).toBeNull();
+    expect(screen.queryByText(/Noon-side step/i)).toBeNull();
+  });
 });
