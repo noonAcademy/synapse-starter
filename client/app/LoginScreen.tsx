@@ -58,14 +58,22 @@ export function LoginScreen() {
   useEffect(() => {
     let cancelled = false;
     fetch('/api/auth/config')
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error('auth config request failed');
+        }
+        return res.json();
+      })
       .then((data: { googleClientId?: string | null } | null) => {
         if (!cancelled) {
           setClientId(data?.googleClientId ?? null);
         }
       })
       .catch(() => {
-        /* leave clientId null — the config-missing message renders below */
+        // A transient failure is an availability issue, not "not configured" — say so distinctly.
+        if (!cancelled) {
+          setError('Could not load sign-in configuration. Please refresh.');
+        }
       });
     return () => {
       cancelled = true;

@@ -71,49 +71,60 @@ const authDeps = buildEndUserAuthDeps({
 describe('end-user auth gate wiring', () => {
   it('gates the deployed app: API -> 401, page -> 302 /login', async () => {
     const { port, close } = await serve(buildApp({ isReplitDeployment: true, authDeps }));
+    try {
+      const views = await get(port, '/api/views');
+      expect(views.status).toBe(401);
 
-    const views = await get(port, '/api/views');
-    expect(views.status).toBe(401);
-
-    const page = await get(port, '/');
-    expect(page.status).toBe(302);
-    expect(page.headers.location).toBe('/login');
-
-    await close();
+      const page = await get(port, '/');
+      expect(page.status).toBe(302);
+      expect(page.headers.location).toBe('/login');
+    } finally {
+      await close();
+    }
   });
 
   it('leaves the workspace open: API reachable, no /login redirect', async () => {
     const { port, close } = await serve(buildApp({ isReplitDeployment: false }));
+    try {
+      const views = await get(port, '/api/views');
+      expect(views.status).toBe(200);
 
-    const views = await get(port, '/api/views');
-    expect(views.status).toBe(200);
-
-    const page = await get(port, '/');
-    expect(page.status).not.toBe(302);
-
-    await close();
+      const page = await get(port, '/');
+      expect(page.status).not.toBe(302);
+    } finally {
+      await close();
+    }
   });
 });
 
 describe('app event route (/api/events)', () => {
   it('gates it in the deployed app: an unauthenticated POST -> 401', async () => {
     const { port, close } = await serve(buildApp({ isReplitDeployment: true, authDeps }));
-    const res = await post(port, '/api/events', { type: 'game.round_won' });
-    expect(res.status).toBe(401);
-    await close();
+    try {
+      const res = await post(port, '/api/events', { type: 'game.round_won' });
+      expect(res.status).toBe(401);
+    } finally {
+      await close();
+    }
   });
 
   it('requires an event type (400) in the open workspace', async () => {
     const { port, close } = await serve(buildApp({ isReplitDeployment: false }));
-    const res = await post(port, '/api/events', { payload: { studentId: 1 } });
-    expect(res.status).toBe(400);
-    await close();
+    try {
+      const res = await post(port, '/api/events', { payload: { studentId: 1 } });
+      expect(res.status).toBe(400);
+    } finally {
+      await close();
+    }
   });
 
   it('reports not-connected (503) when the app secrets are missing', async () => {
     const { port, close } = await serve(buildApp({ isReplitDeployment: false }));
-    const res = await post(port, '/api/events', { type: 'game.round_won', payload: {} });
-    expect(res.status).toBe(503);
-    await close();
+    try {
+      const res = await post(port, '/api/events', { type: 'game.round_won', payload: {} });
+      expect(res.status).toBe(503);
+    } finally {
+      await close();
+    }
   });
 });

@@ -75,6 +75,10 @@ export interface CitadelOAuthClient {
 
 const trimBase = (base: string): string => base.replace(/\/+$/, '');
 
+// Outbound Citadel calls get a timeout so a hung upstream can't block a request (e.g. during
+// /auth/callback) indefinitely and exhaust connections under load.
+const DEFAULT_TIMEOUT_MS = 10_000;
+
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
@@ -107,6 +111,7 @@ export async function oauthLogin(
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ credential, appId: cfg.appId, redirectUri: cfg.redirectUri }),
+    signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
   });
   const data = await readJson(res);
   if (!res.ok) {
@@ -134,6 +139,7 @@ async function signedPost(cfg: CitadelOAuthConfig, path: string, body: unknown):
     method: 'POST',
     headers,
     body: rawBody,
+    signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
   });
   const data = await readJson(res);
   if (!res.ok) {
@@ -142,10 +148,19 @@ async function signedPost(cfg: CitadelOAuthConfig, path: string, body: unknown):
   return data;
 }
 
-function toTokens(source: Record<string, unknown>): OAuthTokens {
+function toTokens(source: Record<string, unknown>, operation: string): OAuthTokens {
+  // Fail fast on a malformed response rather than coercing missing tokens to empty strings and
+  // storing/using a blank access token downstream.
+  if (typeof source.accessToken !== 'string' || typeof source.refreshToken !== 'string') {
+    throw new OAuthError(
+      `Citadel oauth ${operation} response missing token fields`,
+      502,
+      operation,
+    );
+  }
   return {
-    accessToken: asString(source.accessToken),
-    refreshToken: asString(source.refreshToken),
+    accessToken: source.accessToken,
+    refreshToken: source.refreshToken,
     expiresIn: asNumber(source.expiresIn),
     type: asOptString(source.type),
   };
@@ -159,7 +174,7 @@ export async function oauthToken(
   const obj = isObject(data) ? data : {};
   const tokenObj = isObject(obj.token) ? obj.token : {};
   return {
-    token: toTokens(tokenObj),
+    token: toTokens(tokenObj, 'token'),
     profile: obj.profile ?? null,
   };
 }
@@ -169,7 +184,7 @@ export async function oauthRefresh(
   { refreshToken }: { refreshToken: string },
 ): Promise<OAuthRefreshResult> {
   const data = await signedPost(cfg, '/api/oauth/refresh', { refreshToken });
-  return toTokens(isObject(data) ? data : {});
+  return toTokens(isObject(data) ? data : {}, 'refresh');
 }
 
 export function createCitadelOAuthClient(cfg: CitadelOAuthConfig): CitadelOAuthClient {

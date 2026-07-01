@@ -33,7 +33,11 @@ export function useSynapseMode(): SynapseMode {
       return;
     }
     let cancelled = false;
-    fetch('/__synapse/overview')
+    const controller = new AbortController();
+    // A hung probe must not strand end users on the blank splash forever — time out and fall back
+    // to the shipped app (same as any other ambiguous outcome).
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    fetch('/__synapse/overview', { signal: controller.signal })
       .then((res) => {
         // Mirror the content-type guard in useJson.ts: only a real JSON response from the
         // workspace-only endpoint means we're in the console.
@@ -44,14 +48,17 @@ export function useSynapseMode(): SynapseMode {
         }
       })
       .catch(() => {
-        // Ambiguous (network error) — default to the shipped app; never leak console chrome
+        // Network error or timeout — default to the shipped app; never leak console chrome
         // to end users.
         if (!cancelled) {
           setMode('published');
         }
-      });
+      })
+      .finally(() => clearTimeout(timeout));
     return () => {
       cancelled = true;
+      clearTimeout(timeout);
+      controller.abort();
     };
   }, [mode]);
 

@@ -236,8 +236,14 @@ function isAllowlisted(req: Request): boolean {
   if (req.path === '/health') {
     return true;
   }
-  // The SPA bundle (login + app share one build) and other static assets.
-  if (req.method === 'GET' && STATIC_ASSET.test(req.path)) {
+  // The SPA bundle (login + app share one build) and other static assets. Exclude API paths so a
+  // future protected route ending in .json/.txt/.map can't slip through the gate unauthenticated.
+  if (
+    req.method === 'GET' &&
+    !req.path.startsWith('/api/') &&
+    !req.path.startsWith('/__synapse/') &&
+    STATIC_ASSET.test(req.path)
+  ) {
     return true;
   }
   return false;
