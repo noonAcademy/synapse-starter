@@ -30,7 +30,7 @@ things: **publishes events** and **runs reads**. Read this before adding either.
    `{ name, title, description, sql, registryVersion, skillVersion }` (no params — reads are
    app-wide). Register it in [`server/queries/index.ts`](server/queries/index.ts).
 3. The read route (`GET /__synapse/reads/:name`) runs it through `synapse.athenaQuery`, caches
-   the rows (~1h), and the **Read** tab renders them. Worked example:
+   the rows (~1h), and the **Get data** tab renders them. Worked example:
    [`server/queries/courses-by-type.sql.ts`](server/queries/courses-by-type.sql.ts).
 
 Don't hand-write SQL transport, and don't read data any other way.
@@ -83,13 +83,13 @@ reads.
 
 | Path | What it is |
 |---|---|
-| [`server/citadel-schema.ts`](server/citadel-schema.ts) | **The data registry** — the one in-app source of truth for Athena tables (columns, types, enums, grain, example queries) + `BUSINESS_RULES`. Browse it in the **Tables** tab. |
+| [`server/citadel-schema.ts`](server/citadel-schema.ts) | **The data registry** — the one in-app source of truth for Athena tables (columns, types, enums, grain, example queries) + `BUSINESS_RULES`. Browse it in the **Get data** tab. |
 | [`skill/SKILL.md`](skill/SKILL.md) | The SQL-analyst skill. Use it to write reads. |
 | [`server/queries/`](server/queries/) | Baked reads (`<name>.sql.ts`) + their registry. |
 | [`server/synapse.ts`](server/synapse.ts) | Constructs the SDK client from secrets; exports `null` (not a throw) when secrets are missing. |
 | [`server/reads.ts`](server/reads.ts), [`server/athena.ts`](server/athena.ts), [`server/query-cache.ts`](server/query-cache.ts) | Read orchestration, the `athenaQuery` wrapper + result normaliser, and the in-memory cache. |
 | [`server/index.ts`](server/index.ts) | Express server. Mounts the workspace-only `/__synapse/*` endpoints **only when `REPLIT_DEPLOYMENT` is unset** — they power the builder console and are hidden in a published deployment. |
-| [`client/`](client/) | The builder console (Overview / Tables / Read / Events / Catalog tabs). |
+| [`client/`](client/) | The builder console — **Home** (overview + connection status), **Get data** (browse the registry + baked reads), **My app** (events the app can send / has sent). |
 
 ## Schema / dialect facts
 
