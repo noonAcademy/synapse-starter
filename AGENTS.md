@@ -15,7 +15,7 @@ things: **publishes events** and **runs reads**. Read this before adding either.
    Athena/Presto/HTTP client.** It's the HMAC-signed, app-wide SDK helper. The app-side
    plumbing (cache, route, rendering) already exists; you add SQL, not transport.
 2. **Events go through `synapse.publishEvent(type, payload)`.** Built-in types are catalogued —
-   browse them under "Events your app can send" on the **My app** tab (or
+   browse them under "Events your app can send" on the **Events** tab (or
    `@noonacademy/synapse-catalog`). If a feature you're building needs a kind of event no built-in
    covers, **YOU (the agent) declare it** with `synapse.declareEvent(...)` and then publish it —
    there's no Noon-side step, and you never hand this off to the user.
@@ -30,10 +30,31 @@ things: **publishes events** and **runs reads**. Read this before adding either.
    `{ name, title, description, sql, registryVersion, skillVersion }` (no params — reads are
    app-wide). Register it in [`server/queries/index.ts`](server/queries/index.ts).
 3. The read route (`GET /__synapse/reads/:name`) runs it through `synapse.athenaQuery`, caches
-   the rows (~1h), and the **Read** tab renders them. Worked example:
+   the rows (~1h), and the **Views** tab renders them. Worked example:
    [`server/queries/courses-by-type.sql.ts`](server/queries/courses-by-type.sql.ts).
 
 Don't hand-write SQL transport, and don't read data any other way.
+
+## To add a page to your app
+
+The **shipped app** — what end users see at `/` — lives in [`client/app/`](client/app/), separate
+from the workspace-only console. Add a page by creating `client/app/pages/<name>.tsx` that exports
+`{ path, title, nav, Page }` and registering it in
+[`client/app/pages/index.ts`](client/app/pages/index.ts) — the same file-plus-registry shape as a
+read.
+
+An app page is built from two client primitives — data in, events out — with any React you like
+in between (a dashboard, a chart, a game):
+
+- **Data in** — render a view as a ready-made table with `<ViewBlock name="<read-name>" />`, or for
+  a custom UI read the rows yourself with the **`useView(name)`** hook
+  ([`client/useView.ts`](client/useView.ts)) and lay them out however you want. Both read the public
+  `/api/views/:name`. If the page needs data no existing read covers, add the read first (above).
+- **Events out** — report something to Noon from any interaction (a click, a completed level) with
+  **`sendEvent(type, payload)`** ([`client/sendEvent.ts`](client/sendEvent.ts)). It POSTs to
+  `/api/events`, which publishes server-side via `synapse.publishEvent` (the app secret never reaches
+  the browser). The event `type` must already exist — a built-in, or one you declared (below);
+  `sendEvent` publishes, it does not declare. Reference Noon entities by ID in the payload.
 
 ## To publish an event
 
@@ -41,7 +62,7 @@ Events go through `synapse.publishEvent(type, payload)`. When a feature you're b
 new kind of event:
 
 1. **Reuse a catalogued built-in** if one reasonably fits — prefer this. Built-ins are browsable
-   under "Events your app can send" on the **My app** tab (or `@noonacademy/synapse-catalog`), and
+   under "Events your app can send" on the **Events** tab (or `@noonacademy/synapse-catalog`), and
    they keep their payload autocomplete.
 2. **If none fits, declare it yourself** — don't stop, don't ask the user:
 
@@ -88,8 +109,10 @@ reads.
 | [`server/queries/`](server/queries/) | Baked reads (`<name>.sql.ts`) + their registry. |
 | [`server/synapse.ts`](server/synapse.ts) | Constructs the SDK client from secrets; exports `null` (not a throw) when secrets are missing. |
 | [`server/reads.ts`](server/reads.ts), [`server/athena.ts`](server/athena.ts), [`server/query-cache.ts`](server/query-cache.ts) | Read orchestration, the `athenaQuery` wrapper + result normaliser, and the in-memory cache. |
-| [`server/index.ts`](server/index.ts) | Express server. Mounts the workspace-only `/__synapse/*` endpoints **only when `REPLIT_DEPLOYMENT` is unset** — they power the builder console and are hidden in a published deployment. |
-| [`client/`](client/) | The builder console (Overview / Tables / Read / Events / Catalog tabs). |
+| [`server/index.ts`](server/index.ts) | Express server. Mounts the workspace-only `/__synapse/*` endpoints (the builder console's data) **only when `REPLIT_DEPLOYMENT` is unset**; the public `/api/views*` (data in) and `/api/events` (events out) endpoints — the shipped app's surface — are mounted in every mode. |
+| [`client/console/`](client/console/) | The workspace-only **Synapse** management console (Home / Get data / Views / Events / Settings tabs). |
+| [`client/app/`](client/app/) | The **shipped app** rendered at `/` for end users. Pages live in `client/app/pages/<name>.tsx` (a registry, like `server/queries/`); views render as blocks via `client/app/blocks/ViewBlock.tsx`. |
+| [`client/useView.ts`](client/useView.ts), [`client/sendEvent.ts`](client/sendEvent.ts) | The app's two building blocks: **`useView(name)`** loads a view's rows (data in); **`sendEvent(type, payload)`** reports to Noon (events out). Build any page/feature/game on these two. |
 
 ## Schema / dialect facts
 

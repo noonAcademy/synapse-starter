@@ -1,7 +1,7 @@
 import { type ReactNode, useMemo, useState } from 'react';
-import type { TabId } from './App';
-import { Button, Card, CopyBox, Disclosure, EmptyState, Pill, SectionHeading } from './ui';
-import { type LoadState, useJson } from './useJson';
+import { Button, Card, CopyBox, Disclosure, EmptyState, Pill, SectionHeading } from '../ui';
+import { type LoadState, useJson } from '../useJson';
+import type { TabId } from './ConsoleApp';
 
 // Mirrors server/tables.ts TableProjection (the JSON shape served by /__synapse/tables).
 interface TableColumn {
@@ -173,7 +173,7 @@ function RequestResult({
 
       <button
         type="button"
-        onClick={() => onNavigate('my-app')}
+        onClick={() => onNavigate('views')}
         className="mt-3 text-sm font-medium text-indigo-700 hover:text-indigo-900"
       >
         Go to Your views →

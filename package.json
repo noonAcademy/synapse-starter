@@ -17,6 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@noonacademy/citadel-transport": "^0.1.0",
     "@noonacademy/synapse-catalog": "^0.1.1",
     "@noonacademy/synapse-sdk": "^0.2.0",
     "@tailwindcss/vite": "^4.0.0",

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import type { TabId } from './App';
-import { Card, Disclosure, Pill } from './ui';
-import { type LoadState, useJson } from './useJson';
+import { Card, Pill } from '../ui';
+import { type LoadState, useJson } from '../useJson';
+import type { TabId } from './ConsoleApp';
 
 // Mirrors server/overview.ts OverviewProjection (served by /__synapse/overview).
 interface Overview {
@@ -63,7 +63,7 @@ export function HomeTab({ onNavigate }: { onNavigate: (tab: TabId) => void }) {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <SecondaryCard
-          onClick={() => onNavigate('my-app')}
+          onClick={() => onNavigate('views')}
           title={readCount === null ? 'Your views' : `Your views (${readCount})`}
         >
           {readCount === null
@@ -73,14 +73,12 @@ export function HomeTab({ onNavigate }: { onNavigate: (tab: TabId) => void }) {
               : `${readCount} live view${readCount > 1 ? 's' : ''}${firstView ? `, including “${firstView}”` : ''}.`}
         </SecondaryCard>
 
-        <SecondaryCard onClick={() => onNavigate('my-app')} title="What your app sends to Noon">
+        <SecondaryCard onClick={() => onNavigate('events')} title="What your app sends to Noon">
           {eventKinds === null
             ? 'The events your app can report, and the log of what it has sent.'
             : `${eventKinds} kinds of event your app can report — and the log of what it has sent.`}
         </SecondaryCard>
       </div>
-
-      <ConnectionDetails overview={overview} />
     </section>
   );
 }
@@ -129,29 +127,6 @@ function ConnectionStatus({ overview }: { overview: LoadState<Overview> }) {
   );
 }
 
-function ConnectionDetails({ overview }: { overview: LoadState<Overview> }) {
-  if (overview.status !== 'ready') {
-    return null;
-  }
-  const o = overview.data;
-  return (
-    <Disclosure summary="Connection details">
-      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="App ID">
-          {o.appId ? (
-            <span className="font-mono text-xs">{o.appId}</span>
-          ) : (
-            <span className="text-slate-400">not set</span>
-          )}
-        </Field>
-        <Field label="Citadel base URL">
-          <span className="break-all font-mono text-xs">{o.baseUrl}</span>
-        </Field>
-      </dl>
-    </Disclosure>
-  );
-}
-
 function SecondaryCard({
   onClick,
   title,
@@ -175,14 +150,5 @@ function SecondaryCard({
       </span>
       <span className="mt-1 block text-sm text-slate-500">{children}</span>
     </button>
-  );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="rounded-lg border border-slate-200 px-3 py-2">
-      <dt className="text-xs font-medium text-slate-500">{label}</dt>
-      <dd className="mt-0.5 text-sm text-slate-800">{children}</dd>
-    </div>
   );
 }
