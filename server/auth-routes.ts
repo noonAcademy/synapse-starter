@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import express, { type Application, type Request, type RequestHandler, type Router } from 'express';
+import { rateLimit } from 'express-rate-limit';
 import {
   type EndUserSession,
   readCookie,
@@ -120,6 +121,18 @@ function sessionFromRequest(req: Request, secret: string): EndUserSession | null
 export function createAuthRouter(deps: EndUserAuthDeps): Router {
   const router = express.Router();
 
+  // Rate-limit the sign-in mutations. The OAuth callback runs an expensive Citadel login + token
+  // exchange, so cap attempts to blunt brute-force / DoS (clears CodeQL js/missing-rate-limiting).
+  const signInLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    // Behind Replit's single proxy there's no distinct client IP, so skip the X-Forwarded-For
+    // check and treat this as a coarse cap rather than erroring at runtime.
+    validate: { xForwardedForHeader: false },
+  });
+
   // The login screen is part of the SPA. If the visitor is already signed in there's nothing to
   // show, so bounce to the app; otherwise fall through to the SPA catch-all (the gate allowlists
   // /login so this doesn't loop).
@@ -156,7 +169,7 @@ export function createAuthRouter(deps: EndUserAuthDeps): Router {
   // Google Identity Services hands the browser a credential; the browser POSTs it here. We exchange
   // it with Citadel (login → token), stash the Citadel tokens server-side, and set the identity
   // cookie. The cookie carries no Citadel token.
-  router.post('/auth/callback', express.json(), async (req, res) => {
+  router.post('/auth/callback', signInLimiter, express.json(), async (req, res) => {
     const credential =
       typeof req.body?.credential === 'string' ? (req.body.credential as string) : '';
     if (!credential) {
@@ -200,7 +213,7 @@ export function createAuthRouter(deps: EndUserAuthDeps): Router {
     }
   });
 
-  router.post('/logout', (req, res) => {
+  router.post('/logout', signInLimiter, (req, res) => {
     const session = sessionFromRequest(req, deps.sessionSecret);
     if (session) {
       deps.tokenStore.delete(session.sessionId);
