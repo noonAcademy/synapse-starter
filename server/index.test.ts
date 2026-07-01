@@ -64,7 +64,7 @@ const authDeps = buildEndUserAuthDeps({
   appSecret: 'app-secret',
   redirectUri: 'https://app.example/oauth/callback',
   sessionSecret: 'sess-secret',
-  googleClientId: null,
+  googleClientId: 'gid_test',
   secure: false,
 });
 
@@ -91,6 +91,16 @@ describe('end-user auth gate wiring', () => {
 
       const page = await get(port, '/');
       expect(page.status).not.toBe(302);
+    } finally {
+      await close();
+    }
+  });
+
+  it('fails closed when a deployment is misconfigured (no auth deps): 503', async () => {
+    const { port, close } = await serve(buildApp({ isReplitDeployment: true, authDeps: null }));
+    try {
+      expect((await get(port, '/api/views')).status).toBe(503);
+      expect((await get(port, '/')).status).toBe(503);
     } finally {
       await close();
     }

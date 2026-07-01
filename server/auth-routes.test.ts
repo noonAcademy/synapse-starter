@@ -238,8 +238,15 @@ describe('GET /api/me', () => {
     await close();
   });
 
-  it('returns the identity for a valid session', async () => {
-    const { port, close } = await serve(appWith(makeDeps()));
+  it('returns the identity for a valid session (token still stored)', async () => {
+    const store = createTokenStore();
+    store.set('sess-ok', {
+      accessToken: 'at1',
+      refreshToken: 'rt1',
+      expiresIn: 3600,
+      obtainedAt: Date.now(),
+    });
+    const { port, close } = await serve(appWith(makeDeps({ tokenStore: store })));
     const cookie = signSession(SECRET, {
       sessionId: 'sess-ok',
       email: 'dana@noonacademy.com',
@@ -251,6 +258,22 @@ describe('GET /api/me', () => {
     });
     expect(res.status).toBe(200);
     expect(JSON.parse(res.body)).toEqual({ email: 'dana@noonacademy.com', name: 'Dana' });
+    await close();
+  });
+
+  it('401s a signed cookie whose token is gone (logout / restart replay)', async () => {
+    // Fresh, empty store: the cookie verifies but no active token backs it.
+    const { port, close } = await serve(appWith(makeDeps()));
+    const cookie = signSession(SECRET, {
+      sessionId: 'sess-gone',
+      email: 'dana@noonacademy.com',
+      name: 'Dana',
+      coreProfileId: 42,
+    });
+    const res = await request(port, 'GET', '/api/me', {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=${cookie}` },
+    });
+    expect(res.status).toBe(401);
     await close();
   });
 

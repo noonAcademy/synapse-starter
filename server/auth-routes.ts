@@ -36,7 +36,7 @@ export interface EndUserAuthDeps {
   oauth: CitadelOAuthClient;
   tokenStore: TokenStore;
   sessionSecret: string;
-  googleClientId: string | null;
+  googleClientId: string;
   // Set the cookie's Secure flag (true only over HTTPS / in a deployment).
   secure: boolean;
   // Refresh the Citadel token this many seconds before it actually expires.
@@ -75,7 +75,7 @@ function deriveIdentity(login: OAuthLoginResult): {
 export type RefreshOutcome = 'valid' | 'refreshed' | 'expired' | 'error';
 
 // Rotates the stored Citadel token pair when it's within the skew window of expiry. Returns:
-//   'valid'     — still fresh (or nothing stored to refresh), no call made
+//   'valid'     — still fresh, no call made
 //   'refreshed' — rotated successfully, tokenStore updated
 //   'expired'   — Citadel rejected the refresh token (401); tokenStore entry cleared, re-auth needed
 //   'error'     — transient failure; the pair is left untouched
@@ -85,7 +85,8 @@ export async function attemptRefresh(
 ): Promise<RefreshOutcome> {
   const stored = deps.tokenStore.get(sessionId);
   if (!stored) {
-    return 'valid';
+    // No stored token means the session is no longer active (logged out, or dropped on restart).
+    return 'expired';
   }
   const skewMs = (deps.refreshSkewSeconds ?? DEFAULT_REFRESH_SKEW_SECONDS) * 1000;
   const expiresAtMs = stored.obtainedAt + stored.expiresIn * 1000;
@@ -118,6 +119,20 @@ function sessionFromRequest(req: Request, secret: string): EndUserSession | null
   return verifySession(secret, readCookie(req.headers.cookie, SESSION_COOKIE_NAME));
 }
 
+// A session only counts as active while its Citadel tokens are still in the store. Logout deletes
+// them, and the in-memory store is empty after a restart — so a signed cookie alone no longer
+// authorises, which closes the logout / restart replay window.
+function activeSessionFromRequest(
+  req: Request,
+  deps: Pick<EndUserAuthDeps, 'sessionSecret' | 'tokenStore'>,
+): EndUserSession | null {
+  const session = sessionFromRequest(req, deps.sessionSecret);
+  if (!session || !deps.tokenStore.get(session.sessionId)) {
+    return null;
+  }
+  return session;
+}
+
 export function createAuthRouter(deps: EndUserAuthDeps): Router {
   const router = express.Router();
 
@@ -137,7 +152,7 @@ export function createAuthRouter(deps: EndUserAuthDeps): Router {
   // show, so bounce to the app; otherwise fall through to the SPA catch-all (the gate allowlists
   // /login so this doesn't loop).
   router.get('/login', (req, res, next) => {
-    if (sessionFromRequest(req, deps.sessionSecret)) {
+    if (activeSessionFromRequest(req, deps)) {
       res.redirect(302, '/');
       return;
     }
@@ -152,7 +167,7 @@ export function createAuthRouter(deps: EndUserAuthDeps): Router {
   // Session probe used by the app shell. Also the one place a proactive token refresh is triggered
   // in v1 (no per-user read consumes the token yet).
   router.get('/api/me', async (req, res) => {
-    const session = sessionFromRequest(req, deps.sessionSecret);
+    const session = activeSessionFromRequest(req, deps);
     if (!session) {
       res.status(401).json({ error: 'Not signed in' });
       return;
@@ -252,13 +267,15 @@ function isAllowlisted(req: Request): boolean {
 // The gate. A valid cookie attaches req.noonUser and continues; otherwise a page navigation is
 // redirected to /login and an API/XHR call gets a 401 JSON. Auth-router paths (/auth/callback,
 // /logout, /api/me, /api/auth/config) are handled before this runs, so they never reach it.
-export function createRequireEndUser(deps: Pick<EndUserAuthDeps, 'sessionSecret'>): RequestHandler {
+export function createRequireEndUser(
+  deps: Pick<EndUserAuthDeps, 'sessionSecret' | 'tokenStore'>,
+): RequestHandler {
   return (req, res, next) => {
     if (isAllowlisted(req)) {
       next();
       return;
     }
-    const session = sessionFromRequest(req, deps.sessionSecret);
+    const session = activeSessionFromRequest(req, deps);
     if (session) {
       req.noonUser = session;
       next();
@@ -294,7 +311,13 @@ export interface EndUserAuthConfig {
 // required secret is missing so the caller can leave auth unmounted and surface the config error
 // (matching synapse.ts's "surface, don't throw" pattern).
 export function buildEndUserAuthDeps(config: EndUserAuthConfig): EndUserAuthDeps | null {
-  if (!config.appId || !config.appSecret || !config.redirectUri || !config.sessionSecret) {
+  if (
+    !config.appId ||
+    !config.appSecret ||
+    !config.redirectUri ||
+    !config.sessionSecret ||
+    !config.googleClientId
+  ) {
     return null;
   }
   return {

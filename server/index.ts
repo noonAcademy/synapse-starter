@@ -104,10 +104,17 @@ export function buildApp(opts: {
   // and (later, in createServerInstance) the SPA catch-all, so it guards both: unauthenticated API
   // calls get 401 and page loads are redirected to /login, while the login screen's own routes and
   // static assets are allowlisted. Never mounted in the workspace, so the builder console stays open.
-  // If the auth config is incomplete, authDeps is null and the gate stays unmounted (surfaced in the
-  // boot log) rather than throwing — same "surface, don't throw" contract as the SDK secrets.
-  if (opts.isReplitDeployment && opts.authDeps) {
-    installEndUserAuth(app, opts.authDeps);
+  // If the auth config is incomplete, the deployment FAILS CLOSED: rather than serving Noon data and
+  // the SPA to anyone, every request gets a 503. An auth boundary must not fall open on misconfig
+  // (the specific missing config is still surfaced in the boot log).
+  if (opts.isReplitDeployment) {
+    if (opts.authDeps) {
+      installEndUserAuth(app, opts.authDeps);
+    } else {
+      app.use((_req, res) => {
+        res.status(503).json({ error: 'authentication is not configured' });
+      });
+    }
   }
 
   // Public read API for the shipped app. Unlike /__synapse/* (workspace-only), these are mounted
