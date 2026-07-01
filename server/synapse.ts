@@ -25,6 +25,35 @@ export const synapse: SynapseClient | null =
   appId && appSecret ? createSynapseClient({ baseUrl, appId, appSecret }) : null;
 
 // App identity for the Overview tab. appId is an identifier, not a secret, so it's safe to
-// surface; appSecret is never exported. baseUrl is config (which Citadel we point at).
+// surface. baseUrl is config (which Citadel we point at).
 export const synapseAppId: string | null = appId ?? null;
 export const synapseBaseUrl: string = baseUrl;
+
+// appSecret is exported ONLY for server-side use (HMAC-signing the Citadel oauth token/refresh
+// calls in server/oauth.ts). It is never sent to the client or surfaced by any endpoint.
+export const synapseAppSecret: string | null = appSecret ?? null;
+
+// --- End-user "Sign in with Noon" config (deployed app only) ---------------------------------
+// Same "surface, don't throw" pattern: the server still boots when these are unset, and the auth
+// gate simply stays unmounted (its absence is logged in server/index.ts). GOOGLE_CLIENT_ID and
+// APP_OAUTH_REDIRECT_URI are config (identifiers/URLs); APP_SESSION_SECRET is a secret used to
+// HMAC-sign the app's own identity cookie. The Citadel base URL and app secret above are reused
+// for the oauth calls.
+export const googleClientId: string | null = process.env.GOOGLE_CLIENT_ID ?? null;
+export const appOauthRedirectUri: string | null = process.env.APP_OAUTH_REDIRECT_URI ?? null;
+export const appSessionSecret: string | null = process.env.APP_SESSION_SECRET ?? null;
+
+const authMissing = [
+  ['GOOGLE_CLIENT_ID', googleClientId],
+  ['APP_OAUTH_REDIRECT_URI', appOauthRedirectUri],
+  ['APP_SESSION_SECRET', appSessionSecret],
+  ['SYNAPSE_APP_ID', appId],
+  ['SYNAPSE_APP_SECRET', appSecret],
+]
+  .filter(([, value]) => !value)
+  .map(([name]) => name);
+
+export const authConfigError =
+  authMissing.length > 0
+    ? `Sign in with Noon disabled — missing: ${authMissing.join(', ')}. Set them to enable the login gate.`
+    : null;

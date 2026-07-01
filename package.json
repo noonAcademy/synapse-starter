@@ -17,11 +17,13 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@noonacademy/citadel-transport": "^0.1.0",
     "@noonacademy/synapse-catalog": "^0.1.1",
     "@noonacademy/synapse-sdk": "^0.2.0",
     "@tailwindcss/vite": "^4.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "express": "^4.21.2",
+    "express-rate-limit": "^7.5.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwindcss": "^4.0.0",

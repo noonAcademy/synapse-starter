@@ -1,33 +1,12 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MyAppTab } from './MyAppTab';
+import { ViewsTab } from './ViewsTab';
 
 const VIEWS = [
   { name: 'a', title: 'View A', description: 'first view' },
   { name: 'b', title: 'View B', description: 'second view' },
 ];
-
-const EVENTS = [
-  {
-    at: '2026-06-29T12:00:00.000Z',
-    type: 'app_booted',
-    status: 'accepted',
-    eventId: 7,
-    error: null,
-    attempts: 1,
-  },
-  {
-    at: '2026-06-29T12:00:00.000Z',
-    type: 'task.created',
-    status: 'failed_permanent',
-    eventId: null,
-    error: 'rejected',
-    attempts: 2,
-  },
-];
-
-const CATALOG = { total: 3, groups: [{ namespace: 'core', eventTypes: ['app_booted'] }] };
 
 function readResult(name: string) {
   return {
@@ -50,12 +29,10 @@ function readResult(name: string) {
 function payload(url: string): unknown {
   if (url.endsWith('/__synapse/reads')) return VIEWS;
   if (url.includes('/__synapse/reads/')) return readResult(url.split('/').pop() ?? '');
-  if (url.endsWith('/__synapse/events')) return EVENTS;
-  if (url.endsWith('/__synapse/catalog')) return CATALOG;
   return {};
 }
 
-describe('<MyAppTab />', () => {
+describe('<ViewsTab />', () => {
   beforeEach(() => {
     vi.stubGlobal(
       'fetch',
@@ -72,9 +49,9 @@ describe('<MyAppTab />', () => {
   });
 
   it('lists every baked view and drills into the one you pick', async () => {
-    render(<MyAppTab onNavigate={vi.fn()} />);
+    render(<ViewsTab onNavigate={vi.fn()} />);
 
-    // Both views appear in the master list (driven by the /reads LIST endpoint).
+    // Both views appear in the picker (driven by the /reads LIST endpoint).
     expect(await screen.findByText('View A')).toBeTruthy();
     expect(screen.getByText('View B')).toBeTruthy();
 
@@ -84,23 +61,5 @@ describe('<MyAppTab />', () => {
     // Picking another view drills into it.
     fireEvent.click(screen.getByText('View B'));
     expect(await screen.findByText('Result for b')).toBeTruthy();
-  });
-
-  it('shows sent events in plain words', async () => {
-    render(<MyAppTab onNavigate={vi.fn()} />);
-
-    expect(await screen.findByText('Delivered')).toBeTruthy();
-    expect(screen.getByText("Couldn't deliver")).toBeTruthy();
-  });
-
-  it('points to the agent for new event types instead of dead-ending', async () => {
-    render(<MyAppTab onNavigate={vi.fn()} />);
-
-    // The new copy hands new event types to the Replit agent…
-    expect(await screen.findByText(/ask the Replit agent to build the feature/i)).toBeTruthy();
-
-    // …and the old "Noon-side step / self-service is coming" dead-end is gone.
-    expect(screen.queryByText(/self-service is coming/i)).toBeNull();
-    expect(screen.queryByText(/Noon-side step/i)).toBeNull();
   });
 });
