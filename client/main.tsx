@@ -2,16 +2,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppShell } from './app/AppShell';
 import { ConsoleApp } from './console/ConsoleApp';
-import { PrototypeGallery } from './prototypes/PrototypeGallery';
 import { useSynapseMode } from './useSynapseMode';
 import './index.css';
-
-// Dev-only hatch: `?prototype` opens the throwaway compose-in-console gallery (client/prototypes/).
-function prototypeRequested(): boolean {
-  return (
-    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('prototype')
-  );
-}
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -22,9 +14,6 @@ if (!rootElement) {
 // console) or a published deployment (render the shipped app).
 function Root() {
   const mode = useSynapseMode();
-  if (prototypeRequested()) {
-    return <PrototypeGallery />;
-  }
   if (mode === 'probing') {
     return <Splash />;
   }
