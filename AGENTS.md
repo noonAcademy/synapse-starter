@@ -104,7 +104,7 @@ reads.
 
 | Path | What it is |
 |---|---|
-| [`server/citadel-schema.ts`](server/citadel-schema.ts) | **The data registry** — the one in-app source of truth for Athena tables (columns, types, enums, grain, example queries) + `BUSINESS_RULES`. Browse it in the **Tables** tab. |
+| [`server/citadel-schema.ts`](server/citadel-schema.ts) | **The data registry** — the one in-app source of truth for Athena tables (columns, types, enums, grain, example queries) + `BUSINESS_RULES`. Browse it in the **Get data** tab. |
 | [`skill/SKILL.md`](skill/SKILL.md) | The SQL-analyst skill. Use it to write reads. |
 | [`server/queries/`](server/queries/) | Baked reads (`<name>.sql.ts`) + their registry. |
 | [`server/synapse.ts`](server/synapse.ts) | Constructs the SDK client from secrets; exports `null` (not a throw) when secrets are missing. |
