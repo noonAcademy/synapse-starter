@@ -5,7 +5,7 @@ A clone-and-own template that connects a Replit app to Noon's Citadel via the Sy
 > **Two journeys, one front door:**
 >
 > - **Starting a new app?** Clone this repo and follow the setup below.
-> - **Already have an app?** Point your coding agent at [`INTEGRATE.md`](./INTEGRATE.md) — the self-contained guide for adding the SDK and Citadel auth to an existing app.
+> - **Already have an app?** Point your coding agent at [`INTEGRATE.md`](./INTEGRATE.md) — the self-contained guide for adding the SDK and Citadel auth to an existing app. The flow starts with **Job 0, a read-only data-access scan** that ends in a Migration Report before anything changes; apps still syncing Athena with raw AWS credentials then swap the transport via [`MIGRATE-SYNC.md`](./MIGRATE-SYNC.md).
 
 A builder clones this repo into Replit, pastes three secrets, and presses **Run**. On boot
 the server publishes an `app_booted` event to **staging** Citadel, then serves a small
@@ -136,7 +136,7 @@ Other scripts:
   long-lived client is closed only on `SIGTERM` / `SIGINT`.
 - **`server/citadel-schema.ts`** is the in-repo **snapshot** of the Citadel data registry —
   Athena tables (columns, types, enums, grain, example queries) plus `BUSINESS_RULES`. The
-  source of truth is Citadel's live `GET /api/registry` (see [INTEGRATE.md §5](INTEGRATE.md));
+  source of truth is Citadel's live `GET /api/registry` (see [INTEGRATE.md §6](INTEGRATE.md));
   the snapshot is deleted in favour of a build-time fetch once that endpoint is deployed on
   staging. **`server/tables.ts`** projects it for the Tables tab.
 - **`server/queries/`** holds the baked reads (`<name>.sql.ts`) and their registry
