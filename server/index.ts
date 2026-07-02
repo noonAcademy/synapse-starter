@@ -2,15 +2,27 @@ import { createServer as createHttpServer, type Server } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SYNAPSE_EVENT_TYPES } from '@noonacademy/synapse-catalog';
-import express from 'express';
+import type { PublishEventResult } from '@noonacademy/synapse-sdk';
+import express, { type Application } from 'express';
 import { asAthenaClient } from './athena.js';
+import { buildEndUserAuthDeps, type EndUserAuthDeps, installEndUserAuth } from './auth-routes.js';
 import { formatBootLog } from './boot.js';
 import { buildCatalog } from './catalog.js';
 import { recentPublishes } from './events.js';
 import { buildOverview } from './overview.js';
 import { listBakedQueries } from './queries/index.js';
 import { runRead } from './reads.js';
-import { synapse, synapseAppId, synapseBaseUrl, synapseConfigError } from './synapse.js';
+import {
+  appOauthRedirectUri,
+  appSessionSecret,
+  authConfigError,
+  googleClientId,
+  synapse,
+  synapseAppId,
+  synapseAppSecret,
+  synapseBaseUrl,
+  synapseConfigError,
+} from './synapse.js';
 import { projectTables } from './tables.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -19,15 +31,19 @@ const isReplitDeployment = Boolean(process.env.REPLIT_DEPLOYMENT);
 const port = Number(process.env.PORT ?? 3000);
 const host = '0.0.0.0';
 
-async function createServerInstance(): Promise<Server> {
+// Assembles the Express app's routes. Split out from the HTTP-server/dev/static wiring so tests can
+// drive the exact route + gate ordering without spinning up Vite or reading the built client.
+export function buildApp(opts: {
+  isReplitDeployment: boolean;
+  authDeps?: EndUserAuthDeps | null;
+}): Application {
   const app = express();
-  const httpServer = createHttpServer(app);
 
   // Workspace-only inspection surface for the builder console (Overview / Tables / Read /
   // Catalog / Events tabs). Registered before the client middleware so the SPA catch-all
   // doesn't swallow it, and hidden once the app is a published Replit deployment so none of
   // it is exposed to end users.
-  if (!isReplitDeployment) {
+  if (!opts.isReplitDeployment) {
     // Settled publish outcomes since boot.
     app.get('/__synapse/events', (_req, res) => {
       res.json(recentPublishes(synapse));
@@ -84,6 +100,110 @@ async function createServerInstance(): Promise<Server> {
     });
   }
 
+  // "Sign in with Noon" gate for the deployed app ONLY. Mounted BEFORE the public /api/views routes
+  // and (later, in createServerInstance) the SPA catch-all, so it guards both: unauthenticated API
+  // calls get 401 and page loads are redirected to /login, while the login screen's own routes and
+  // static assets are allowlisted. Never mounted in the workspace, so the builder console stays open.
+  // If the auth config is incomplete, the deployment FAILS CLOSED: rather than serving Noon data and
+  // the SPA to anyone, every request gets a 503. An auth boundary must not fall open on misconfig
+  // (the specific missing config is still surfaced in the boot log).
+  if (opts.isReplitDeployment) {
+    if (opts.authDeps) {
+      installEndUserAuth(app, opts.authDeps);
+    } else {
+      app.use((_req, res) => {
+        res.status(503).json({ error: 'authentication is not configured' });
+      });
+    }
+  }
+
+  // Public read API for the shipped app. Unlike /__synapse/* (workspace-only), these are mounted
+  // in EVERY mode — the app the builder ships renders live views for end users through them. Same
+  // baked reads, same cache; just the product-facing surface. Registered before the SPA catch-all
+  // so the client middleware doesn't swallow them.
+  app.get('/api/views', (_req, res) => {
+    res.json(
+      listBakedQueries().map((q) => ({
+        name: q.name,
+        title: q.title,
+        description: q.description,
+      })),
+    );
+  });
+
+  app.get('/api/views/:name', async (req, res) => {
+    try {
+      const result = await runRead(asAthenaClient(synapse), req.params.name);
+      if (!result) {
+        res.status(404).json({ error: `unknown view: ${req.params.name}` });
+        return;
+      }
+      res.json(result);
+    } catch (err) {
+      console.error('[synapse] view route failed:', err instanceof Error ? err.message : err);
+      res.status(500).json({ error: 'view failed' });
+    }
+  });
+
+  // Public event API for the shipped app — the events-out primitive (client/sendEvent.ts). Any
+  // interaction can report to Noon by POSTing { type, payload }; the server holds the app secret and
+  // calls synapse.publishEvent, so the client never sees it. In a deployment this sits behind the
+  // sign-in gate above (only a signed-in user can send). The event type must already exist — a
+  // built-in, or one the agent declared at build time; this route publishes, it does not declare.
+  app.post('/api/events', express.json(), async (req, res) => {
+    const type = typeof req.body?.type === 'string' ? req.body.type.trim() : '';
+    const rawPayload = (req.body as { payload?: unknown } | undefined)?.payload;
+    const payload =
+      rawPayload && typeof rawPayload === 'object' ? (rawPayload as Record<string, unknown>) : {};
+
+    if (!type) {
+      res.status(400).json({ error: 'an event "type" is required' });
+      return;
+    }
+    if (!synapse) {
+      res.status(503).json({ error: 'not connected to Noon yet — add your app secrets' });
+      return;
+    }
+
+    try {
+      // publishEvent is typed to built-in catalog types; declared types are runtime strings, so we
+      // publish the caller's type through a string-accepting view of the same method.
+      const publish = synapse.publishEvent as (
+        t: string,
+        p: Record<string, unknown>,
+      ) => Promise<PublishEventResult>;
+      res.json(await publish(type, payload));
+    } catch (err) {
+      console.error('[synapse] event route failed:', err instanceof Error ? err.message : err);
+      res.status(502).json({ error: 'could not send the event' });
+    }
+  });
+
+  return app;
+}
+
+async function createServerInstance(): Promise<Server> {
+  // Wire the deployed-app auth gate from resolved config. Reuses the Citadel base URL + app secret
+  // for the oauth calls; a dedicated APP_SESSION_SECRET signs the identity cookie. Null (and a boot
+  // log) when anything's missing, which leaves the gate unmounted.
+  const authDeps = isReplitDeployment
+    ? buildEndUserAuthDeps({
+        baseUrl: synapseBaseUrl,
+        appId: synapseAppId,
+        appSecret: synapseAppSecret,
+        redirectUri: appOauthRedirectUri,
+        sessionSecret: appSessionSecret,
+        googleClientId,
+        secure: isReplitDeployment,
+      })
+    : null;
+  if (isReplitDeployment && !authDeps) {
+    console.error(`[synapse] ${authConfigError ?? 'Sign in with Noon disabled (misconfigured).'}`);
+  }
+
+  const app = buildApp({ isReplitDeployment, authDeps });
+  const httpServer = createHttpServer(app);
+
   if (isDev) {
     const { createServer } = await import('vite');
     // hmr.server reuses this HTTP server so dev stays on ONE port — without it,
@@ -129,11 +249,19 @@ function installShutdown(server: Server): void {
   process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
-const server = await createServerInstance();
-server.listen(port, host, () => {
-  console.log(
-    `[synapse-starter] listening on http://${host}:${port} (${isDev ? 'dev' : 'production'})`,
-  );
-  publishBootEvent();
-});
-installShutdown(server);
+async function main(): Promise<void> {
+  const server = await createServerInstance();
+  server.listen(port, host, () => {
+    console.log(
+      `[synapse-starter] listening on http://${host}:${port} (${isDev ? 'dev' : 'production'})`,
+    );
+    publishBootEvent();
+  });
+  installShutdown(server);
+}
+
+// Start the server unless we're under Vitest, which imports buildApp directly and must not have the
+// module bind a port or publish a boot event as a side effect of the import.
+if (!process.env.VITEST) {
+  void main();
+}
