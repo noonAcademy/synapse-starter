@@ -2,6 +2,11 @@
 
 A clone-and-own template that connects a Replit app to Noon's Citadel via the Synapse SDK.
 
+> **Two journeys, one front door:**
+>
+> - **Starting a new app?** Clone this repo and follow the setup below.
+> - **Already have an app?** Point your coding agent at [`INTEGRATE.md`](./INTEGRATE.md) — the self-contained guide for adding the SDK and Citadel auth to an existing app.
+
 A builder clones this repo into Replit, pastes three secrets, and presses **Run**. On boot
 the server publishes an `app_booted` event to **staging** Citadel, then serves a small
 **builder console** whose tabs let you watch publishes, browse the data registry, and run a
@@ -23,9 +28,10 @@ The page served by the app is a workspace-only console with five tabs:
 
 - **Overview** — this app's Synapse identity (app id, staging base URL) and a live connection
   check derived from the boot round-trip, plus a "try this next" list.
-- **Tables** — a searchable browser over the bundled Citadel data registry
-  (`server/citadel-schema.ts`): per-table grain, refresh cadence, an informational access
-  badge, the full column grid with enum chips, and copyable example queries.
+- **Tables** — a searchable browser over the Citadel data registry (a snapshot at
+  `server/citadel-schema.ts` of the registry Citadel serves live at `GET /api/registry`):
+  per-table grain, refresh cadence, an informational access badge, the full column grid with
+  enum chips, and copyable example queries.
 - **Read** — runs the one bundled example read (active courses by type) end to end: baked
   `SELECT` → `synapse.athenaQuery` → app-side cache → rendered rows, with a "data as of …"
   freshness note and the SQL on display.
@@ -128,9 +134,11 @@ Other scripts:
   client (built static in production, Vite middleware in dev — one port either way), then
   publishes one `app_booted` event on boot. A publish failure is logged, never fatal. The
   long-lived client is closed only on `SIGTERM` / `SIGINT`.
-- **`server/citadel-schema.ts`** is the bundled Citadel data **registry** — the one in-app
-  source of truth for Athena tables (columns, types, enums, grain, example queries) plus
-  `BUSINESS_RULES`. **`server/tables.ts`** projects it for the Tables tab.
+- **`server/citadel-schema.ts`** is the in-repo **snapshot** of the Citadel data registry —
+  Athena tables (columns, types, enums, grain, example queries) plus `BUSINESS_RULES`. The
+  source of truth is Citadel's live `GET /api/registry` (see [INTEGRATE.md §5](INTEGRATE.md));
+  the snapshot is deleted in favour of a build-time fetch once that endpoint is deployed on
+  staging. **`server/tables.ts`** projects it for the Tables tab.
 - **`server/queries/`** holds the baked reads (`<name>.sql.ts`) and their registry
   (`index.ts`). **`server/reads.ts`** orchestrates registry-lookup → cache → `athenaQuery`;
   **`server/athena.ts`** wraps `synapse.athenaQuery` and normalises the result;
@@ -190,5 +198,7 @@ event declaration is a later slice.
 
 - **Slice 2b** — durable event/read history (persist outcomes + cache so they survive restarts).
 - **Slice 5 / 6** — self-service event types, and the `/build-app` Slack provisioning flow.
-- **Later reads** — per-user (scoped) reads, runtime NL→SQL, and a Citadel-served registry
-  (this slice bundles the registry in-repo for the POC).
+- **Later reads** — per-user (scoped) reads, runtime NL→SQL, and swapping the in-repo
+  registry snapshot for a build-time fetch of Citadel's `GET /api/registry` (the endpoint
+  exists in Citadel but is not yet deployed on the staging Citadel this starter targets —
+  it 404s there today, so the snapshot stays until it ships).

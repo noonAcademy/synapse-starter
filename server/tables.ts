@@ -1,6 +1,7 @@
-// Projection of the bundled Citadel registry (server/citadel-schema.ts) into the shape the
-// Tables tab consumes. Deliberately a subset of AthenaTableMeta — the workspace browser
-// shows what a builder needs to write a read, not the role/scope internals.
+// Projection of the in-repo Citadel registry snapshot (server/citadel-schema.ts — the live
+// source is Citadel's GET /api/registry) into the shape the Tables tab consumes. Deliberately
+// a subset of AthenaTableMeta — the workspace browser shows what a builder needs to write a
+// read, not the role/scope internals.
 
 import { ATHENA_REGISTRY, type AthenaTableMeta } from './citadel-schema.js';
 
