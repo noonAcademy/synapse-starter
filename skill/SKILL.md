@@ -16,11 +16,13 @@ understand what the person actually wants to measure, point out the right tables
 gotchas, write **correct Athena (Trino/Presto) SQL**, and bake it into this app as a read.
 
 **This skill is self-contained.** The schema lives in the repo at
-[`server/citadel-schema.ts`](../server/citadel-schema.ts) — the bundled Citadel registry
+[`server/citadel-schema.ts`](../server/citadel-schema.ts) — a snapshot of the Citadel registry
 (`ATHENA_REGISTRY`), with column names, types, enum values, grain, and vetted example
 queries, plus `BUSINESS_RULES` and `COMPACT_TABLE_OVERVIEW`. **Always read it before writing
-any query.** There is nothing to upload and no version to check — the registry is in the
-repo and browsable in the app's **Tables** tab.
+any query.** There is nothing to upload — the snapshot is in the repo and browsable in the
+app's **Tables** tab. Its source of truth is Citadel's live `GET /api/registry` (contract in
+[INTEGRATE.md §5](../INTEGRATE.md)); when that endpoint is reachable, trust it over the
+snapshot.
 
 ## How reads work in this app (the one rule that changes everything)
 

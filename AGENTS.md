@@ -104,7 +104,7 @@ reads.
 
 | Path | What it is |
 |---|---|
-| [`server/citadel-schema.ts`](server/citadel-schema.ts) | **The data registry** — the one in-app source of truth for Athena tables (columns, types, enums, grain, example queries) + `BUSINESS_RULES`. Browse it in the **Get data** tab. |
+| [`server/citadel-schema.ts`](server/citadel-schema.ts) | **The data registry snapshot** — Athena tables (columns, types, enums, grain, example queries) + `BUSINESS_RULES`. Browse it in the **Get data** tab. The **source of truth is Citadel's live `GET /api/registry`** (HMAC-authed, ETag'd — contract in [INTEGRATE.md §5](INTEGRATE.md)); this snapshot stands in until that endpoint is deployed on the staging Citadel this app targets, after which it will be deleted and fetched live at build time. |
 | [`skill/SKILL.md`](skill/SKILL.md) | The SQL-analyst skill. Use it to write reads. |
 | [`server/queries/`](server/queries/) | Baked reads (`<name>.sql.ts`) + their registry. |
 | [`server/synapse.ts`](server/synapse.ts) | Constructs the SDK client from secrets; exports `null` (not a throw) when secrets are missing. |
@@ -116,6 +116,10 @@ reads.
 
 ## Schema / dialect facts
 
+- The registry's canonical home is Citadel: `GET /api/registry` serves the live registry text
+  (same HMAC headers as every `/api/*` call; 200 + `ETag` / 304 / 503 — see
+  [INTEGRATE.md §5](INTEGRATE.md)). The bundled `server/citadel-schema.ts` is a snapshot of it;
+  when the live endpoint is reachable, trust it over the snapshot.
 - SQL dialect: **Amazon Athena (Trino/Presto-compatible)**. Main schema: `noon2_datamart`.
 - Reads are **app-wide** (app-level HMAC auth), **not per-user** — there is no per-user scope
   injection here. Prefer dimension/aggregate tables and app-wide aggregates.
