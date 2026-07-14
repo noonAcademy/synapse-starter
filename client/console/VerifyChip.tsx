@@ -1,74 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Pill } from '../ui';
+import type { VerifyState } from './useVerify';
 
-// The console header's persistent "do the checks pass?" chip. It hits the workspace-only
-// GET /__synapse/verify (typecheck -> lint -> tests, fail-fast) on console load and on demand
-// via the re-run button; when red, clicking the chip opens the failing step's output. It can't
-// use useJson directly (that loader is one-shot per URL and this needs manual re-runs), but it
-// keeps the same status-shape and content-type guard.
-
-// Mirrors server/verify.ts VerifyResult (served by /__synapse/verify).
-interface VerifyStep {
-  name: string;
-  ok: boolean;
-  durationMs: number;
-  output: string;
-}
-interface VerifyResult {
-  ok: boolean;
-  steps: VerifyStep[];
-}
-
-type VerifyState =
-  | { status: 'idle' }
-  | { status: 'running' }
-  | { status: 'error'; message: string }
-  | { status: 'ready'; data: VerifyResult };
+// The console header's persistent "do the checks pass?" chip. Presentational: the verify state
+// lives in ConsoleApp (via useVerify) so the Home tab's checklist shares the same run instead
+// of kicking off its own. The ↻ button re-runs on demand; when red, clicking the chip opens
+// the failing step's output.
 
 function formatDuration(ms: number): string {
   return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
 }
 
-export function VerifyChip() {
-  const [state, setState] = useState<VerifyState>({ status: 'idle' });
+export function VerifyChip({ state, onRerun }: { state: VerifyState; onRerun: () => void }) {
   const [open, setOpen] = useState(false);
-  const alive = useRef(true);
-  useEffect(() => {
-    alive.current = true;
-    return () => {
-      alive.current = false;
-    };
-  }, []);
-
-  const run = useCallback(async () => {
-    setState({ status: 'running' });
-    setOpen(false);
-    try {
-      const res = await fetch('/__synapse/verify');
-      if (!res.ok) {
-        throw new Error(`request failed (${res.status})`);
-      }
-      if (!res.headers.get('content-type')?.includes('application/json')) {
-        throw new Error('endpoint unavailable here (the console is workspace-only)');
-      }
-      const data = (await res.json()) as VerifyResult;
-      if (alive.current) {
-        setState({ status: 'ready', data });
-      }
-    } catch (err) {
-      if (alive.current) {
-        setState({
-          status: 'error',
-          message: err instanceof Error ? err.message : 'failed to run checks',
-        });
-      }
-    }
-  }, []);
-
-  // The checks run on console load, so the chip is meaningful before anyone clicks anything.
-  useEffect(() => {
-    void run();
-  }, [run]);
 
   const running = state.status === 'running' || state.status === 'idle';
   const failing = state.status === 'ready' ? state.data.steps.filter((s) => !s.ok) : [];
@@ -97,7 +41,10 @@ export function VerifyChip() {
         ))}
       <button
         type="button"
-        onClick={() => void run()}
+        onClick={() => {
+          setOpen(false);
+          onRerun();
+        }}
         disabled={running}
         title="Re-run checks (typecheck, lint, tests)"
         aria-label="Re-run checks"

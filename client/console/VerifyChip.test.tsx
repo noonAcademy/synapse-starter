@@ -1,7 +1,15 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useVerify } from './useVerify';
 import { VerifyChip } from './VerifyChip';
+
+// The chip is presentational (state lives in ConsoleApp via useVerify), so the harness wires
+// the two together the same way ConsoleApp does — these tests cover hook + chip end to end.
+function Harness() {
+  const verify = useVerify();
+  return <VerifyChip state={verify.state} onRerun={verify.run} />;
+}
 
 function stubVerify(payload: unknown): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn(async () => ({
@@ -18,13 +26,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('<VerifyChip />', () => {
+describe('<VerifyChip /> + useVerify', () => {
   it('runs on load and shows green when everything passes', async () => {
     const fetchMock = stubVerify({
       ok: true,
       steps: [{ name: 'typecheck', ok: true, durationMs: 1200, output: '' }],
     });
-    render(<VerifyChip />);
+    render(<Harness />);
     expect(await screen.findByText('All checks pass')).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledWith('/__synapse/verify');
   });
@@ -37,7 +45,7 @@ describe('<VerifyChip />', () => {
         { name: 'lint', ok: false, durationMs: 300, output: 'ui.tsx:12 lint error here' },
       ],
     });
-    render(<VerifyChip />);
+    render(<Harness />);
 
     const chip = await screen.findByText('1 failing');
     fireEvent.click(chip);
@@ -47,7 +55,7 @@ describe('<VerifyChip />', () => {
 
   it('re-runs on demand via the re-run button', async () => {
     const fetchMock = stubVerify({ ok: true, steps: [] });
-    render(<VerifyChip />);
+    render(<Harness />);
     await screen.findByText('All checks pass');
 
     fireEvent.click(screen.getByLabelText('Re-run checks'));
@@ -60,7 +68,7 @@ describe('<VerifyChip />', () => {
       'fetch',
       vi.fn(async () => ({ ok: false, status: 500, headers: { get: () => null } })),
     );
-    render(<VerifyChip />);
+    render(<Harness />);
     expect(await screen.findByText("Couldn't check")).toBeTruthy();
   });
 });
