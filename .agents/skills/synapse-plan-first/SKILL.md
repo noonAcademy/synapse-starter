@@ -2,7 +2,8 @@
 name: synapse-plan-first
 description: >-
   Interview the builder to fill SPEC.md before any building starts: what the app is, who
-  uses it, where every displayed number comes from, what events it publishes. Use whenever a
+  uses it, where every displayed number comes from, what records the app owns, what events
+  it publishes. Use whenever a
   build starts fresh ("build me...", "I want an app/dashboard that..."), whenever SPEC.md
   still says "status: not yet filled in", and before any first feature of a new app.
 ---
@@ -32,9 +33,16 @@ Work through the SPEC sections in order — each one is roughly one or two quest
 2. **Who uses it and for what** — "Who opens this, and what decision are they trying to make?"
 3. **Data** — for every number they want: what it is, and how it's calculated. This is where
    most of the interview happens.
-4. **Events** — "What happenings in this app should Noon know about?" (Domain moments, not
+4. **Records this app owns** — if their description involves people *submitting, requesting,
+   approving, logging, or changing* anything, the app keeps its own records; ask the
+   state-machine questions now, not as a retrofit when storage is first added. "What happens
+   after someone submits — what states does it move through?" (e.g. submitted → approved →
+   done), "Who moves it from one state to the next?", and does that need enforcing, or is a
+   self-reported name field enough? (Identity tiers and storage: the **synapse-workflow**
+   skill.) Fill the "Records this app owns" section; for a read-only dashboard, write "none".
+5. **Events** — "What happenings in this app should Noon know about?" (Domain moments, not
    clicks — see the synapse-event-design skill.)
-5. **Out of scope** — "What should this app deliberately NOT do?"
+6. **Out of scope** — "What should this app deliberately NOT do?"
 
 ## Verify the data exists — before it goes in the spec
 

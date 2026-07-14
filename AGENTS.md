@@ -3,11 +3,13 @@
 This app connects a Replit project to Noon's **Citadel** via the **Synapse SDK**. It does two
 things: **publishes events** and **runs reads**. Read this before adding either.
 
-> **Your data lives in Citadel, not locally.** All Noon analytics data (students, sessions,
-> courses, …) is in the Citadel warehouse, reached *only* through `synapse.athenaQuery`. The
-> Replit Postgres / `DATABASE_URL` is **empty by design** — never query it for Noon data and
-> don't create local tables for it. If you're looking for Noon data, it's a `synapse.athenaQuery`
-> read (see "To add a read" below).
+> **Three stores — never confuse them.** **Noon's data** (students, sessions, courses, …) lives
+> in the Citadel warehouse, read-only, reached *only* through `synapse.athenaQuery` — never copy
+> it into local tables (see "To add a read" below). **Your app's OWN records** (submissions,
+> requests, statuses) live in your app's own database — the starter ships none by design; add
+> Replit's PostgreSQL when a workflow needs storage (see the **synapse-workflow** skill).
+> **Events** are announcements TO Noon that something happened — not storage; your app can't
+> query them back.
 
 ## The rules that matter most
 
@@ -121,6 +123,7 @@ Deeper recipes live as agent skills. Reach for them by task:
 | [`.agents/skills/synapse-plan-first/SKILL.md`](.agents/skills/synapse-plan-first/SKILL.md) (**synapse-plan-first**) | Starting any new build ("build me…"), or `SPEC.md` still says "not yet filled in" — interviews the builder one question at a time, verifies the data exists, and writes SPEC.md for approval before any code. |
 | [`skill/SKILL.md`](skill/SKILL.md) (**noon-sql-analyst**) | Writing any SQL against Noon data — reads, counts, analyses. Knows the registry, business rules, and Athena gotchas; bakes the final SELECT as a read. |
 | [`.agents/skills/synapse-add-page/SKILL.md`](.agents/skills/synapse-add-page/SKILL.md) (**synapse-add-page**) | Adding a page, dashboard, screen, or chart to the shipped app — the end-to-end read → `useView`/`ViewBlock` → page recipe. |
+| [`.agents/skills/synapse-workflow/SKILL.md`](.agents/skills/synapse-workflow/SKILL.md) (**synapse-workflow**) | Any form → workflow feature — "submit a request", "log an incident", "approve", "track status", "let people report/log X" — the three-stores rule, per-app Postgres storage, and the row-first-event-second recipe. |
 | [`.agents/skills/synapse-event-design/SKILL.md`](.agents/skills/synapse-event-design/SKILL.md) (**synapse-event-design**) | Tracking or instrumenting anything — which moments deserve events, `publishEvent` vs `sendEvent`, `declareEvent`, payload and naming rules, verifying delivery. |
 | [`.agents/skills/synapse-error-report/SKILL.md`](.agents/skills/synapse-error-report/SKILL.md) (**synapse-error-report**) | Something broke and needs escalating — produces a structured, paste-ready report for the Synapse Slack channel (never includes secret values). |
 
