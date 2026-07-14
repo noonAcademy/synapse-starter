@@ -3,6 +3,7 @@ import { EventsTab } from './EventsTab';
 import { GetDataTab } from './GetDataTab';
 import { HomeTab } from './HomeTab';
 import { SettingsTab } from './SettingsTab';
+import { VerifyChip } from './VerifyChip';
 import { ViewsTab } from './ViewsTab';
 
 // The workspace-only "Synapse" management console: the builder's surface for connecting to Noon,
@@ -27,9 +28,13 @@ export function ConsoleApp() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-          <h1 className="text-lg font-semibold">Synapse</h1>
-          <p className="text-sm text-slate-500">Manage your app's connection to Noon data</p>
+        <div className="mx-auto flex max-w-6xl items-start justify-between gap-4 px-4 py-4 sm:px-6">
+          <div>
+            <h1 className="text-lg font-semibold">Synapse</h1>
+            <p className="text-sm text-slate-500">Manage your app's connection to Noon data</p>
+          </div>
+          {/* Lives in the header so verify state stays visible from every tab. */}
+          <VerifyChip />
         </div>
       </header>
 

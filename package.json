@@ -11,10 +11,12 @@
     "dev": "cross-env NODE_ENV=development tsx watch server/index.ts",
     "build": "vite build",
     "start": "tsx server/index.ts",
+    "build:deploy": "npm run verify && npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.client.json",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "verify": "npm run typecheck && npm run lint && npm run test"
   },
   "dependencies": {
     "@noonacademy/citadel-transport": "^0.1.0",
