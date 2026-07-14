@@ -39,8 +39,8 @@ export function buildApp(opts: {
 }): Application {
   const app = express();
 
-  // Workspace-only inspection surface for the builder console (Overview / Tables / Read /
-  // Catalog / Events tabs). Registered before the client middleware so the SPA catch-all
+  // Workspace-only inspection surface for the builder console (Home / Get data / Views /
+  // Events / Settings tabs). Registered before the client middleware so the SPA catch-all
   // doesn't swallow it, and hidden once the app is a published Replit deployment so none of
   // it is exposed to end users.
   if (!opts.isReplitDeployment) {
@@ -61,7 +61,7 @@ export function buildApp(opts: {
       );
     });
 
-    // Bundled Citadel registry, projected for the Tables browser.
+    // Bundled Citadel registry, projected for the Get data tab's table browser.
     app.get('/__synapse/tables', (_req, res) => {
       res.json(projectTables());
     });

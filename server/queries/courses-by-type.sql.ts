@@ -1,6 +1,6 @@
 // A baked, app-wide read.
 //
-// Convention (slice 3): each server/queries/<name>.sql.ts exports a final SELECT plus the
+// Convention: each server/queries/<name>.sql.ts exports a final SELECT plus the
 // registry + skill versions it was written against. Baking the SQL into the repo keeps it
 // reviewable in the PR diff and traceable to the schema it targets. There are no params —
 // reads are app-wide (HMAC app auth via synapse.athenaQuery), not per-user.

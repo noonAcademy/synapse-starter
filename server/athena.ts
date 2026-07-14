@@ -22,17 +22,14 @@ function capRows(rows: Record<string, unknown>[]): {
     : { rows, truncated: false };
 }
 
-// The slice of the SDK (>=0.1.2) the read path depends on. We declare it locally
-// rather than reaching for a method on `SynapseClient` so this app type-checks against
-// any installed SDK version, and so the exact contract reads rely on is documented here:
-// app-wide, HMAC-signed `athenaQuery({ sql })` — never a raw fetch.
+// The slice of the SDK the read path depends on, declared locally so the exact contract
+// reads rely on is documented here: app-wide, HMAC-signed `athenaQuery({ sql })` — never
+// a raw fetch.
 export interface AthenaQueryClient {
   athenaQuery(opts: { sql: string }): Promise<unknown>;
 }
 
-// SDK >=0.1.2 adds `athenaQuery` to the client; 0.1.1 does not. Narrow through `unknown`
-// so the cast holds whichever version is installed at build time (Replit installs the
-// pinned >=0.1.2 at Run; local dev may still have 0.1.1 in node_modules).
+// Narrow the SDK client to just the read contract above.
 export function asAthenaClient(client: SynapseClient | null): AthenaQueryClient | null {
   return client as unknown as AthenaQueryClient | null;
 }
@@ -79,14 +76,5 @@ export function normalizeAthenaResult(raw: unknown): AthenaRows {
 // Run one baked SELECT app-wide and hand back rendered rows. The SQL is built at
 // authoring time (see server/queries/*.sql.ts), so there are no params to bind here.
 export async function runAthenaQuery(client: AthenaQueryClient, sql: string): Promise<AthenaRows> {
-  // athenaQuery lands in @noonacademy/synapse-sdk 0.1.2. Until that publishes, the dependency
-  // range resolves to 0.1.1 (which has no athenaQuery), so surface a clear, actionable message
-  // in the Read tab instead of a raw "athenaQuery is not a function".
-  if (typeof client.athenaQuery !== 'function') {
-    throw new Error(
-      'This SDK build has no athenaQuery — reads need @noonacademy/synapse-sdk >= 0.1.2. ' +
-        'Update once it publishes (the dependency range already allows it).',
-    );
-  }
   return normalizeAthenaResult(await client.athenaQuery({ sql }));
 }

@@ -26,7 +26,7 @@ const sample: AthenaTableMeta = {
 };
 
 describe('projectTable', () => {
-  it('projects the registry fields the Tables tab needs', () => {
+  it('projects the registry fields the Get data tab needs', () => {
     expect(projectTable(sample)).toEqual({
       key: 'd_course',
       database: 'noon2_datamart',

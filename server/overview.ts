@@ -1,4 +1,4 @@
-// App identity + a live-ish connection signal for the Overview tab. The SDK exposes no
+// App identity + a live-ish connection signal for the console's Home/Settings tabs. The SDK exposes no
 // dedicated ping, so the most honest connectivity proof we have without extra traffic is the
 // outcome of the boot publish round-trip — if Citadel accepted an event, secrets reached the
 // server, the request was HMAC-signed, and staging was reachable.
