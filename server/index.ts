@@ -12,6 +12,7 @@ import { recentPublishes } from './events.js';
 import { buildOverview } from './overview.js';
 import { listBakedQueries } from './queries/index.js';
 import { runRead } from './reads.js';
+import { buildSetup, readSpecText } from './setup.js';
 import {
   appOauthRedirectUri,
   appSessionSecret,
@@ -81,6 +82,14 @@ export function buildApp(opts: {
           description: q.description,
         })),
       );
+    });
+
+    // First-run setup state for the Home tab's checklist: secret PRESENCE (names + booleans
+    // only — values never leave the server) and whether SPEC.md has been filled in. The
+    // checklist's other two checks reuse /__synapse/overview and /__synapse/verify.
+    app.get('/__synapse/setup', (_req, res) => {
+      const specText = readSpecText(resolve(here, '../SPEC.md'));
+      res.json(buildSetup({ env: process.env, specText }));
     });
 
     // Run the repo's verify chain (typecheck -> lint -> tests) and report per-step results for

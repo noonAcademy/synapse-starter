@@ -3,6 +3,7 @@ import { EventsTab } from './EventsTab';
 import { GetDataTab } from './GetDataTab';
 import { HomeTab } from './HomeTab';
 import { SettingsTab } from './SettingsTab';
+import { useVerify } from './useVerify';
 import { VerifyChip } from './VerifyChip';
 import { ViewsTab } from './ViewsTab';
 
@@ -24,6 +25,8 @@ const WIDE_TABS: readonly TabId[] = ['views', 'events'];
 
 export function ConsoleApp() {
   const [active, setActive] = useState<TabId>('home');
+  // One verify run, shared by the header chip and the Home tab's checklist.
+  const verify = useVerify();
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -34,7 +37,7 @@ export function ConsoleApp() {
             <p className="text-sm text-slate-500">Manage your app's connection to Noon data</p>
           </div>
           {/* Lives in the header so verify state stays visible from every tab. */}
-          <VerifyChip />
+          <VerifyChip state={verify.state} onRerun={verify.run} />
         </div>
       </header>
 
@@ -62,7 +65,7 @@ export function ConsoleApp() {
 
         <main className="py-6">
           <div className={WIDE_TABS.includes(active) ? '' : 'max-w-3xl'}>
-            {active === 'home' && <HomeTab onNavigate={setActive} />}
+            {active === 'home' && <HomeTab onNavigate={setActive} verify={verify.state} />}
             {active === 'get-data' && <GetDataTab onNavigate={setActive} />}
             {active === 'views' && <ViewsTab onNavigate={setActive} />}
             {active === 'events' && <EventsTab />}
