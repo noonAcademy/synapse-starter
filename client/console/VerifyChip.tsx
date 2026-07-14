@@ -46,7 +46,7 @@ export function VerifyChip({ state, onRerun }: { state: VerifyState; onRerun: ()
           onRerun();
         }}
         disabled={running}
-        title="Re-run checks (typecheck, lint, tests)"
+        title="Re-run checks (secret scan, typecheck, lint, tests)"
         aria-label="Re-run checks"
         className="rounded-md px-1.5 py-0.5 text-sm text-slate-400 transition-colors hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-40"
       >

@@ -155,6 +155,7 @@ Deeper recipes live as agent skills. Reach for them by task:
 
 - TypeScript, ESM (`type: module`). Server uses NodeNext resolution — **relative imports need a
   `.js` extension** (e.g. `import { runRead } from './reads.js'`).
-- Verify with **`npm run verify`** (typecheck → lint → tests, fail-fast) before you're done. The
+- Verify with **`npm run verify`** (secret scan → typecheck → lint → tests, fail-fast) before
+  you're done. The
   same gate runs before every deployment, so a red check here is a blocked deploy there.
 - Don't commit a `package-lock.json` (the template ships without one — see the README) or `.env`.

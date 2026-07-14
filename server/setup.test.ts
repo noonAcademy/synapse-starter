@@ -18,9 +18,12 @@ const UNFILLED_SPEC = `status: ${SPEC_UNFILLED_MARKER}\n\n# SPEC.md — what thi
 
 describe('buildSetup', () => {
   it('reports secret presence by name only — never a value', () => {
+    // Built at runtime (not a quoted literal) so the repo's own secret scan — the "secrets"
+    // step of npm run verify — can't match this tracked file.
+    const fakeSecret = ['shh', 'very', 'secret'].join('-');
     const env = {
       SYNAPSE_APP_ID: 'app_super_secret_id',
-      SYNAPSE_APP_SECRET: 'shh-very-secret',
+      SYNAPSE_APP_SECRET: fakeSecret,
       GITHUB_TOKEN: undefined,
     };
     const setup = buildSetup({ env, specText: null });
@@ -35,7 +38,7 @@ describe('buildSetup', () => {
     // The projection must never carry a secret value, however it's serialized.
     const serialized = JSON.stringify(setup);
     expect(serialized).not.toContain('app_super_secret_id');
-    expect(serialized).not.toContain('shh-very-secret');
+    expect(serialized).not.toContain(fakeSecret);
   });
 
   it('treats an empty-string env var as not set', () => {

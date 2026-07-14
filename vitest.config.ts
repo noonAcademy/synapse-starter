@@ -8,6 +8,6 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'node',
-    include: ['server/**/*.test.ts', 'client/**/*.test.tsx'],
+    include: ['server/**/*.test.ts', 'client/**/*.test.tsx', 'scripts/**/*.test.ts'],
   },
 });
