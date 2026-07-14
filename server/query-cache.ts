@@ -1,7 +1,7 @@
 // In-memory, per-query-name cache for baked reads. The lake refreshes roughly every
 // 12h, so a TTL well under that (default 1h) keeps the app responsive and cheap while
 // staying fresh enough that what a builder sees is never more than an hour behind a
-// refresh. This is process-local and resets on restart — durable caching is a later slice.
+// refresh. This is process-local and resets on restart.
 
 const DEFAULT_TTL_MS = 60 * 60 * 1000; // 1 hour
 

@@ -15,7 +15,7 @@ const missing = [
 
 // Surfaced (not thrown) so the server still boots and the page still renders when
 // secrets are absent — that decouples "did the page render?" from "did secrets
-// reach the server?", which is exactly the failure we want slice 1 to localise.
+// reach the server?", which is exactly the failure first-run setup needs to localise.
 export const synapseConfigError =
   missing.length > 0
     ? `Missing required Replit Secret(s): ${missing.join(', ')}. Add them in the Secrets pane (or .env locally), then re-run.`
@@ -24,8 +24,8 @@ export const synapseConfigError =
 export const synapse: SynapseClient | null =
   appId && appSecret ? createSynapseClient({ baseUrl, appId, appSecret }) : null;
 
-// App identity for the Overview tab. appId is an identifier, not a secret, so it's safe to
-// surface. baseUrl is config (which Citadel we point at).
+// App identity for the console's Home/Settings tabs. appId is an identifier, not a secret,
+// so it's safe to surface. baseUrl is config (which Citadel we point at).
 export const synapseAppId: string | null = appId ?? null;
 export const synapseBaseUrl: string = baseUrl;
 

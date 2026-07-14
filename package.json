@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Synapse starter template (slice 1) — clone into Replit, paste secrets, hit Run, and one event lands attributed in staging Citadel.",
+  "description": "Synapse starter template — clone into Replit, paste secrets, hit Run: the app connects to Citadel, reads Noon data, and publishes events.",
   "engines": {
     "node": ">=20"
   },

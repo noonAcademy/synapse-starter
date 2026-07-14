@@ -20,7 +20,7 @@ gotchas, write **correct Athena (Trino/Presto) SQL**, and bake it into this app 
 (`ATHENA_REGISTRY`), with column names, types, enum values, grain, and vetted example
 queries, plus `BUSINESS_RULES` and `COMPACT_TABLE_OVERVIEW`. **Always read it before writing
 any query.** There is nothing to upload — the snapshot is in the repo and browsable in the
-app's **Tables** tab. Its source of truth is Citadel's live `GET /api/registry` (contract in
+console's **Get data** tab. Its source of truth is Citadel's live `GET /api/registry` (contract in
 [INTEGRATE.md §5](../INTEGRATE.md)); when that endpoint is reachable, trust it over the
 snapshot.
 
