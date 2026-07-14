@@ -10,6 +10,16 @@ entrypoint = "server/index.ts"
 # blocks CVE-flagged dev packages, and they aren't needed to build or run the app.
 run = "npm install --omit=dev && npm run build && npm run start"
 
+# Deployments are gated on the checks: build:deploy chains `npm run verify`
+# (typecheck + lint + tests, fail fast) before the vite build, so broken code
+# fails the deployment build instead of shipping. Only the DEPLOYMENT build
+# pays this cost — the workspace Run command above stays verify-free and fast.
+# verify needs the dev deps (tsc, biome, vitest), hence the full npm install
+# here instead of --omit=dev.
+[deployment]
+build = ["sh", "-c", "npm install && npm run build:deploy"]
+run = ["sh", "-c", "npm run start"]
+
 [env]
 # SYNAPSE_APP_ID, SYNAPSE_APP_SECRET and GITHUB_TOKEN come from the Secrets pane.
 # SYNAPSE_BASE_URL defaults to staging in code; set it here only to override.

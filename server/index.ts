@@ -24,6 +24,7 @@ import {
   synapseConfigError,
 } from './synapse.js';
 import { projectTables } from './tables.js';
+import { verifyRunner } from './verify.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.NODE_ENV === 'development';
@@ -80,6 +81,20 @@ export function buildApp(opts: {
           description: q.description,
         })),
       );
+    });
+
+    // Run the repo's verify chain (typecheck -> lint -> tests) and report per-step results for
+    // the console's verify chip. A failing step is a normal 200 response, and concurrent
+    // requests share one in-flight run (verify.ts). The try/catch exists for the same reason as
+    // the read route's below: verifyRunner.run() never rejects, but that guarantee shouldn't be
+    // load-bearing for Express 4's error handling.
+    app.get('/__synapse/verify', async (_req, res) => {
+      try {
+        res.json(await verifyRunner.run());
+      } catch (err) {
+        console.error('[synapse] verify route failed:', err instanceof Error ? err.message : err);
+        res.status(500).json({ error: 'verify failed to run' });
+      }
     });
 
     // Run one baked read (cache -> athenaQuery -> rows). runRead never rejects (read failures

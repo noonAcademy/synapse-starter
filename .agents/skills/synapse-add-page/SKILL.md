@@ -110,7 +110,7 @@ noon-sql-analyst skill, registered in `server/queries/index.ts` — then consume
 
 ## Verify
 
-- `npm run typecheck`, `npm run lint`, `npm test` all green.
+- `npm run verify` green (it chains typecheck → lint → tests, failing fast).
 - Load `/` — the new page appears in the nav; its data renders (or shows the friendly empty state
   when secrets are missing).
 - New read? Check it on the console's **Views** tab too.

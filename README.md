@@ -146,6 +146,13 @@ rather than serving Noon data to anyone unauthenticated, and the missing value i
 the deployment log. Your workspace is unaffected either way — the builder console never
 needs these and stays open.
 
+**Broken code cannot deploy.** The deployment build runs `npm run build:deploy`, which
+chains the full check suite (`npm run verify`: typecheck → lint → tests, fail-fast) before
+building — a red check fails the build and the previous deployment keeps serving. The
+console header shows the same checks live (green "All checks pass" / red with the failing
+step's output), so you'll know before you press Deploy. Only deployments pay this cost;
+the workspace **Run** button skips verify and stays fast.
+
 ## Running locally
 
 ```bash
@@ -154,7 +161,8 @@ npm install            # needs GITHUB_TOKEN in your env for the private SDK
 npm run dev            # server + client with hot reload, one port (default 3000)
 ```
 
-Checks: `npm run typecheck`, `npm run lint`, `npm test`. Don't commit `.env` or a
+Checks: `npm run verify` (typecheck → lint → tests, fail-fast — the same gate every
+deployment build runs). Don't commit `.env` or a
 `package-lock.json` (the template deliberately ships without one — the private SDK makes a
 lockfile generated without a token incomplete).
 
