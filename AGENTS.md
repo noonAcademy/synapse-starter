@@ -100,6 +100,17 @@ it, so nobody hand-authors a schema. Make it realistic but schematic, and follow
 you declare it in the server code you're writing, the same way you call `synapse.athenaQuery` for
 reads.
 
+## Skills
+
+Deeper recipes live as agent skills. Reach for them by task:
+
+| Skill | Use when |
+|---|---|
+| [`skill/SKILL.md`](skill/SKILL.md) (**noon-sql-analyst**) | Writing any SQL against Noon data — reads, counts, analyses. Knows the registry, business rules, and Athena gotchas; bakes the final SELECT as a read. |
+| [`.agents/skills/synapse-add-page/SKILL.md`](.agents/skills/synapse-add-page/SKILL.md) (**synapse-add-page**) | Adding a page, dashboard, screen, or chart to the shipped app — the end-to-end read → `useView`/`ViewBlock` → page recipe. |
+| [`.agents/skills/synapse-event-design/SKILL.md`](.agents/skills/synapse-event-design/SKILL.md) (**synapse-event-design**) | Tracking or instrumenting anything — which moments deserve events, `publishEvent` vs `sendEvent`, `declareEvent`, payload and naming rules, verifying delivery. |
+| [`.agents/skills/synapse-error-report/SKILL.md`](.agents/skills/synapse-error-report/SKILL.md) (**synapse-error-report**) | Something broke and needs escalating — produces a structured, paste-ready report for the Synapse Slack channel (never includes secret values). |
+
 ## Where things live
 
 | Path | What it is |
