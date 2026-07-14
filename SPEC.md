@@ -26,6 +26,16 @@ if the source table isn't in the registry, it doesn't go in the spec._
 |---|---|---|---|
 | _e.g. "Active courses by type"_ | _`noon2_datamart.d_course`_ | _`courses-by-type`_ | _count grouped by type, deleted excluded_ |
 
+## Records this app owns
+
+_Only for apps that store their own records (workflow submissions, requests, statuses) —
+they live in the app's own Postgres, never in Citadel (see the **synapse-workflow** skill).
+Read-only dashboards: write "none"._
+
+- **Workflow:** _states and who moves each transition (e.g. submitted → approved → done; ops approve)._
+- **Identity tier:** _self-reported field, or Replit Auth if transitions are enforced._
+- **Schema (additive-only DDL):** _the `CREATE TABLE IF NOT EXISTS` statements, kept in sync with the code._
+
 ## Events this app publishes and when
 
 _One row per event type: the moment that triggers it, and the IDs its payload carries._
