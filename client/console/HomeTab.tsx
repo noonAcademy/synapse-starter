@@ -271,7 +271,7 @@ function verifyCheck(verify: VerifyState): Check {
       return {
         title: 'All checks pass',
         status: 'good',
-        summary: 'Typecheck, lint, and tests are all green.',
+        summary: 'Secret scan, typecheck, lint, and tests are all green.',
       };
     }
     const failing = verify.data.steps.filter((s) => !s.ok);
@@ -293,7 +293,7 @@ function verifyCheck(verify: VerifyState): Check {
     summary:
       verify.status === 'error'
         ? `Couldn't check: ${verify.message}`
-        : 'Running typecheck, lint, and tests…',
+        : 'Running the secret scan, typecheck, lint, and tests…',
   };
 }
 

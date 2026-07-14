@@ -31,8 +31,10 @@ const STEP_TIMEOUT_MS = 5 * 60_000;
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-// Mirrors package.json's `verify` script: same steps, same order, same fail-fast.
+// Mirrors package.json's `verify` script: same steps, same order, same fail-fast. The secret
+// scan goes first — it's the fastest step and the most urgent failure.
 const VERIFY_COMMANDS: VerifyCommand[] = [
+  { name: 'secrets', command: 'npm', args: ['run', 'secrets'] },
   { name: 'typecheck', command: 'npm', args: ['run', 'typecheck'] },
   { name: 'lint', command: 'npm', args: ['run', 'lint'] },
   { name: 'test', command: 'npm', args: ['run', 'test'] },

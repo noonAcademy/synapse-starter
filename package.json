@@ -16,7 +16,8 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "test": "vitest run",
-    "verify": "npm run typecheck && npm run lint && npm run test"
+    "secrets": "tsx scripts/scan-secrets.ts",
+    "verify": "npm run secrets && npm run typecheck && npm run lint && npm run test"
   },
   "dependencies": {
     "@noonacademy/citadel-transport": "^0.1.0",

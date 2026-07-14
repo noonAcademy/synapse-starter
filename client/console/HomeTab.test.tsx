@@ -66,7 +66,7 @@ describe('<HomeTab />', () => {
   it('shows four Done checks when everything is green', async () => {
     render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
     await waitFor(() => expect(screen.getAllByText('Done')).toHaveLength(4));
-    expect(screen.getByText('Typecheck, lint, and tests are all green.')).toBeTruthy();
+    expect(screen.getByText('Secret scan, typecheck, lint, and tests are all green.')).toBeTruthy();
   });
 
   it('goes red on a missing required secret, by NAME only, with the Secrets-pane fix', async () => {
@@ -136,7 +136,7 @@ describe('<HomeTab />', () => {
 
   it('shows pending states while checks are loading or running', async () => {
     render(<HomeTab onNavigate={vi.fn()} verify={{ status: 'running' }} />);
-    expect(screen.getByText('Running typecheck, lint, and tests…')).toBeTruthy();
+    expect(screen.getByText('Running the secret scan, typecheck, lint, and tests…')).toBeTruthy();
     expect(screen.getAllByText('Checking…').length).toBeGreaterThan(0);
   });
 });
