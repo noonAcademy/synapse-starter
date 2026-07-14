@@ -9,12 +9,24 @@ things: **publishes events** and **runs reads**. Read this before adding either.
 > don't create local tables for it. If you're looking for Noon data, it's a `synapse.athenaQuery`
 > read (see "To add a read" below).
 
-## The two rules that matter most
+## The rules that matter most
 
-1. **Reads go through `synapse.athenaQuery({ sql })` — never a raw `fetch` or a direct
+**Session continuity — every session:**
+
+1. **Read [`SPEC.md`](SPEC.md) before doing anything else.** It is this app's memory — what the
+   app is, who it's for, where every displayed number comes from, and the decisions already made.
+2. **If `SPEC.md` still says `status: not yet filled in`, run the plan-first interview first**
+   ([`.agents/skills/synapse-plan-first/SKILL.md`](.agents/skills/synapse-plan-first/SKILL.md)).
+   Never start coding against an unfilled spec.
+3. **After any substantive change, update `SPEC.md`:** append a dated one-liner to its Decisions
+   log and update the sections the change touches.
+
+**Reads and events:**
+
+4. **Reads go through `synapse.athenaQuery({ sql })` — never a raw `fetch` or a direct
    Athena/Presto/HTTP client.** It's the HMAC-signed, app-wide SDK helper. The app-side
    plumbing (cache, route, rendering) already exists; you add SQL, not transport.
-2. **Events go through `synapse.publishEvent(type, payload)`.** Built-in types are catalogued —
+5. **Events go through `synapse.publishEvent(type, payload)`.** Built-in types are catalogued —
    browse them under "Events your app can send" on the **Events** tab (or
    `@noonacademy/synapse-catalog`). If a feature you're building needs a kind of event no built-in
    covers, **YOU (the agent) declare it** with `synapse.declareEvent(...)` and then publish it —
@@ -106,6 +118,7 @@ Deeper recipes live as agent skills. Reach for them by task:
 
 | Skill | Use when |
 |---|---|
+| [`.agents/skills/synapse-plan-first/SKILL.md`](.agents/skills/synapse-plan-first/SKILL.md) (**synapse-plan-first**) | Starting any new build ("build me…"), or `SPEC.md` still says "not yet filled in" — interviews the builder one question at a time, verifies the data exists, and writes SPEC.md for approval before any code. |
 | [`skill/SKILL.md`](skill/SKILL.md) (**noon-sql-analyst**) | Writing any SQL against Noon data — reads, counts, analyses. Knows the registry, business rules, and Athena gotchas; bakes the final SELECT as a read. |
 | [`.agents/skills/synapse-add-page/SKILL.md`](.agents/skills/synapse-add-page/SKILL.md) (**synapse-add-page**) | Adding a page, dashboard, screen, or chart to the shipped app — the end-to-end read → `useView`/`ViewBlock` → page recipe. |
 | [`.agents/skills/synapse-event-design/SKILL.md`](.agents/skills/synapse-event-design/SKILL.md) (**synapse-event-design**) | Tracking or instrumenting anything — which moments deserve events, `publishEvent` vs `sendEvent`, `declareEvent`, payload and naming rules, verifying delivery. |
@@ -115,6 +128,7 @@ Deeper recipes live as agent skills. Reach for them by task:
 
 | Path | What it is |
 |---|---|
+| [`SPEC.md`](SPEC.md) | **The app's memory** — what this app is, who uses it, where every number comes from, events, scope, and the Decisions log. Read it first, every session; keep it current (rules 1–3 above). |
 | [`server/citadel-schema.ts`](server/citadel-schema.ts) | **The data registry snapshot** — Athena tables (columns, types, enums, grain, example queries) + `BUSINESS_RULES`. Browse it in the **Get data** tab. The **source of truth is Citadel's live `GET /api/registry`** (HMAC-authed, ETag'd — contract in [INTEGRATE.md §5](INTEGRATE.md)); this snapshot stands in until that endpoint is deployed on the staging Citadel this app targets, after which it will be deleted and fetched live at build time. |
 | [`skill/SKILL.md`](skill/SKILL.md) | The SQL-analyst skill. Use it to write reads. |
 | [`server/queries/`](server/queries/) | Baked reads (`<name>.sql.ts`) + their registry. |
