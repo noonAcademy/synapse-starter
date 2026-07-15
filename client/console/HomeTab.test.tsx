@@ -17,7 +17,6 @@ const ALL_SET_SETUP = {
     { name: 'SYNAPSE_APP_ID', set: true, required: true },
     { name: 'SYNAPSE_APP_SECRET', set: true, required: true },
     { name: 'SYNAPSE_BASE_URL', set: false, required: false },
-    { name: 'GITHUB_TOKEN', set: true, required: true },
   ],
   spec: { exists: true, filled: true },
 };
@@ -74,13 +73,13 @@ describe('<HomeTab />', () => {
       setup: {
         ...ALL_SET_SETUP,
         secrets: ALL_SET_SETUP.secrets.map((s) =>
-          s.name === 'GITHUB_TOKEN' ? { ...s, set: false } : s,
+          s.name === 'SYNAPSE_APP_SECRET' ? { ...s, set: false } : s,
         ),
       },
     });
     render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
 
-    expect(await screen.findByText('GITHUB_TOKEN — missing')).toBeTruthy();
+    expect(await screen.findByText('SYNAPSE_APP_SECRET — missing')).toBeTruthy();
     expect(screen.getByText(/Add the missing key/)).toBeTruthy();
     // The portal pointer comes from the overview's base URL.
     expect(screen.getByText('https://citadel.example/portal/replit-apps')).toBeTruthy();

@@ -24,7 +24,6 @@ describe('buildSetup', () => {
     const env = {
       SYNAPSE_APP_ID: 'app_super_secret_id',
       SYNAPSE_APP_SECRET: fakeSecret,
-      GITHUB_TOKEN: undefined,
     };
     const setup = buildSetup({ env, specText: null });
 
@@ -32,7 +31,6 @@ describe('buildSetup', () => {
       { name: 'SYNAPSE_APP_ID', set: true, required: true },
       { name: 'SYNAPSE_APP_SECRET', set: true, required: true },
       { name: 'SYNAPSE_BASE_URL', set: false, required: false },
-      { name: 'GITHUB_TOKEN', set: false, required: true },
     ]);
 
     // The projection must never carry a secret value, however it's serialized.

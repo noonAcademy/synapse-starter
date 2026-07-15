@@ -1,8 +1,9 @@
 # Synapse starter
 
 A clone-and-own Replit template that connects your app to Noon's **Citadel**: live Noon
-data in, events out, all through the Synapse SDK. You clone it, paste four secrets, and
-press **Run** — it comes up connected.
+data in, events out, all through the Synapse SDK. You clone it, paste three secrets, and
+press **Run** — it comes up connected. The SDK ships with the template (committed
+tarballs under [`vendor/`](vendor/)), so no GitHub token or registry access is needed.
 
 > **Two journeys, one front door:**
 >
@@ -17,20 +18,16 @@ press **Run** — it comes up connected.
 1. **Mint app credentials.** In the Citadel **staging** portal, open `/portal/replit-apps`
    → **Create app**. Copy the `app_id` and `app_secret` — the secret is shown once and is
    not recoverable.
-2. **Create a GitHub token** — a **classic** personal access token with the
-   `read:packages` scope. The SDK is a private GitHub package, so installing it needs a
-   token from an account with read access to the `@noonacademy` packages.
-3. **Clone this repo into Replit** via the import URL.
-4. **Paste four secrets** into Replit's Secrets pane (the 🔒 icon):
+2. **Clone this repo into Replit** via the import URL.
+3. **Paste three secrets** into Replit's Secrets pane (the 🔒 icon):
 
    | Secret | What it is |
    |---|---|
    | `SYNAPSE_APP_ID` | From step 1. |
    | `SYNAPSE_APP_SECRET` | From step 1 — shown once, keep it safe. |
    | `SYNAPSE_BASE_URL` | Which Citadel to talk to: `https://citadel.staging.noonedu.io`. (Left unset, the app falls back to that same staging URL.) |
-   | `GITHUB_TOKEN` | From step 2 — lets `npm install` fetch the private SDK. |
 
-5. **Press Run.** The app installs, builds, boots, and announces itself to Citadel by
+4. **Press Run.** The app installs, builds, boots, and announces itself to Citadel by
    publishing an `app_booted` event. You'll know it worked when the log shows:
 
    ```
@@ -45,9 +42,6 @@ press **Run** — it comes up connected.
 
 - `Missing required Replit Secret(s): …` — a secret is missing or misspelled. Add it and
   press **Run** again.
-- Install fails on `@noonacademy/synapse-sdk` — `GITHUB_TOKEN` is wrong or lacks
-  `read:packages`. Fix the token and press **Run**; the Run command re-runs the install,
-  so it self-heals in one click.
 - `[synapse] app_booted queued (couldn't reach Citadel on first try)` — the SDK enqueued
   the event and will retry in the background. Check `SYNAPSE_BASE_URL` and that staging
   is up.
@@ -158,14 +152,15 @@ the workspace **Run** button skips verify and stays fast.
 
 ```bash
 cp .env.example .env   # fill in the same values
-npm install            # needs GITHUB_TOKEN in your env for the private SDK
+npm install            # no token needed — the SDK installs from the tarballs in vendor/
 npm run dev            # server + client with hot reload, one port (default 3000)
 ```
 
 Checks: `npm run verify` (secret scan → typecheck → lint → tests, fail-fast — the same gate every
-deployment build runs). Don't commit `.env` or a
-`package-lock.json` (the template deliberately ships without one — the private SDK makes a
-lockfile generated without a token incomplete).
+deployment build runs). Don't commit `.env`. The `package-lock.json` IS committed — with the
+SDK vendored there's no private-registry auth to break it, so a lockfile keeps installs
+reproducible. (Maintainers: [`scripts/sync-sdk.md`](scripts/sync-sdk.md) covers refreshing
+the vendored SDK tarballs when a new version is published.)
 
 ## For coding agents
 
