@@ -92,6 +92,44 @@ export function verifySession(secret: string, token: string | undefined): EndUse
   }
 }
 
+// --- OAuth CSRF state cookie -------------------------------------------------------------------
+// The authorization-code flow needs the `state` nonce to survive the round-trip to Citadel before
+// any session exists. It rides in its own short-lived HMAC-signed cookie (same signing scheme as
+// the session cookie); the callback compares the cookie's state against the query's and clears it.
+// sameSite=lax is load-bearing: lax cookies ARE sent on the top-level GET back from Citadel.
+
+export const STATE_COOKIE_NAME = 'synapse_oauth_state';
+export const STATE_TTL_SECONDS = 10 * 60;
+
+export function signState(
+  secret: string,
+  state: string,
+  ttlSeconds: number = STATE_TTL_SECONDS,
+): string {
+  const encoded = toBase64Url(JSON.stringify({ state, exp: nowSeconds() + ttlSeconds }));
+  return `${encoded}.${sign(secret, encoded)}`;
+}
+
+// Returns the state nonce, or null when the cookie is missing, tampered with, or expired.
+export function verifyState(secret: string, token: string | undefined): string | null {
+  if (!token) {
+    return null;
+  }
+  const [encoded, signature] = token.split('.');
+  if (!encoded || !signature || !secureEqual(sign(secret, encoded), signature)) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(fromBase64Url(encoded)) as Partial<{ state: string; exp: number }>;
+    if (typeof parsed.state !== 'string' || typeof parsed.exp !== 'number') {
+      return null;
+    }
+    return parsed.exp < nowSeconds() ? null : parsed.state;
+  } catch {
+    return null;
+  }
+}
+
 export interface SessionCookieOptions {
   httpOnly: true;
   secure: boolean;

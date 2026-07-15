@@ -30,7 +30,7 @@ When something breaks and local debugging stalls, produce a report the builder c
    - Also grab any `[synapse] read route failed: …` / `view route failed: …` /
      `event route failed: …` / `publish failed: …` lines from the failure itself.
 3. **Secret presence — NAMES ONLY.** For each of `SYNAPSE_APP_ID`, `SYNAPSE_APP_SECRET`,
-   `SYNAPSE_BASE_URL` (config), and — deployment issues only — `GOOGLE_CLIENT_ID`,
+   `SYNAPSE_BASE_URL` (config), and — deployment issues only —
    `APP_OAUTH_REDIRECT_URI`, `APP_SESSION_SECRET`: report **set / not set**. Never echo a value;
    don't `cat .env` into the report.
 4. **SDK versions** — from `package.json`: `@noonacademy/synapse-sdk`, `@noonacademy/synapse-catalog`,

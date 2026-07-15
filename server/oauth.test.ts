@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildAuthorizeUrl,
   type CitadelOAuthConfig,
   OAuthError,
-  oauthLogin,
   oauthRefresh,
   oauthToken,
 } from './oauth.js';
@@ -42,50 +42,30 @@ function headerNames(init: RequestInit | undefined): string[] {
 }
 
 describe('oauth client', () => {
-  it('logs in with a bare (unsigned) POST carrying credential, appId, redirectUri', async () => {
-    const { fetchImpl, calls } = stubFetch({
-      status: 200,
-      body: {
-        code: 'code_abc',
-        sessionToken: 'st_1',
-        profiles: [{ id: 7, name: 'Dana', email: 'dana@noonacademy.com', type: 'ADMIN' }],
-        selectedProfileId: 7,
-      },
-    });
+  it('builds the authorize URL with app_id (not client_id), redirect_uri, response_type, state', () => {
+    const url = new URL(buildAuthorizeUrl(baseConfig, { state: 'csrf-123' }));
 
-    const result = await oauthLogin({ ...baseConfig, fetchImpl }, { credential: 'goog-cred' });
-
-    expect(calls[0]?.url).toBe('https://citadel.example/api/oauth/login');
-    expect(headerNames(calls[0]?.init)).not.toContain('x-citadel-signature');
-    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
-      credential: 'goog-cred',
-      appId: 'app_test',
-      redirectUri: 'https://app.example/oauth/callback',
-    });
-    expect(result.code).toBe('code_abc');
-    expect(result.selectedProfileId).toBe(7);
-    expect(result.profiles).toHaveLength(1);
+    expect(url.origin + url.pathname).toBe('https://citadel.example/portal/oauth/authorize');
+    expect(url.searchParams.get('app_id')).toBe('app_test');
+    expect(url.searchParams.get('client_id')).toBeNull();
+    expect(url.searchParams.get('redirect_uri')).toBe('https://app.example/oauth/callback');
+    expect(url.searchParams.get('response_type')).toBe('code');
+    expect(url.searchParams.get('state')).toBe('csrf-123');
   });
 
-  it('throws an OAuthError carrying the 403 status for external-only accounts', async () => {
-    const { fetchImpl } = stubFetch({ status: 403, body: { error: 'EXTERNAL_USER only' } });
-    await expect(
-      oauthLogin({ ...baseConfig, fetchImpl }, { credential: 'x' }),
-    ).rejects.toMatchObject({ name: 'OAuthError', status: 403 });
-  });
-
-  it('exchanges a code with an HMAC-signed POST and returns the token pair', async () => {
+  it('exchanges a code with an HMAC-signed POST and returns the nested token pair + profile', async () => {
     const { fetchImpl, calls } = stubFetch({
       status: 200,
       body: {
         token: { accessToken: 'at1', refreshToken: 'rt1', type: 'Bearer', expiresIn: 600 },
-        profile: { data: { id: 7 } },
+        profile: { id: 7, name: 'Dana', userType: 'ADMIN', account: { email: 'dana@non.sa' } },
       },
     });
 
     const result = await oauthToken({ ...baseConfig, fetchImpl }, { code: 'code_abc' });
 
     expect(calls[0]?.url).toBe('https://citadel.example/api/oauth/token');
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ code: 'code_abc' });
     const names = headerNames(calls[0]?.init);
     expect(names).toContain('x-citadel-signature');
     expect(names).toContain('x-replit-app-id');
@@ -95,6 +75,28 @@ describe('oauth client', () => {
       type: 'Bearer',
       expiresIn: 600,
     });
+    expect(result.profile).toMatchObject({
+      id: 7,
+      name: 'Dana',
+      account: { email: 'dana@non.sa' },
+    });
+  });
+
+  it('surfaces a 403 on the exchange (non-staff account) as an OAuthError', async () => {
+    const { fetchImpl } = stubFetch({ status: 403, body: { error: 'EXTERNAL_USER only' } });
+    await expect(oauthToken({ ...baseConfig, fetchImpl }, { code: 'x' })).rejects.toMatchObject({
+      name: 'OAuthError',
+      status: 403,
+    });
+  });
+
+  it('returns a null profile when the exchange response carries none', async () => {
+    const { fetchImpl } = stubFetch({
+      status: 200,
+      body: { token: { accessToken: 'at1', refreshToken: 'rt1', expiresIn: 600 } },
+    });
+    const result = await oauthToken({ ...baseConfig, fetchImpl }, { code: 'code_abc' });
+    expect(result.profile).toBeNull();
   });
 
   it('refreshes with a flat (not token-wrapped) response shape', async () => {

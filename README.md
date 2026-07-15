@@ -128,18 +128,18 @@ completed".
 ## Deploying your app
 
 Publishing the Replit deployment puts **your app** (never the console) at your
-`*.replit.app` URL, behind "Sign in with Noon". Before deploying, add three more values in
-Replit's Secrets pane:
+`*.replit.app` URL, behind "Sign in with Noon" — Citadel's own OAuth flow, using the app
+credentials you already have. No extra identity-provider setup, no secret anyone has to
+hand you. Before deploying, add two more values in Replit's Secrets pane:
 
 | Value | What it is |
 |---|---|
-| `GOOGLE_CLIENT_ID` | The Google Identity Services client ID the sign-in screen uses. |
 | `APP_OAUTH_REDIRECT_URI` | `https://<your-app>.replit.app/oauth/callback` — must exactly match the redirect URI registered for your app in the Citadel portal. |
-| `APP_SESSION_SECRET` | A random secret of your choosing; it signs the app's session cookie. |
+| `APP_SESSION_SECRET` | A random secret you mint yourself (e.g. `openssl rand -hex 32`); it signs the app's session and OAuth-state cookies. |
 
-Register the redirect URI in the Citadel portal (the same place you minted the app
-credentials) — sign-in fails until the registered URI and `APP_OAUTH_REDIRECT_URI` match
-exactly.
+Then one portal click: in the Citadel portal go to **Replit Apps → your app → redirect
+URI** and register the callback URL. The match is exact and `https://` is required —
+sign-in fails until the registered URI and `APP_OAUTH_REDIRECT_URI` are identical.
 
 **If any of this is missing, the deployment fails closed:** every request gets a 503
 rather than serving Noon data to anyone unauthenticated, and the missing value is named in
@@ -157,7 +157,7 @@ the workspace **Run** button skips verify and stays fast.
 ## Running locally
 
 ```bash
-cp .env.example .env   # fill in the same four values
+cp .env.example .env   # fill in the same values
 npm install            # needs GITHUB_TOKEN in your env for the private SDK
 npm run dev            # server + client with hot reload, one port (default 3000)
 ```

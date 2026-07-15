@@ -64,7 +64,6 @@ const authDeps = buildEndUserAuthDeps({
   appSecret: 'app-secret',
   redirectUri: 'https://app.example/oauth/callback',
   sessionSecret: 'sess-secret',
-  googleClientId: 'gid_test',
   secure: false,
 });
 
@@ -104,6 +103,22 @@ describe('end-user auth gate wiring', () => {
     } finally {
       await close();
     }
+  });
+
+  it('refuses to build auth deps from incomplete config (each missing value ⇒ null ⇒ the 503 path)', () => {
+    const complete = {
+      baseUrl: 'https://citadel.example',
+      appId: 'app_test',
+      appSecret: 'app-secret',
+      redirectUri: 'https://app.example/oauth/callback',
+      sessionSecret: 'sess-secret',
+      secure: true,
+    };
+    expect(buildEndUserAuthDeps(complete)).not.toBeNull();
+    expect(buildEndUserAuthDeps({ ...complete, redirectUri: null })).toBeNull();
+    expect(buildEndUserAuthDeps({ ...complete, sessionSecret: null })).toBeNull();
+    expect(buildEndUserAuthDeps({ ...complete, appId: null })).toBeNull();
+    expect(buildEndUserAuthDeps({ ...complete, appSecret: null })).toBeNull();
   });
 });
 

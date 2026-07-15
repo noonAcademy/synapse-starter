@@ -3,11 +3,15 @@ import type { AddressInfo } from 'node:net';
 import express, { type Application } from 'express';
 import { describe, expect, it } from 'vitest';
 import { attemptRefresh, createAuthRouter, type EndUserAuthDeps } from './auth-routes.js';
-import { SESSION_COOKIE_NAME, signSession, verifySession } from './endUserSession.js';
+import {
+  SESSION_COOKIE_NAME,
+  STATE_COOKIE_NAME,
+  signSession,
+  verifySession,
+} from './endUserSession.js';
 import {
   type CitadelOAuthClient,
   OAuthError,
-  type OAuthLoginResult,
   type OAuthRefreshResult,
   type OAuthTokenResult,
 } from './oauth.js';
@@ -55,15 +59,16 @@ function request(
 
 // --- fake Citadel oauth client ---
 function fakeOAuth(overrides: Partial<CitadelOAuthClient> = {}): CitadelOAuthClient {
-  const login = async (): Promise<OAuthLoginResult> => ({
-    code: 'code_1',
-    sessionToken: 'st_1',
-    profiles: [{ id: 42, name: 'Dana', email: 'dana@noonacademy.com', type: 'ADMIN' }],
-    selectedProfileId: 42,
-  });
+  const authorizeUrl = ({ state }: { state: string }): string =>
+    `https://citadel.example/portal/oauth/authorize?app_id=app_test&redirect_uri=cb&response_type=code&state=${state}`;
   const token = async (): Promise<OAuthTokenResult> => ({
     token: { accessToken: 'at1', refreshToken: 'rt1', type: 'Bearer', expiresIn: 600 },
-    profile: null,
+    profile: {
+      id: 42,
+      name: 'Dana',
+      userType: 'ADMIN',
+      account: { email: 'dana@noonacademy.com' },
+    },
   });
   const refresh = async (): Promise<OAuthRefreshResult> => ({
     accessToken: 'at2',
@@ -71,7 +76,7 @@ function fakeOAuth(overrides: Partial<CitadelOAuthClient> = {}): CitadelOAuthCli
     type: 'Bearer',
     expiresIn: 600,
   });
-  return { login, token, refresh, ...overrides };
+  return { authorizeUrl, token, refresh, ...overrides };
 }
 
 function makeDeps(overrides: Partial<EndUserAuthDeps> = {}): EndUserAuthDeps {
@@ -79,7 +84,6 @@ function makeDeps(overrides: Partial<EndUserAuthDeps> = {}): EndUserAuthDeps {
     oauth: fakeOAuth(),
     tokenStore: createTokenStore(),
     sessionSecret: SECRET,
-    googleClientId: 'gid',
     secure: false,
     refreshSkewSeconds: 0,
     ...overrides,
@@ -92,24 +96,63 @@ function appWith(deps: EndUserAuthDeps): Application {
   return app;
 }
 
-function cookieValue(setCookie: string | string[] | undefined): string | undefined {
-  const raw = Array.isArray(setCookie) ? setCookie[0] : setCookie;
-  const match = raw?.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]*)`));
-  return match?.[1];
+function namedCookie(setCookie: string | string[] | undefined, name: string): string | undefined {
+  const raw = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];
+  for (const entry of raw) {
+    const match = entry.match(new RegExp(`(?:^|; ?)${name}=([^;]*)`));
+    if (match) {
+      return match[1];
+    }
+  }
+  return undefined;
 }
 
-describe('POST /auth/callback', () => {
-  it('completes the happy path: sets the session cookie and stores the Citadel tokens', async () => {
-    const store = createTokenStore();
-    const deps = makeDeps({ tokenStore: store });
-    const { port, close } = await serve(appWith(deps));
+const cookieValue = (setCookie: string | string[] | undefined): string | undefined =>
+  namedCookie(setCookie, SESSION_COOKIE_NAME);
 
-    const res = await request(port, 'POST', '/auth/callback', {
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ credential: 'goog-cred' }),
+// Drives the real initiation route and returns what the browser would carry to the callback:
+// the signed state cookie and the state nonce embedded in the authorize redirect.
+async function startLogin(port: number): Promise<{ stateCookie: string; state: string }> {
+  const res = await request(port, 'GET', '/auth/login');
+  expect(res.status).toBe(302);
+  const location = new URL(String(res.headers.location));
+  const state = location.searchParams.get('state') ?? '';
+  const stateCookie = namedCookie(res.headers['set-cookie'], STATE_COOKIE_NAME) ?? '';
+  expect(state).toBeTruthy();
+  expect(stateCookie).toBeTruthy();
+  return { stateCookie, state };
+}
+
+describe('GET /auth/login', () => {
+  it('redirects to the Citadel authorize URL with app_id + state and sets the state cookie', async () => {
+    const { port, close } = await serve(appWith(makeDeps()));
+
+    const res = await request(port, 'GET', '/auth/login');
+
+    expect(res.status).toBe(302);
+    const location = new URL(String(res.headers.location));
+    expect(location.pathname).toBe('/portal/oauth/authorize');
+    expect(location.searchParams.get('app_id')).toBe('app_test');
+    expect(location.searchParams.get('response_type')).toBe('code');
+    expect(location.searchParams.get('state')).toBeTruthy();
+    expect(namedCookie(res.headers['set-cookie'], STATE_COOKIE_NAME)).toBeTruthy();
+
+    await close();
+  });
+});
+
+describe('GET /oauth/callback', () => {
+  it('completes the happy path: exchanges the code, stores the nested token pair, sets the session cookie', async () => {
+    const store = createTokenStore();
+    const { port, close } = await serve(appWith(makeDeps({ tokenStore: store })));
+    const { stateCookie, state } = await startLogin(port);
+
+    const res = await request(port, 'GET', `/oauth/callback?code=code_1&state=${state}`, {
+      headers: { cookie: `${STATE_COOKIE_NAME}=${stateCookie}` },
     });
 
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/');
     const token = cookieValue(res.headers['set-cookie']);
     expect(token).toBeTruthy();
 
@@ -121,36 +164,93 @@ describe('POST /auth/callback', () => {
     expect(stored?.accessToken).toBe('at1');
     expect(stored?.refreshToken).toBe('rt1');
 
+    // The state cookie is consumed: cleared in the same response.
+    expect(namedCookie(res.headers['set-cookie'], STATE_COOKIE_NAME)).toBe('');
+
     await close();
   });
 
-  it("surfaces Citadel's 403 for a non-staff account", async () => {
+  it('rejects a state mismatch without touching Citadel or setting a session', async () => {
+    let exchanged = false;
     const oauth = fakeOAuth({
-      login: async () => {
-        throw new OAuthError('EXTERNAL_USER only', 403, 'login');
+      token: async () => {
+        exchanged = true;
+        throw new Error('should not be called');
       },
     });
     const { port, close } = await serve(appWith(makeDeps({ oauth })));
+    const { stateCookie } = await startLogin(port);
 
-    const res = await request(port, 'POST', '/auth/callback', {
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ credential: 'goog-cred' }),
+    const res = await request(port, 'GET', '/oauth/callback?code=code_1&state=forged', {
+      headers: { cookie: `${STATE_COOKIE_NAME}=${stateCookie}` },
     });
 
-    expect(res.status).toBe(403);
-    expect(JSON.parse(res.body).error).toBe("This account isn't a Noon staff account.");
-    expect(res.headers['set-cookie']).toBeUndefined();
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/login?error=state');
+    expect(exchanged).toBe(false);
+    expect(cookieValue(res.headers['set-cookie'])).toBeUndefined();
 
     await close();
   });
 
-  it('rejects a missing credential', async () => {
+  it('rejects a callback with no state cookie (expired or never initiated)', async () => {
     const { port, close } = await serve(appWith(makeDeps()));
-    const res = await request(port, 'POST', '/auth/callback', {
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({}),
+    const res = await request(port, 'GET', '/oauth/callback?code=code_1&state=anything');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/login?error=state');
+    await close();
+  });
+
+  it("redirects with not_staff on Citadel's 403 exchange (non-staff account)", async () => {
+    const oauth = fakeOAuth({
+      token: async () => {
+        throw new OAuthError('EXTERNAL_USER only', 403, 'token');
+      },
     });
-    expect(res.status).toBe(400);
+    const { port, close } = await serve(appWith(makeDeps({ oauth })));
+    const { stateCookie, state } = await startLogin(port);
+
+    const res = await request(port, 'GET', `/oauth/callback?code=code_1&state=${state}`, {
+      headers: { cookie: `${STATE_COOKIE_NAME}=${stateCookie}` },
+    });
+
+    expect(res.headers.location).toBe('/login?error=not_staff');
+    expect(cookieValue(res.headers['set-cookie'])).toBeUndefined();
+
+    await close();
+  });
+
+  it('redirects with not_staff when the profile email is outside the staff domains', async () => {
+    const store = createTokenStore();
+    const oauth = fakeOAuth({
+      token: async () => ({
+        token: { accessToken: 'at1', refreshToken: 'rt1', type: 'Bearer', expiresIn: 600 },
+        profile: { id: 9, name: 'Eve', account: { email: 'eve@gmail.com' } },
+      }),
+    });
+    const { port, close } = await serve(appWith(makeDeps({ oauth, tokenStore: store })));
+    const { stateCookie, state } = await startLogin(port);
+
+    const res = await request(port, 'GET', `/oauth/callback?code=code_1&state=${state}`, {
+      headers: { cookie: `${STATE_COOKIE_NAME}=${stateCookie}` },
+    });
+
+    expect(res.headers.location).toBe('/login?error=not_staff');
+    expect(cookieValue(res.headers['set-cookie'])).toBeUndefined();
+
+    await close();
+  });
+
+  it('redirects with failed when the code is missing or Citadel sent an error', async () => {
+    const { port, close } = await serve(appWith(makeDeps()));
+    const { stateCookie, state } = await startLogin(port);
+
+    const res = await request(port, 'GET', `/oauth/callback?state=${state}&error=access_denied`, {
+      headers: { cookie: `${STATE_COOKIE_NAME}=${stateCookie}` },
+    });
+
+    expect(res.headers.location).toBe('/login?error=failed');
+
     await close();
   });
 });
@@ -203,6 +303,67 @@ describe('attemptRefresh', () => {
 
     expect(await attemptRefresh(deps, 'sess-dead')).toBe('expired');
     expect(store.get('sess-dead')).toBeUndefined();
+  });
+
+  it('always sends the rotated token on the next refresh (single-use pair fully overwritten)', async () => {
+    const store = createTokenStore();
+    store.set('sess-rotate', {
+      accessToken: 'at1',
+      refreshToken: 'rt1',
+      expiresIn: 1,
+      obtainedAt: Date.now() - 60_000,
+    });
+    const seen: string[] = [];
+    const oauth = fakeOAuth({
+      refresh: async ({ refreshToken }) => {
+        seen.push(refreshToken);
+        if (refreshToken === 'rt1') {
+          // expiresIn 0 leaves the new pair immediately stale, forcing the next call to refresh.
+          return { accessToken: 'at2', refreshToken: 'rt2', type: 'Bearer', expiresIn: 0 };
+        }
+        if (refreshToken === 'rt2') {
+          return { accessToken: 'at3', refreshToken: 'rt3', type: 'Bearer', expiresIn: 600 };
+        }
+        // A replayed (already-consumed) token is exactly what Citadel would 401.
+        throw new OAuthError('single-use replay', 401, 'refresh');
+      },
+    });
+    const deps = makeDeps({ tokenStore: store, oauth });
+
+    expect(await attemptRefresh(deps, 'sess-rotate')).toBe('refreshed');
+    expect(await attemptRefresh(deps, 'sess-rotate')).toBe('refreshed');
+
+    expect(seen).toEqual(['rt1', 'rt2']);
+    expect(store.get('sess-rotate')).toMatchObject({ accessToken: 'at3', refreshToken: 'rt3' });
+  });
+
+  it('shares one in-flight refresh across concurrent callers instead of burning the single-use token twice', async () => {
+    const store = createTokenStore();
+    store.set('sess-race', {
+      accessToken: 'at1',
+      refreshToken: 'rt1',
+      expiresIn: 1,
+      obtainedAt: Date.now() - 60_000,
+    });
+    let upstreamCalls = 0;
+    const oauth = fakeOAuth({
+      refresh: async () => {
+        upstreamCalls += 1;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        return { accessToken: 'at2', refreshToken: 'rt2', type: 'Bearer', expiresIn: 600 };
+      },
+    });
+    const deps = makeDeps({ tokenStore: store, oauth });
+
+    const [first, second] = await Promise.all([
+      attemptRefresh(deps, 'sess-race'),
+      attemptRefresh(deps, 'sess-race'),
+    ]);
+
+    expect(upstreamCalls).toBe(1);
+    expect(first).toBe('refreshed');
+    expect(second).toBe('refreshed');
+    expect(store.get('sess-race')).toMatchObject({ accessToken: 'at2', refreshToken: 'rt2' });
   });
 });
 
