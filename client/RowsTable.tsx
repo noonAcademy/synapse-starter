@@ -1,7 +1,8 @@
 import { formatCell } from './format';
 
-// Renders lake rows as a scrollable table. Shared by the console's Views tab and the shipped app's
-// view blocks. The wrapper is `min-w-0 overflow-x-auto` per the anti-overflow rule in ui.tsx — a
+// Renders lake rows as a scrollable table for the builder console's Views tab. (The shipped app
+// has its own token-styled sibling: DataTable in client/app/ui.tsx.)
+// The wrapper is `min-w-0 overflow-x-auto` per the anti-overflow rule in ui.tsx — a
 // wide table scrolls inside its own box and never widens the page. A faint right-edge fade hints
 // there are more columns to scroll to.
 export function RowsTable({

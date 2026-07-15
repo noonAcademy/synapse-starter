@@ -28,6 +28,15 @@ You add SQL and React; the transport, cache, and route already exist.
   student.
 - **Rows are cached ~1h** (`server/query-cache.ts`), and the lake refreshes ~12h, so rendered data
   can be up to an hour behind a refresh. Don't build UI that assumes live data.
+- **New pages go in the APP's nav** (`nav: true`) **and are styled by the theme tokens** — the
+  semantic utilities from `client/app/theme.css` (`bg-card`, `text-ink`, `rounded-control`,
+  `p-card`, …). Never hardcode colors, radii, or fonts (no `slate-*`, no hex): restyling the app
+  means editing theme.css, and a page that hardcodes breaks that.
+- **`/synapse` is frozen scaffolding — never add views there.** That page
+  (`client/app/pages/synapse.tsx`) is Synapse's corner of the app: the starter's example views and
+  status, reached only from the shell's footer link. New data views are pages (or components) in
+  the builder's app, like the example below. `ViewBlock` remains the ready-made table for them —
+  it's token-styled like everything else.
 - Server-relative imports need a **`.js` extension** (NodeNext), e.g. `'./courses-by-type.sql.js'`.
 
 ## Step 1 — get the data (a baked read)
@@ -85,8 +94,8 @@ export const nav = true;
 
 export function Page() {
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Courses</h2>
+    <div className="space-y-stack">
+      <h2 className="text-title font-semibold tracking-tight text-ink">Courses</h2>
       <ViewBlock name="courses-by-type" />
     </div>
   );
