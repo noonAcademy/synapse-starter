@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { APP_NAME } from './config';
 import { LoginScreen } from './LoginScreen';
 import { type AppPage, getPageForPath, listAppPages } from './pages';
 
 // The shipped product's chrome — what end users see at `/` in a published deployment. Deliberately
-// NOT the console chrome: this is the app the builder is making, so keep it clean and rename it.
-const APP_NAME = 'My app';
+// NOT the console chrome: this is the app the builder is making, so keep it clean. Its look comes
+// entirely from the tokens in ./theme.css (bg-surface, text-ink, rounded-control, …) — restyle the
+// app by editing that file, never by hardcoding colors here.
 
 type AuthState = 'probing' | 'authenticated' | 'unauthenticated';
 
@@ -50,6 +52,8 @@ function useEndUserAuth(): AuthState {
 // Hand-rolled, dependency-free routing: resolve the current path against the page registry, and
 // navigate with history.pushState so end users get real, bookmarkable URLs. The server's SPA
 // catch-all already serves index.html for any non-`/__synapse` path, so deep links work on reload.
+// The query string is preserved across navigations so the workspace preview's `?surface=app`
+// escape hatch survives a page change.
 function useAppPath(): [string, (path: string) => void] {
   const [path, setPath] = useState(() =>
     typeof window === 'undefined' ? '/' : window.location.pathname,
@@ -65,7 +69,7 @@ function useAppPath(): [string, (path: string) => void] {
     if (next === window.location.pathname) {
       return;
     }
-    window.history.pushState(null, '', next);
+    window.history.pushState(null, '', next + window.location.search);
     setPath(next);
   };
 
@@ -79,7 +83,7 @@ export function AppShell() {
   // Hold on a brand-neutral splash until the probe settles, so end users never glimpse the app
   // chrome before the login screen (or vice versa).
   if (auth === 'probing') {
-    return <div className="min-h-screen bg-slate-50" aria-hidden />;
+    return <div className="min-h-screen bg-surface" aria-hidden />;
   }
   if (auth === 'unauthenticated') {
     return <LoginScreen />;
@@ -89,13 +93,13 @@ export function AppShell() {
   const navPages = listAppPages().filter((p) => p.nav);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
+    <div className="flex min-h-screen flex-col bg-surface font-app text-body text-ink">
+      <header className="border-b border-line bg-card">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-gutter py-4">
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="text-lg font-semibold text-slate-900"
+            className="text-lg font-semibold text-ink"
           >
             {APP_NAME}
           </button>
@@ -104,9 +108,22 @@ export function AppShell() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-gutter py-stack">
         {page ? <page.Page /> : <NotFound />}
       </main>
+
+      {/* Synapse's one piece of chrome in the shipped app: a quiet corner link to the /synapse
+          utility page (scaffolding examples + status). Never part of the primary nav. */}
+      <footer className="mx-auto flex w-full max-w-5xl justify-end px-gutter py-4">
+        <button
+          type="button"
+          onClick={() => navigate('/synapse')}
+          className="inline-flex items-center gap-1 text-caption text-ink-faint transition-colors hover:text-ink-muted"
+        >
+          <span aria-hidden>⚙</span>
+          Synapse
+        </button>
+      </footer>
     </div>
   );
 }
@@ -128,10 +145,8 @@ function AppNav({
           type="button"
           onClick={() => onNavigate(p.path)}
           aria-current={current === p.path ? 'page' : undefined}
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-            current === p.path
-              ? 'bg-slate-100 text-slate-900'
-              : 'text-slate-500 hover:text-slate-700'
+          className={`rounded-control px-3 py-1.5 text-body font-medium transition-colors ${
+            current === p.path ? 'bg-primary/10 text-primary' : 'text-ink-muted hover:text-ink'
           }`}
         >
           {p.title}
@@ -143,7 +158,7 @@ function AppNav({
 
 function NotFound() {
   return (
-    <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
+    <div className="rounded-control border border-dashed border-line px-4 py-10 text-center text-body text-ink-muted">
       This page doesn't exist yet.
     </div>
   );

@@ -31,18 +31,23 @@ Work through the SPEC sections in order — each one is roughly one or two quest
 
 1. **What this app does** — "Describe the app in two sentences, like you're telling a colleague."
 2. **Who uses it and for what** — "Who opens this, and what decision are they trying to make?"
-3. **Data** — for every number they want: what it is, and how it's calculated. This is where
+3. **Look & feel** — at most TWO light questions; don't let this bloat the interview:
+   - "Where will people use this — a desk, a phone in a classroom? And in which language(s)?"
+     (covers context + language, including whether the app is Arabic-first/RTL)
+   - "Should it feel calm, bold, or warm — and roomy or compact?" (covers tone/vibe + density;
+     note any color preference they volunteer)
+4. **Data** — for every number they want: what it is, and how it's calculated. This is where
    most of the interview happens.
-4. **Records this app owns** — if their description involves people *submitting, requesting,
+5. **Records this app owns** — if their description involves people *submitting, requesting,
    approving, logging, or changing* anything, the app keeps its own records; ask the
    state-machine questions now, not as a retrofit when storage is first added. "What happens
    after someone submits — what states does it move through?" (e.g. submitted → approved →
    done), "Who moves it from one state to the next?", and does that need enforcing, or is a
    self-reported name field enough? (Identity tiers and storage: the **synapse-workflow**
    skill.) Fill the "Records this app owns" section; for a read-only dashboard, write "none".
-5. **Events** — "What happenings in this app should Noon know about?" (Domain moments, not
+6. **Events** — "What happenings in this app should Noon know about?" (Domain moments, not
    clicks — see the synapse-event-design skill.)
-6. **Out of scope** — "What should this app deliberately NOT do?"
+7. **Out of scope** — "What should this app deliberately NOT do?"
 
 ## Verify the data exists — before it goes in the spec
 
@@ -66,8 +71,16 @@ per-student live data needs redesigning *in the interview*, not at build time.
    Add the first Decisions-log line: `YYYY-MM-DD — initial spec agreed`.
 2. **Show it to the builder and ask for approval** in plain terms: "This is what I'll build —
    did I get it right?" Fold in corrections and ask again.
-3. **On approval, flip the top line** to `status: approved YYYY-MM-DD`. Only now does building
-   start — usually via the **synapse-add-page** skill, one Data-table row at a time.
+3. **On approval, flip the top line** to `status: approved YYYY-MM-DD`.
+4. **Set the theme before building any page.** From the Look & feel answers, edit
+   [`client/app/theme.css`](../../../client/app/theme.css): activate the closest preset
+   ("calm" / "bold" / "warm") and tweak individual tokens (e.g. `--color-primary` for a stated
+   brand color). If the app is Arabic-first/RTL, also set `dir="rtl" lang="ar"` on `<html>` in
+   [`client/index.html`](../../../client/index.html) — direction is not a CSS token. Those two
+   files are the whole restyle; never hardcode colors in components.
+5. Only now does building start — usually via the **synapse-add-page** skill, one Data-table
+   row at a time. The placeholder home page (`client/app/pages/home.tsx` rendering
+   `<NotBuiltYet />`) gets replaced with the real product as part of this.
 
 ## Keeping SPEC.md alive
 

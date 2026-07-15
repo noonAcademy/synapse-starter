@@ -34,6 +34,13 @@ things: **publishes events** and **runs reads**. Read this before adding either.
    covers, **YOU (the agent) declare it** with `synapse.declareEvent(...)` and then publish it —
    there's no Noon-side step, and you never hand this off to the user.
 
+**The scaffolding/app split:**
+
+6. **`/synapse` is Synapse's corner of the app; everything else belongs to the builder.** The
+   `/synapse` page (`client/app/pages/synapse.tsx`, reached only from the shell's footer link)
+   holds the starter's example views and status — frozen scaffolding, never extended. New pages,
+   views, and features live in the builder's app: `client/app/pages/` and the app nav.
+
 ## To add a read
 
 1. **Describe the data you want** and let the SQL skill write it: open
@@ -55,7 +62,8 @@ The **shipped app** — what end users see at `/` — lives in [`client/app/`](c
 from the workspace-only console. Add a page by creating `client/app/pages/<name>.tsx` that exports
 `{ path, title, nav, Page }` and registering it in
 [`client/app/pages/index.ts`](client/app/pages/index.ts) — the same file-plus-registry shape as a
-read.
+read. Style it with the theme tokens (Conventions below), and put it in the app's nav — never on
+the `/synapse` scaffolding page (rule 6).
 
 An app page is built from two client primitives — data in, events out — with any React you like
 in between (a dashboard, a chart, a game):
@@ -139,7 +147,8 @@ Deeper recipes live as agent skills. Reach for them by task:
 | [`server/reads.ts`](server/reads.ts), [`server/athena.ts`](server/athena.ts), [`server/query-cache.ts`](server/query-cache.ts) | Read orchestration, the `athenaQuery` wrapper + result normaliser, and the in-memory cache. |
 | [`server/index.ts`](server/index.ts) | Express server. Mounts the workspace-only `/__synapse/*` endpoints (the builder console's data) **only when `REPLIT_DEPLOYMENT` is unset**; the public `/api/views*` (data in) and `/api/events` (events out) endpoints — the shipped app's surface — are mounted in every mode. |
 | [`client/console/`](client/console/) | The workspace-only **Synapse** management console (Home / Get data / Views / Events / Settings tabs). |
-| [`client/app/`](client/app/) | The **shipped app** rendered at `/` for end users. Pages live in `client/app/pages/<name>.tsx` (a registry, like `server/queries/`); views render as blocks via `client/app/blocks/ViewBlock.tsx`. |
+| [`client/app/`](client/app/) | The **shipped app** rendered at `/` for end users. Pages live in `client/app/pages/<name>.tsx` (a registry, like `server/queries/`); views render as blocks via `client/app/blocks/ViewBlock.tsx`. The `/synapse` page there is the starter's frozen scaffolding corner (example views + status). |
+| [`client/app/theme.css`](client/app/theme.css) | **The app's entire look** — Tailwind v4 `@theme` tokens (color, radius, type, density) with three documented presets. Restyling the app = editing this file (see Conventions). |
 | [`client/useView.ts`](client/useView.ts), [`client/sendEvent.ts`](client/sendEvent.ts) | The app's two building blocks: **`useView(name)`** loads a view's rows (data in); **`sendEvent(type, payload)`** reports to Noon (events out). Build any page/feature/game on these two. |
 
 ## Schema / dialect facts
@@ -156,6 +165,13 @@ Deeper recipes live as agent skills. Reach for them by task:
 
 ## Conventions
 
+- **The app's look lives in [`client/app/theme.css`](client/app/theme.css) tokens only.** App
+  pages and components consume the semantic utilities those tokens generate (`bg-surface`,
+  `text-ink`, `rounded-card`, `p-card`, …) and never hardcode colors, radii, fonts, or density —
+  restyling the app means editing theme.css (activate a preset, tweak tokens), nothing else.
+  The console (`client/console/`, `client/ui.tsx`) keeps its own fixed styling and is never
+  themed. Direction is not a token: an RTL app sets `dir`/`lang` on `<html>` in
+  `client/index.html`.
 - TypeScript, ESM (`type: module`). Server uses NodeNext resolution — **relative imports need a
   `.js` extension** (e.g. `import { runRead } from './reads.js'`).
 - Verify with **`npm run verify`** (secret scan → typecheck → lint → tests, fail-fast) before
