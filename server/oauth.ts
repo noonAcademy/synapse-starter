@@ -1,11 +1,13 @@
 import { buildHeaders } from '@noonacademy/citadel-transport';
 
-// Thin client for Citadel's OAuth endpoints (see the local noon-citadel checkout,
-// src/http/oauth-login-http.ts + oauth-token-http.ts for the wire contracts):
-//   POST /api/oauth/login    — BARE (no HMAC). Exchanges a Google credential for a one-time code.
-//   POST /api/oauth/token    — HMAC-signed. Exchanges the code for {accessToken, refreshToken}.
-//   POST /api/oauth/refresh  — HMAC-signed. Rotates the token pair.
-// Only login/token/refresh are needed here; nothing else in the SDK covers this app-as-IdP flow.
+// Thin client for Citadel's OAuth authorization-code flow (INTEGRATE.md §5.2; wire contracts in the
+// local noon-citadel checkout, src/http/oauth-token-http.ts):
+//   GET  /portal/oauth/authorize — browser redirect target. Query uses app_id, NOT client_id.
+//   POST /api/oauth/token        — HMAC-signed. Exchanges the callback code for
+//                                  { token: { accessToken, refreshToken, ... }, profile: { ... } }.
+//   POST /api/oauth/refresh      — HMAC-signed. Rotates the token pair; response is FLAT and the
+//                                  refresh token is single-use.
+// Nothing else in the SDK covers this app-as-IdP flow.
 
 export interface CitadelOAuthConfig {
   baseUrl: string;
@@ -16,23 +18,17 @@ export interface CitadelOAuthConfig {
   fetchImpl?: typeof fetch;
 }
 
-// One entry of the `profiles` array returned by /api/oauth/login (Citadel's normalized staff
-// profile). Fields are optional because the upstream payload is best-effort.
+// The `profile` object returned by /api/oauth/token — Citadel resolves the staff profile
+// server-side, so this single object is the app's only identity source. Fields are optional
+// because the upstream payload is best-effort; resolve email as email || account?.email.
 export interface CitadelProfile {
   id?: number;
   name?: string;
   email?: string;
   avatarUri?: string;
+  locale?: string;
   userType?: string;
-  type?: string;
   account?: { email?: string; username?: string };
-}
-
-export interface OAuthLoginResult {
-  code: string;
-  sessionToken: string | null;
-  profiles: CitadelProfile[];
-  selectedProfileId: number | null;
 }
 
 export interface OAuthTokens {
@@ -45,9 +41,8 @@ export interface OAuthTokens {
 
 export interface OAuthTokenResult {
   token: OAuthTokens;
-  // Raw noon2-core profile payload, passed through untyped — identity is derived from the login
-  // result's profiles instead, so callers rarely need this.
-  profile: unknown;
+  // Identity for the session cookie comes from here — null when Citadel sent no usable object.
+  profile: CitadelProfile | null;
 }
 
 // /api/oauth/refresh returns the token fields flat (not wrapped in `token` like /api/oauth/token).
@@ -68,7 +63,7 @@ export class OAuthError extends Error {
 
 // Bound client so callers (and tests) can depend on a small interface rather than the free functions.
 export interface CitadelOAuthClient {
-  login(args: { credential: string }): Promise<OAuthLoginResult>;
+  authorizeUrl(args: { state: string }): string;
   token(args: { code: string }): Promise<OAuthTokenResult>;
   refresh(args: { refreshToken: string }): Promise<OAuthRefreshResult>;
 }
@@ -82,10 +77,8 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
-const asString = (value: unknown): string => (typeof value === 'string' ? value : '');
 const asNumber = (value: unknown): number => (typeof value === 'number' ? value : 0);
 const asOptString = (value: unknown): string | null => (typeof value === 'string' ? value : null);
-const asOptNumber = (value: unknown): number | null => (typeof value === 'number' ? value : null);
 
 async function readJson(res: Response): Promise<unknown> {
   try {
@@ -102,28 +95,16 @@ function errorMessage(data: unknown, operation: string, status: number): string 
   return `Citadel oauth ${operation} failed (HTTP ${status})`;
 }
 
-export async function oauthLogin(
-  cfg: CitadelOAuthConfig,
-  { credential }: { credential: string },
-): Promise<OAuthLoginResult> {
-  const doFetch = cfg.fetchImpl ?? fetch;
-  const res = await doFetch(`${trimBase(cfg.baseUrl)}/api/oauth/login`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ credential, appId: cfg.appId, redirectUri: cfg.redirectUri }),
-    signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+// Where the login redirect sends the browser. Citadel's authorize page expects `app_id` —
+// `client_id` (the OAuth2 boilerplate name) is silently wrong (INTEGRATE.md §5.2 footgun table).
+export function buildAuthorizeUrl(cfg: CitadelOAuthConfig, { state }: { state: string }): string {
+  const query = new URLSearchParams({
+    app_id: cfg.appId,
+    redirect_uri: cfg.redirectUri,
+    response_type: 'code',
+    state,
   });
-  const data = await readJson(res);
-  if (!res.ok) {
-    throw new OAuthError(errorMessage(data, 'login', res.status), res.status, 'login');
-  }
-  const obj = isObject(data) ? data : {};
-  return {
-    code: asString(obj.code),
-    sessionToken: asOptString(obj.sessionToken),
-    profiles: Array.isArray(obj.profiles) ? (obj.profiles as CitadelProfile[]) : [],
-    selectedProfileId: asOptNumber(obj.selectedProfileId),
-  };
+  return `${trimBase(cfg.baseUrl)}/portal/oauth/authorize?${query.toString()}`;
 }
 
 async function signedPost(cfg: CitadelOAuthConfig, path: string, body: unknown): Promise<unknown> {
@@ -166,6 +147,29 @@ function toTokens(source: Record<string, unknown>, operation: string): OAuthToke
   };
 }
 
+// Best-effort projection of the exchange response's profile object. Never throws — a malformed
+// profile becomes null and the caller decides whether that's fatal (it is: no email, no session).
+function toProfile(source: unknown): CitadelProfile | null {
+  if (!isObject(source)) {
+    return null;
+  }
+  const account = isObject(source.account)
+    ? {
+        email: asOptString(source.account.email) ?? undefined,
+        username: asOptString(source.account.username) ?? undefined,
+      }
+    : undefined;
+  return {
+    id: typeof source.id === 'number' ? source.id : undefined,
+    name: asOptString(source.name) ?? undefined,
+    email: asOptString(source.email) ?? undefined,
+    avatarUri: asOptString(source.avatarUri) ?? undefined,
+    locale: asOptString(source.locale) ?? undefined,
+    userType: asOptString(source.userType) ?? undefined,
+    account,
+  };
+}
+
 export async function oauthToken(
   cfg: CitadelOAuthConfig,
   { code }: { code: string },
@@ -175,7 +179,7 @@ export async function oauthToken(
   const tokenObj = isObject(obj.token) ? obj.token : {};
   return {
     token: toTokens(tokenObj, 'token'),
-    profile: obj.profile ?? null,
+    profile: toProfile(obj.profile),
   };
 }
 
@@ -189,7 +193,7 @@ export async function oauthRefresh(
 
 export function createCitadelOAuthClient(cfg: CitadelOAuthConfig): CitadelOAuthClient {
   return {
-    login: (args) => oauthLogin(cfg, args),
+    authorizeUrl: (args) => buildAuthorizeUrl(cfg, args),
     token: (args) => oauthToken(cfg, args),
     refresh: (args) => oauthRefresh(cfg, args),
   };

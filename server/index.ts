@@ -17,7 +17,6 @@ import {
   appOauthRedirectUri,
   appSessionSecret,
   authConfigError,
-  googleClientId,
   synapse,
   synapseAppId,
   synapseAppSecret,
@@ -217,7 +216,6 @@ async function createServerInstance(): Promise<Server> {
         appSecret: synapseAppSecret,
         redirectUri: appOauthRedirectUri,
         sessionSecret: appSessionSecret,
-        googleClientId,
         secure: isReplitDeployment,
       })
     : null;

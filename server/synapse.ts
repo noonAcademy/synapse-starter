@@ -35,16 +35,15 @@ export const synapseAppSecret: string | null = appSecret ?? null;
 
 // --- End-user "Sign in with Noon" config (deployed app only) ---------------------------------
 // Same "surface, don't throw" pattern: the server still boots when these are unset, and the auth
-// gate simply stays unmounted (its absence is logged in server/index.ts). GOOGLE_CLIENT_ID and
-// APP_OAUTH_REDIRECT_URI are config (identifiers/URLs); APP_SESSION_SECRET is a secret used to
-// HMAC-sign the app's own identity cookie. The Citadel base URL and app secret above are reused
-// for the oauth calls.
-export const googleClientId: string | null = process.env.GOOGLE_CLIENT_ID ?? null;
+// gate simply stays unmounted (its absence is logged in server/index.ts). APP_OAUTH_REDIRECT_URI
+// is config (the deployed callback URL, registered in the Citadel portal); APP_SESSION_SECRET is
+// a secret used to HMAC-sign the app's own identity cookie and the OAuth state cookie. The
+// Citadel base URL, app id, and app secret above are reused for the oauth redirect + calls — no
+// extra identity-provider credential exists anymore.
 export const appOauthRedirectUri: string | null = process.env.APP_OAUTH_REDIRECT_URI ?? null;
 export const appSessionSecret: string | null = process.env.APP_SESSION_SECRET ?? null;
 
 const authMissing = [
-  ['GOOGLE_CLIENT_ID', googleClientId],
   ['APP_OAUTH_REDIRECT_URI', appOauthRedirectUri],
   ['APP_SESSION_SECRET', appSessionSecret],
   ['SYNAPSE_APP_ID', appId],

@@ -27,13 +27,14 @@ describe('<AppShell /> session gate', () => {
   });
 
   it('renders the login screen when the probe is unauthenticated (401)', async () => {
-    // Every fetch (probe + LoginScreen's config fetch) resolves to 401 here.
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse(401, { error: 'Not signed in' })),
     );
     render(<AppShell />);
-    expect(await screen.findByText('Sign in with Noon')).toBeTruthy();
+    // Heading and the sign-in link both carry the label; the link is the part that must exist.
+    const signIn = await screen.findAllByText('Sign in with Noon');
+    expect(signIn.some((el) => el.closest('a')?.getAttribute('href') === '/auth/login')).toBe(true);
   });
 
   it('renders the shipped app when the probe is authenticated', async () => {

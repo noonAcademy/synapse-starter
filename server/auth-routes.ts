@@ -5,16 +5,19 @@ import {
   type EndUserSession,
   readCookie,
   SESSION_COOKIE_NAME,
+  STATE_COOKIE_NAME,
+  STATE_TTL_SECONDS,
   sessionCookieOptions,
   signSession,
+  signState,
   verifySession,
+  verifyState,
 } from './endUserSession.js';
 import {
   type CitadelOAuthClient,
   type CitadelProfile,
   createCitadelOAuthClient,
   OAuthError,
-  type OAuthLoginResult,
 } from './oauth.js';
 import { type TokenStore, tokenStore } from './tokenStore.js';
 
@@ -28,58 +31,82 @@ declare global {
   }
 }
 
-const STAFF_MESSAGE = "This account isn't a Noon staff account.";
-const GENERIC_FAILURE = 'Sign-in failed. Please try again.';
 const DEFAULT_REFRESH_SKEW_SECONDS = 60;
+
+// Login-failure codes the callback redirects to /login with. LoginScreen owns the user-facing
+// copy; only these fixed codes ever appear in the query string (nothing user-controlled).
+export type LoginErrorCode = 'not_staff' | 'state' | 'failed';
+
+// App-side defense-in-depth on top of Citadel's own staff filter (which is by userType, not
+// domain — see filterStaffPortalProfiles in noon-citadel). Per INTEGRATE.md §5.5. `non.sa` is a
+// real Noon domain, not a typo.
+const STAFF_EMAIL_DOMAINS = ['noonacademy.com', 'noon.edu.sa', 'non.sa'];
+
+export function isStaffEmail(email: string): boolean {
+  const lower = email.toLowerCase();
+  return STAFF_EMAIL_DOMAINS.some((domain) => lower.endsWith(`@${domain}`));
+}
 
 export interface EndUserAuthDeps {
   oauth: CitadelOAuthClient;
   tokenStore: TokenStore;
   sessionSecret: string;
-  googleClientId: string;
   // Set the cookie's Secure flag (true only over HTTPS / in a deployment).
   secure: boolean;
   // Refresh the Citadel token this many seconds before it actually expires.
   refreshSkewSeconds?: number;
 }
 
-// Picks the identity to put in the cookie from the login result's staff profiles. Mirrors how
-// Citadel's own oauth-login-http.ts builds its web session: prefer the selected profile, then an
-// ADMIN, then the first staff profile.
-function deriveIdentity(login: OAuthLoginResult): {
+// Identity for the cookie, from the token exchange's single profile object — Citadel resolves the
+// staff profile server-side, so there's no profile picking left to do here. Null (no usable email)
+// is treated as not-staff by the callback.
+function deriveIdentity(profile: CitadelProfile | null): {
   email: string;
   name: string;
   coreProfileId: number | null;
 } | null {
-  const profiles = login.profiles;
-  const byId =
-    login.selectedProfileId != null
-      ? profiles.find((p) => p.id === login.selectedProfileId)
-      : undefined;
-  const admin = profiles.find((p) => (p.type ?? p.userType)?.toUpperCase() === 'ADMIN');
-  const selected: CitadelProfile | undefined = byId ?? admin ?? profiles[0];
-  if (!selected) {
-    return null;
-  }
-  const email = selected.email ?? selected.account?.email ?? selected.account?.username;
-  if (!email) {
+  const email = profile?.email ?? profile?.account?.email;
+  if (!profile || !email) {
     return null;
   }
   return {
     email,
-    name: selected.name ?? email,
-    coreProfileId: selected.id ?? login.selectedProfileId ?? null,
+    name: profile.name ?? email,
+    coreProfileId: profile.id ?? null,
   };
 }
 
 export type RefreshOutcome = 'valid' | 'refreshed' | 'expired' | 'error';
+
+// Citadel refresh tokens are single-use, so two concurrent refreshes for the same session are not
+// just wasteful — the loser's 401 would wrongly kill the session. Concurrent callers share one
+// in-flight refresh per (store, session) instead. Keyed weakly by store so test stores don't leak.
+const inflightRefreshes = new WeakMap<TokenStore, Map<string, Promise<RefreshOutcome>>>();
 
 // Rotates the stored Citadel token pair when it's within the skew window of expiry. Returns:
 //   'valid'     — still fresh, no call made
 //   'refreshed' — rotated successfully, tokenStore updated
 //   'expired'   — Citadel rejected the refresh token (401); tokenStore entry cleared, re-auth needed
 //   'error'     — transient failure; the pair is left untouched
-export async function attemptRefresh(
+export function attemptRefresh(
+  deps: Pick<EndUserAuthDeps, 'oauth' | 'tokenStore' | 'refreshSkewSeconds'>,
+  sessionId: string,
+): Promise<RefreshOutcome> {
+  let perStore = inflightRefreshes.get(deps.tokenStore);
+  if (!perStore) {
+    perStore = new Map();
+    inflightRefreshes.set(deps.tokenStore, perStore);
+  }
+  const inflight = perStore.get(sessionId);
+  if (inflight) {
+    return inflight;
+  }
+  const run = doAttemptRefresh(deps, sessionId).finally(() => perStore.delete(sessionId));
+  perStore.set(sessionId, run);
+  return run;
+}
+
+async function doAttemptRefresh(
   deps: Pick<EndUserAuthDeps, 'oauth' | 'tokenStore' | 'refreshSkewSeconds'>,
   sessionId: string,
 ): Promise<RefreshOutcome> {
@@ -136,8 +163,8 @@ function activeSessionFromRequest(
 export function createAuthRouter(deps: EndUserAuthDeps): Router {
   const router = express.Router();
 
-  // Rate-limit the sign-in mutations. The OAuth callback runs an expensive Citadel login + token
-  // exchange, so cap attempts to blunt brute-force / DoS (clears CodeQL js/missing-rate-limiting).
+  // Rate-limit the sign-in routes. The OAuth callback runs an expensive Citadel token exchange,
+  // so cap attempts to blunt brute-force / DoS (clears CodeQL js/missing-rate-limiting).
   const signInLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 100,
@@ -159,9 +186,18 @@ export function createAuthRouter(deps: EndUserAuthDeps): Router {
     next();
   });
 
-  // Public: lets the login screen fetch the Google client id without baking it into the bundle.
-  router.get('/api/auth/config', (_req, res) => {
-    res.json({ googleClientId: deps.googleClientId });
+  // Starts the authorization-code flow: mint a CSRF state nonce, park it in a short-lived signed
+  // cookie, and send the browser to Citadel's authorize page. Plain navigation — no XHR, no script.
+  router.get('/auth/login', signInLimiter, (_req, res) => {
+    const state = randomUUID();
+    res.cookie(STATE_COOKIE_NAME, signState(deps.sessionSecret, state), {
+      httpOnly: true,
+      secure: deps.secure,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: STATE_TTL_SECONDS * 1000,
+    });
+    res.redirect(302, deps.oauth.authorizeUrl({ state }));
   });
 
   // Session probe used by the app shell. Also the one place a proactive token refresh is triggered
@@ -181,51 +217,63 @@ export function createAuthRouter(deps: EndUserAuthDeps): Router {
     res.json({ email: session.email, name: session.name });
   });
 
-  // Google Identity Services hands the browser a credential; the browser POSTs it here. We exchange
-  // it with Citadel (login → token), stash the Citadel tokens server-side, and set the identity
-  // cookie. The cookie carries no Citadel token.
-  router.post('/auth/callback', signInLimiter, express.json(), async (req, res) => {
-    const credential =
-      typeof req.body?.credential === 'string' ? (req.body.credential as string) : '';
-    if (!credential) {
-      res.status(400).json({ error: 'Missing credential' });
+  // Citadel sends the browser back here with ?code=&state=. This is a top-level GET navigation,
+  // so every outcome is a redirect: success lands on the app, failure lands on /login with a fixed
+  // error code the login screen turns into copy. The code is exchanged server-to-server (HMAC),
+  // tokens go in the tokenStore, and the identity cookie carries no Citadel token — same split as
+  // before the migration.
+  router.get('/oauth/callback', signInLimiter, async (req, res) => {
+    const fail = (code: LoginErrorCode): void => {
+      res.redirect(302, `/login?error=${code}`);
+    };
+    // The state cookie is single-shot: consumed (and cleared) whether or not the login succeeds.
+    const expectedState = verifyState(
+      deps.sessionSecret,
+      readCookie(req.headers.cookie, STATE_COOKIE_NAME),
+    );
+    res.clearCookie(STATE_COOKIE_NAME, {
+      path: '/',
+      httpOnly: true,
+      secure: deps.secure,
+      sameSite: 'lax',
+    });
+
+    const state = typeof req.query.state === 'string' ? req.query.state : '';
+    const code = typeof req.query.code === 'string' ? req.query.code : '';
+    if (!expectedState || !state || state !== expectedState) {
+      fail('state');
+      return;
+    }
+    if (!code || typeof req.query.error === 'string') {
+      fail('failed');
       return;
     }
 
-    let login: OAuthLoginResult;
+    let tokenResult: Awaited<ReturnType<CitadelOAuthClient['token']>>;
     try {
-      login = await deps.oauth.login({ credential });
+      tokenResult = await deps.oauth.token({ code });
     } catch (err) {
-      // Surface Citadel's 403 (account isn't Noon staff) distinctly; everything else is generic.
-      if (err instanceof OAuthError && err.status === 403) {
-        res.status(403).json({ error: STAFF_MESSAGE });
-        return;
-      }
-      res.status(502).json({ error: GENERIC_FAILURE });
+      // Citadel 403s the exchange for non-staff accounts; everything else is a generic failure.
+      fail(err instanceof OAuthError && err.status === 403 ? 'not_staff' : 'failed');
       return;
     }
 
-    const identity = deriveIdentity(login);
-    if (!identity || !login.code) {
-      res.status(403).json({ error: STAFF_MESSAGE });
+    const identity = deriveIdentity(tokenResult.profile);
+    if (!identity || !isStaffEmail(identity.email)) {
+      fail('not_staff');
       return;
     }
 
-    try {
-      const tokenResult = await deps.oauth.token({ code: login.code });
-      const sessionId = randomUUID();
-      deps.tokenStore.set(sessionId, {
-        accessToken: tokenResult.token.accessToken,
-        refreshToken: tokenResult.token.refreshToken,
-        expiresIn: tokenResult.token.expiresIn,
-        obtainedAt: Date.now(),
-      });
-      const token = signSession(deps.sessionSecret, { sessionId, ...identity });
-      res.cookie(SESSION_COOKIE_NAME, token, sessionCookieOptions(deps.secure));
-      res.status(204).end();
-    } catch {
-      res.status(502).json({ error: GENERIC_FAILURE });
-    }
+    const sessionId = randomUUID();
+    deps.tokenStore.set(sessionId, {
+      accessToken: tokenResult.token.accessToken,
+      refreshToken: tokenResult.token.refreshToken,
+      expiresIn: tokenResult.token.expiresIn,
+      obtainedAt: Date.now(),
+    });
+    const token = signSession(deps.sessionSecret, { sessionId, ...identity });
+    res.cookie(SESSION_COOKIE_NAME, token, sessionCookieOptions(deps.secure));
+    res.redirect(302, '/');
   });
 
   router.post('/logout', signInLimiter, (req, res) => {
@@ -265,8 +313,8 @@ function isAllowlisted(req: Request): boolean {
 }
 
 // The gate. A valid cookie attaches req.noonUser and continues; otherwise a page navigation is
-// redirected to /login and an API/XHR call gets a 401 JSON. Auth-router paths (/auth/callback,
-// /logout, /api/me, /api/auth/config) are handled before this runs, so they never reach it.
+// redirected to /login and an API/XHR call gets a 401 JSON. Auth-router paths (/auth/login,
+// /oauth/callback, /logout, /api/me) are handled before this runs, so they never reach it.
 export function createRequireEndUser(
   deps: Pick<EndUserAuthDeps, 'sessionSecret' | 'tokenStore'>,
 ): RequestHandler {
@@ -303,7 +351,6 @@ export interface EndUserAuthConfig {
   appSecret: string | null;
   redirectUri: string | null;
   sessionSecret: string | null;
-  googleClientId: string | null;
   secure: boolean;
 }
 
@@ -311,13 +358,7 @@ export interface EndUserAuthConfig {
 // required secret is missing so the caller can leave auth unmounted and surface the config error
 // (matching synapse.ts's "surface, don't throw" pattern).
 export function buildEndUserAuthDeps(config: EndUserAuthConfig): EndUserAuthDeps | null {
-  if (
-    !config.appId ||
-    !config.appSecret ||
-    !config.redirectUri ||
-    !config.sessionSecret ||
-    !config.googleClientId
-  ) {
+  if (!config.appId || !config.appSecret || !config.redirectUri || !config.sessionSecret) {
     return null;
   }
   return {
@@ -329,7 +370,6 @@ export function buildEndUserAuthDeps(config: EndUserAuthConfig): EndUserAuthDeps
     }),
     tokenStore,
     sessionSecret: config.sessionSecret,
-    googleClientId: config.googleClientId,
     secure: config.secure,
   };
 }
