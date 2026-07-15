@@ -71,6 +71,8 @@ Do not write integration code until every gate passes. (Job 0 writes no code, so
 
   (npm expands `${GITHUB_TOKEN}` from the environment at install time, so the token lives only in secrets, never in the repo.) Install **runtime deps only** — Replit's package firewall blocks CVE-flagged dev dependencies, so don't drag in dev tooling.
 
+  Note: the starter template itself no longer needs `GITHUB_TOKEN` — it vendors the SDK as committed tarballs under `vendor/`. This token flow applies only to this existing-app integration path.
+
 - [ ] **Gate 5 — Secrets present & server-only.** Confirm `SYNAPSE_APP_ID`, `SYNAPSE_APP_SECRET`, `SYNAPSE_BASE_URL` are set (Replit Secrets, not committed files), plus `GITHUB_TOKEN` for the install. Then **grep the client bundle** (e.g. `dist/`, `build/`, `.vite/`) and confirm the secret is never referenced client-side:
 
   ```bash

@@ -1,10 +1,9 @@
 modules = ["nodejs-20"]
 entrypoint = "server/index.ts"
 
-# Re-running `npm install` on every Run is intentional: if the first import-time
-# install failed because GITHUB_TOKEN wasn't set yet, setting the secret and
-# pressing Run installs the SDK and boots in one go. Subsequent runs are fast
-# (npm is a no-op when node_modules is already up to date).
+# Re-running `npm install` on every Run keeps deps in sync after template updates and is
+# a fast no-op when node_modules is already up to date. The @noonacademy packages install
+# from the committed tarballs in vendor/ — no token or registry auth involved.
 # `--omit=dev` installs ONLY runtime + build deps (sdk, express, react, vite, tsx,
 # tailwind) and skips test/lint tooling (vitest, biome). Replit's package firewall
 # blocks CVE-flagged dev packages, and they aren't needed to build or run the app.
@@ -21,7 +20,7 @@ build = ["sh", "-c", "npm install && npm run build:deploy"]
 run = ["sh", "-c", "npm run start"]
 
 [env]
-# SYNAPSE_APP_ID, SYNAPSE_APP_SECRET and GITHUB_TOKEN come from the Secrets pane.
+# SYNAPSE_APP_ID and SYNAPSE_APP_SECRET come from the Secrets pane.
 # SYNAPSE_BASE_URL defaults to staging in code; set it here only to override.
 
 # The server binds to process.env.PORT (Replit provides it), falling back to 3000.

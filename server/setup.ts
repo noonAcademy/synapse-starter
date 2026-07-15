@@ -16,7 +16,6 @@ const SECRET_NAMES: Array<{ name: string; required: boolean }> = [
   { name: 'SYNAPSE_APP_ID', required: true },
   { name: 'SYNAPSE_APP_SECRET', required: true },
   { name: 'SYNAPSE_BASE_URL', required: false },
-  { name: 'GITHUB_TOKEN', required: true },
 ];
 
 // SPEC.md's template guarantees the marker is the top status line, so only the first line is

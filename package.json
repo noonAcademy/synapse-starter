@@ -20,9 +20,9 @@
     "verify": "npm run secrets && npm run typecheck && npm run lint && npm run test"
   },
   "dependencies": {
-    "@noonacademy/citadel-transport": "^0.1.0",
-    "@noonacademy/synapse-catalog": "^0.1.1",
-    "@noonacademy/synapse-sdk": "^0.2.0",
+    "@noonacademy/citadel-transport": "file:vendor/noonacademy-citadel-transport-0.1.0.tgz",
+    "@noonacademy/synapse-catalog": "file:vendor/noonacademy-synapse-catalog-0.1.1.tgz",
+    "@noonacademy/synapse-sdk": "file:vendor/noonacademy-synapse-sdk-0.2.0.tgz",
     "@tailwindcss/vite": "^4.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "express": "^4.21.2",
@@ -32,6 +32,11 @@
     "tailwindcss": "^4.0.0",
     "tsx": "^4.19.2",
     "vite": "^6.0.7"
+  },
+  "overrides": {
+    "@noonacademy/citadel-transport": "file:vendor/noonacademy-citadel-transport-0.1.0.tgz",
+    "@noonacademy/synapse-catalog": "file:vendor/noonacademy-synapse-catalog-0.1.1.tgz",
+    "@noonacademy/synapse-sdk": "file:vendor/noonacademy-synapse-sdk-0.2.0.tgz"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.14",
