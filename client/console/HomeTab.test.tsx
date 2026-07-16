@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { buildKickoffPrompt, HomeTab } from './HomeTab';
+import { buildKickoffPrompt, buildKitUpdateMessage, HomeTab } from './HomeTab';
 import type { VerifyState } from './useVerify';
 
 const READY_OVERVIEW = {
@@ -26,10 +26,14 @@ const GREEN_VERIFY: VerifyState = {
   data: { ok: true, steps: [{ name: 'typecheck', ok: true, durationMs: 900, output: '' }] },
 };
 
-function stubFetch(overrides: { overview?: unknown; setup?: unknown } = {}): void {
+// Up to date is the default — the kit notice only appears when a test opts in via overrides.
+const UP_TO_DATE_KIT = { local: '2026.07.16', latest: '2026.07.16', updateAvailable: false };
+
+function stubFetch(overrides: { overview?: unknown; setup?: unknown; kit?: unknown } = {}): void {
   const payload = (url: string): unknown => {
     if (url.endsWith('/__synapse/overview')) return overrides.overview ?? READY_OVERVIEW;
     if (url.endsWith('/__synapse/setup')) return overrides.setup ?? ALL_SET_SETUP;
+    if (url.endsWith('/__synapse/kit')) return overrides.kit ?? UP_TO_DATE_KIT;
     if (url.endsWith('/__synapse/reads')) {
       return [{ name: 'courses-by-type', title: 'Active courses by type', description: 'd' }];
     }
@@ -137,6 +141,50 @@ describe('<HomeTab />', () => {
     render(<HomeTab onNavigate={vi.fn()} verify={{ status: 'running' }} />);
     expect(screen.getByText('Running the secret scan, typecheck, lint, and tests…')).toBeTruthy();
     expect(screen.getAllByText('Checking…').length).toBeGreaterThan(0);
+  });
+});
+
+describe('kit update notice', () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('shows a quiet notice with the paste-to-agent message when the template is ahead', async () => {
+    stubFetch({ kit: { local: '2026.07.16', latest: '2026.07.22', updateAvailable: true } });
+    render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+
+    expect(await screen.findByText('Kit update available (2026.07.22)')).toBeTruthy();
+    expect(screen.getByText(buildKitUpdateMessage('2026.07.22'), { exact: false })).toBeTruthy();
+  });
+
+  it('renders nothing when up to date', async () => {
+    stubFetch();
+    render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+
+    await screen.findByText('All keys are set.'); // wait for data so absence is meaningful
+    expect(screen.queryByText(/Kit update available/)).toBeNull();
+  });
+
+  it('renders nothing when the check fails — never a red state', async () => {
+    stubFetch();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('offline');
+      }),
+    );
+    render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+    expect(screen.queryByText(/Kit update available/)).toBeNull();
+  });
+});
+
+describe('buildKitUpdateMessage', () => {
+  it('carries the version and the synapse-upgrade skill trigger phrase', () => {
+    const msg = buildKitUpdateMessage('2026.07.22');
+    expect(msg).toBe(
+      'Kit update available (2026.07.22): tell your agent to upgrade the synapse kit',
+    );
   });
 });
 

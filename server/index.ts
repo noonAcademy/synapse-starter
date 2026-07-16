@@ -9,6 +9,7 @@ import { buildEndUserAuthDeps, type EndUserAuthDeps, installEndUserAuth } from '
 import { formatBootLog } from './boot.js';
 import { buildCatalog } from './catalog.js';
 import { recentPublishes } from './events.js';
+import { buildKit, latestVersionFetcher, readTemplateVersion } from './kit.js';
 import { buildOverview } from './overview.js';
 import { listBakedQueries } from './queries/index.js';
 import { runRead } from './reads.js';
@@ -27,6 +28,9 @@ import { projectTables } from './tables.js';
 import { verifyRunner } from './verify.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
+// One cached fetcher for the process — the console Home tab polls /__synapse/kit on every
+// visit, but GitHub is asked at most once an hour.
+const latestVersion = latestVersionFetcher();
 const isDev = process.env.NODE_ENV === 'development';
 const isReplitDeployment = Boolean(process.env.REPLIT_DEPLOYMENT);
 const port = Number(process.env.PORT ?? 3000);
@@ -89,6 +93,14 @@ export function buildApp(opts: {
     app.get('/__synapse/setup', (_req, res) => {
       const specText = readSpecText(resolve(here, '../SPEC.md'));
       res.json(buildSetup({ env: process.env, specText }));
+    });
+
+    // Kit-update discovery for the Home tab: local TEMPLATE_VERSION vs the public template
+    // repo's current one (fetched fail-silent, cached ~1h in latestVersion's closure). A newer
+    // template renders as a quiet notice, never a red check — and never blocks anything.
+    app.get('/__synapse/kit', async (_req, res) => {
+      const local = readTemplateVersion(resolve(here, '../TEMPLATE_VERSION'));
+      res.json(buildKit({ local, latest: await latestVersion() }));
     });
 
     // Run the repo's verify chain (typecheck -> lint -> tests) and report per-step results for

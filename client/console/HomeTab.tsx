@@ -18,6 +18,13 @@ interface Setup {
   secrets: Array<{ name: string; set: boolean; required: boolean }>;
   spec: { exists: boolean; filled: boolean };
 }
+// Mirrors server/kit.ts KitProjection (served by /__synapse/kit). updateAvailable is already
+// fail-silent server-side: any fetch/parse problem arrives here as false.
+interface Kit {
+  local: string | null;
+  latest: string | null;
+  updateAvailable: boolean;
+}
 interface ReadListItem {
   name: string;
   title: string;
@@ -55,6 +62,7 @@ export function HomeTab({
   const setup = useJson<Setup>('/__synapse/setup');
   const reads = useJson<ReadListItem[]>('/__synapse/reads');
   const catalog = useJson<EventCatalog>('/__synapse/catalog');
+  const kit = useJson<Kit>('/__synapse/kit');
 
   const readCount = reads.status === 'ready' ? reads.data.length : null;
   const firstView = reads.status === 'ready' ? reads.data[0]?.title : undefined;
@@ -73,6 +81,8 @@ export function HomeTab({
       </div>
 
       <SetupChecklist overview={overview} setup={setup} verify={verify} />
+
+      <KitUpdateNotice kit={kit} />
 
       <KickoffCard />
 
@@ -333,6 +343,38 @@ function ChecklistRow({ n, check }: { n: number; check: Check }) {
         )}
       </div>
     </li>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Kit update notice
+// ---------------------------------------------------------------------------
+
+// The paste-to-agent message the copy button carries — it names the synapse-upgrade skill's
+// trigger phrase, so pasting it into the Replit Agent chat starts the guided upgrade.
+// Exported for unit testing (same pattern as buildKickoffPrompt).
+export function buildKitUpdateMessage(latest: string): string {
+  return `Kit update available (${latest}): tell your agent to upgrade the synapse kit`;
+}
+
+// A QUIET notice, deliberately not a checklist row: an available update never turns anything
+// red, and any failure to check (offline, GitHub down) means this renders nothing at all.
+function KitUpdateNotice({ kit }: { kit: LoadState<Kit> }) {
+  if (kit.status !== 'ready' || !kit.data.updateAvailable || !kit.data.latest) return null;
+  return (
+    <Card className="border-slate-200 bg-slate-50/60">
+      <h3 className="text-sm font-semibold text-slate-700">
+        Kit update available ({kit.data.latest})
+      </h3>
+      <p className="mt-1 text-sm text-slate-600">
+        The starter kit this app was built from has improved
+        {kit.data.local ? ` since version ${kit.data.local}` : ''}. Nothing is broken — when you're
+        ready, paste this to your agent and it upgrades the kit without touching your app's pages:
+      </p>
+      <div className="mt-2">
+        <CopyBox text={buildKitUpdateMessage(kit.data.latest)} wrap />
+      </div>
+    </Card>
   );
 }
 

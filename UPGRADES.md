@@ -1,0 +1,122 @@
+# UPGRADES.md — the template change log, one entry per version
+
+Every `TEMPLATE_VERSION` bump appends one entry here: what changed, why a clone should care,
+and the exact recipe to adopt it. An agent upgrading a clone follows [`UPGRADE.md`](UPGRADE.md),
+which applies the pending entries below. Maintainers: the rules for adding an entry are in
+[`RELEASING.md`](RELEASING.md).
+
+## The laws of this file
+
+1. **Append-only.** Entries are never edited after they ship (typo fixes excepted) — clones
+   that already applied one must be able to trust what it said. New entries go on top.
+2. **Versions are `YYYY.MM.DD`**, with a `.N` suffix when one day ships twice
+   (`2026.07.16`, then `2026.07.16.2`). Compare versions **numerically, part by part** —
+   never as strings (`.10` sorts after `.2`).
+3. **Single hop.** Recipe file copies come from the template's **current `main`** — there are
+   no per-version snapshots. When several entries are pending, their copy steps naturally
+   converge on the same files; run every entry's *commands and guided edits* in order
+   (oldest pending → newest), and let the copies land wherever they land.
+4. **Every step is an "ensure", not a "do".** Recipes are idempotent: each step states its
+   guard ("if X is absent…", "if the file still contains Y…") and skips itself when already
+   satisfied. A clone of unknown vintage — or a re-run after a failure — must be safe.
+5. **Copy steps may list only synapse-owned paths** ([`.synapse/ownership.json`](.synapse/ownership.json)).
+   Shared paths change only via guided edits. Builder-owned paths appear in a recipe only as
+   "create if missing" — never as an edit or overwrite.
+
+---
+
+## 2026.07.16 — the catch-up entry: pre-versioning clones → the versioned kit
+
+**Who this is for:** every clone made before `TEMPLATE_VERSION` existed — including the
+onboarding-session clones of 2026-07-02. If your repo has no `TEMPLATE_VERSION` file, this
+entry is your starting point.
+
+### What changed (template PRs #11–#20, plus this entry's own machinery)
+
+- **Vendored SDK — installs need no token** (#19). The three `@noonacademy/*` packages are
+  committed tarballs under `vendor/`; `.npmrc` and `GITHUB_TOKEN` are gone. Secrets are down
+  to three: `SYNAPSE_APP_ID`, `SYNAPSE_APP_SECRET`, and optional `SYNAPSE_BASE_URL`.
+- **Sign in with Noon via Citadel's own OAuth** (#18). `GOOGLE_CLIENT_ID` is deleted;
+  deployed apps gate behind Citadel login (`APP_OAUTH_REDIRECT_URI` + `APP_SESSION_SECRET`).
+- **The skills pack** (#12, #14, #17). `SPEC.md` as the app's memory, the plan-first
+  interview, add-page / event-design / error-report / workflow skills under `.agents/skills/`.
+- **One-command verify + secret scan** (#13, #16). `npm run verify` chains secret scan →
+  typecheck → lint → tests; deployments gate on it; the console header shows a verify chip.
+- **First-run smoothness** (#15). `replit.md` router and the Home-tab setup checklist.
+- **Scaffolding stepped aside** (#20). The starter's example views moved to a frozen
+  `/synapse` corner page; the app's whole look now lives in `client/app/theme.css` tokens.
+- **The upgrade path itself** (this entry). `TEMPLATE_VERSION`, the ownership map
+  (`.synapse/ownership.json` + AGENTS.md section), `UPGRADE.md`, the **synapse-upgrade**
+  skill, and the console's kit-update notice.
+
+### Why a clone should care
+
+Installs stop depending on a shared `GITHUB_TOKEN` (which will eventually rotate and break
+you), a real verify gate stands between you and broken deploys, your agent gets the skills
+the template's docs now assume, and future template improvements become adoptable — this
+entry is what puts you on the upgrade train.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (`git checkout template/main -- <paths>`) — synapse-owned only:
+   `AGENTS.md README.md INTEGRATE.md MIGRATE-SYNC.md replit.md TEMPLATE_VERSION UPGRADE.md
+   UPGRADES.md RELEASING.md .synapse .agents/skills .github skill vendor scripts
+   client/console client/RowsTable.tsx client/format.ts client/index.css client/main.tsx
+   client/sendEvent.ts client/sendEvent.test.tsx client/ui.tsx client/useJson.ts
+   client/useSynapseMode.ts client/useSynapseMode.test.tsx client/useView.ts
+   client/vite-env.d.ts client/app/pages/synapse.tsx client/app/blocks/ViewBlock.tsx
+   server biome.json tsconfig.json tsconfig.client.json vite.config.ts vitest.config.ts
+   .gitignore .env.example`
+   — then immediately restore the shared + builder-owned paths the `server` and `client`
+   globs swept up: `git checkout HEAD -- server/index.ts server/queries` (guarded edits for
+   those are steps 4 and 6; if `git status` shows other overwritten builder files, restore
+   them too).
+2. **Create if missing** (builder-owned, so never overwrite an existing one):
+   `client/app/theme.css`, `client/app/config.ts`, `client/app/ui.tsx`, `SPEC.md` — copy each
+   from `template/main` only when the clone has no file at that path.
+3. **Retire the token install** — if `.npmrc` exists and only contains the two
+   `@noonacademy` GitHub Packages lines, delete it; if it has other content, remove just
+   those two lines.
+4. **Guided edit — `package.json`** (preserve every builder-added dependency and script):
+   - `dependencies`: the three `@noonacademy/*` entries point at `file:vendor/<tarball>`
+     paths matching the tarballs now in `vendor/`; add any of
+     `@tailwindcss/vite tailwindcss express-rate-limit` that are missing.
+   - `overrides`: identical `file:` specs for the same three packages (npm errors if these
+     drift from `dependencies`).
+   - `scripts`: ensure `verify`, `secrets`, `typecheck`, `lint`, `lint:fix`, `test`,
+     `build:deploy` match the template's; leave builder-added scripts alone.
+   - `devDependencies`: ensure the verify toolchain is present (`@biomejs/biome`, `vitest`,
+     `jsdom`, `cross-env`, `typescript`, `@testing-library/*`, `@types/*` as in the template).
+5. **Guided edit — `.replit`**: workspace `run` is
+   `npm install --omit=dev && npm run build && npm run start`; deployment `build` runs
+   `npm install && npm run build:deploy`. Keep any builder-added sections.
+6. **Guided edit — the registries** (preserve builder entries):
+   - `client/app/pages/index.ts`: ensure the `toAppPage` file-plus-registry shape and that
+     `synapse` is imported and registered (`nav` stays false).
+   - `server/queries/index.ts`: ensure the `toBakedQuery` shape from the template; keep every
+     builder-registered read.
+7. **Guided edit — `server/index.ts`**: if the clone never modified it, take the template's
+   (it was swept into step 1's copy — just don't restore it). If the builder added routes,
+   port them into the template's version — the workspace/deployment gating and fail-closed
+   auth mount must be preserved exactly.
+8. **Install + regenerate the lockfile** (tokenless by design):
+   `rm -rf node_modules package-lock.json && npm install` — then
+   `grep npm.pkg.github.com package-lock.json` must print nothing.
+9. **Hands off the builder's surface.** Do not touch `client/app/AppShell.tsx`, `home.tsx`,
+   `LoginScreen.tsx`, or anything else the builder's agent has built. If the shell predates
+   #20 it won't have the `/synapse` footer link or theme-token styling — note that in the
+   final report as an optional ask for the builder's own agent; `/synapse` still resolves by
+   URL through the registry.
+10. **Secrets cleanup (tell the operator; agents don't hold secrets):** `GITHUB_TOKEN` and
+    `GOOGLE_CLIENT_ID` can be deleted from Replit Secrets. Deployed apps need
+    `APP_OAUTH_REDIRECT_URI` and `APP_SESSION_SECRET` for Sign in with Noon (INTEGRATE.md §5
+    documents the flow).
+
+### Verify
+
+- `npm run verify` green (secret scan → typecheck → lint → tests).
+- `npm run start` boots and logs `[synapse-starter] listening` — with **or without** secrets.
+- `package-lock.json` contains no `npm.pkg.github.com` references.
+- `git status` shows **no modifications** to builder-owned paths (their pages, `SPEC.md` if
+  it was filled, their queries).
+- `TEMPLATE_VERSION` reads `2026.07.16`.
