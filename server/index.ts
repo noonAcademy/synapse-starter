@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createServer as createHttpServer, type Server } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +14,7 @@ import { buildKit, latestVersionFetcher, readTemplateVersion } from './kit.js';
 import { buildOverview } from './overview.js';
 import { listBakedQueries } from './queries/index.js';
 import { runRead } from './reads.js';
+import { registryFetcher } from './registry.js';
 import { buildSetup, readSpecText } from './setup.js';
 import {
   appOauthRedirectUri,
@@ -31,6 +33,15 @@ const here = dirname(fileURLToPath(import.meta.url));
 // One cached fetcher for the process — the console Home tab polls /__synapse/kit on every
 // visit, but GitHub is asked at most once an hour.
 const latestVersion = latestVersionFetcher();
+// One registry fetcher for the process: ETag + text cached in its closure, so revalidation is
+// a 304 round-trip, not a re-download. Falls back to the committed snapshot (read lazily) on
+// missing secrets or any Citadel failure — see server/registry.ts.
+const getRegistry = registryFetcher({
+  creds: synapseConfigError
+    ? null
+    : { baseUrl: synapseBaseUrl, appId: synapseAppId ?? '', appSecret: synapseAppSecret ?? '' },
+  snapshotText: () => readFileSync(resolve(here, './citadel-schema.ts'), 'utf8'),
+});
 const isDev = process.env.NODE_ENV === 'development';
 const isReplitDeployment = Boolean(process.env.REPLIT_DEPLOYMENT);
 const port = Number(process.env.PORT ?? 3000);
@@ -69,6 +80,35 @@ export function buildApp(opts: {
     // Bundled Citadel registry, projected for the Get data tab's table browser.
     app.get('/__synapse/tables', (_req, res) => {
       res.json(projectTables());
+    });
+
+    // The registry as TEXT, live from Citadel when reachable (ETag-revalidated per request),
+    // else the committed snapshot — the agent's freshest source when writing SQL (the SQL
+    // skill curls this). X-Registry-Source/-Reason say which one you got. Workspace-only,
+    // like every /__synapse route: a deployed app never fetches the registry at runtime.
+    app.get('/__synapse/registry', async (_req, res) => {
+      try {
+        const { status, text } = await getRegistry();
+        res.setHeader('x-registry-source', status.source);
+        if (status.reason) res.setHeader('x-registry-reason', status.reason);
+        res.type('text/plain').send(text);
+      } catch (err) {
+        console.error('[synapse] registry route failed:', err instanceof Error ? err.message : err);
+        res.status(500).json({ error: 'registry failed' });
+      }
+    });
+
+    // Freshness only (no text) for the Get data tab's quiet source banner.
+    app.get('/__synapse/registry/status', async (_req, res) => {
+      try {
+        res.json((await getRegistry()).status);
+      } catch (err) {
+        console.error(
+          '[synapse] registry status failed:',
+          err instanceof Error ? err.message : err,
+        );
+        res.status(500).json({ error: 'registry status failed' });
+      }
     });
 
     // Catalogued event types the SDK knows about (read-only).

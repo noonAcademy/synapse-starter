@@ -17,6 +17,7 @@
     "lint:fix": "biome check --write .",
     "test": "vitest run",
     "secrets": "tsx scripts/scan-secrets.ts",
+    "sync:registry": "tsx scripts/sync-registry.ts",
     "verify": "npm run secrets && npm run typecheck && npm run lint && npm run test"
   },
   "dependencies": {

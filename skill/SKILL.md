@@ -22,7 +22,9 @@ queries, plus `BUSINESS_RULES` and `COMPACT_TABLE_OVERVIEW`. **Always read it be
 any query.** There is nothing to upload — the snapshot is in the repo and browsable in the
 console's **Get data** tab. Its source of truth is Citadel's live `GET /api/registry` (contract in
 [INTEGRATE.md §5](../INTEGRATE.md)); when that endpoint is reachable, trust it over the
-snapshot.
+snapshot. In the workspace, read the freshest registry text from the running app —
+`curl -s localhost:3000/__synapse/registry` (it serves live when Citadel answers, else this
+snapshot; the `X-Registry-Source` response header says which you got).
 
 ## How reads work in this app (the one rule that changes everything)
 

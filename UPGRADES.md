@@ -25,6 +25,52 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.07.16.2 — live registry in the workspace, labeled snapshot fallback
+
+### What changed (PR #22)
+
+- **`GET /__synapse/registry`** (workspace-only): the data registry as **text**, live from
+  Citadel when reachable (HMAC-signed, ETag-revalidated per request), else the committed
+  snapshot — `X-Registry-Source`/`-Reason` headers say which. Deliberately never executes or
+  parses fetched code; a deployed app never fetches the registry at runtime.
+- **Get-data tab freshness**: a quiet source banner (live version/date from
+  `/api/registry/meta`, or a labeled snapshot state — including a no-alarm label while the
+  live endpoint isn't deployed on this Citadel) + a "view raw registry" link. Browsing still
+  renders from the snapshot's structures in every state.
+- **`npm run sync:registry`** (maintainer-only): refreshes `server/citadel-schema.ts` from
+  the live endpoint; refuses to write if required exports are missing from the wire text.
+- The SQL skill now reads the freshest registry via
+  `curl -s localhost:3000/__synapse/registry` (snapshot is the labeled fallback).
+
+### Why a clone should care
+
+Your agent stops writing SQL against a registry frozen on clone day: table/column/enum
+changes reach it as soon as Citadel serves them, with no template release in between. The
+console stops silently presenting stale data as current.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `server/registry.ts server/registry.test.ts
+   scripts/sync-registry.ts client/console/GetDataTab.tsx client/console/GetDataTab.test.tsx
+   skill/SKILL.md AGENTS.md`
+2. **Guided edit — `server/index.ts`** (shared; skip any part already present): import
+   `registryFetcher` from `./registry.js`; construct the process-wide `getRegistry` fetcher
+   (creds from `synapse.js` exports, `snapshotText` reading `./citadel-schema.ts`); mount
+   `GET /__synapse/registry` and `GET /__synapse/registry/status` inside the
+   workspace-only block. The template's `server/index.ts` is the reference; if the clone
+   never modified its own, take the template's wholesale.
+3. **Guided edit — `package.json`**: ensure `"sync:registry": "tsx scripts/sync-registry.ts"`
+   under `scripts`; leave builder scripts alone.
+
+### Verify
+
+- `npm run verify` green.
+- With the app running: `curl -si localhost:3000/__synapse/registry | head -5` returns the
+  registry text with an `x-registry-source` header (`live`, or `snapshot` with a reason).
+- The Get-data tab's "browse all Noon data" section shows the source banner.
+
+---
+
 ## 2026.07.16 — the catch-up entry: pre-versioning clones → the versioned kit
 
 **Who this is for:** every clone made before `TEMPLATE_VERSION` existed — including the

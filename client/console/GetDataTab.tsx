@@ -27,6 +27,37 @@ interface Overview {
   connection: { ok: boolean };
 }
 
+// Mirrors server/registry.ts RegistryStatus (served by /__synapse/registry/status).
+interface RegistryStatus {
+  source: 'live' | 'snapshot';
+  reason: 'no-secrets' | 'not-deployed' | 'unreachable' | null;
+  liveVersion: string | null;
+  liveLastModified: string | null;
+  snapshotLastUpdated: string | null;
+}
+
+// The freshness line under "browse all Noon data". One sentence, quiet, never an error state —
+// the browser itself always renders from the snapshot's structures either way. Exported for
+// unit testing. Returns null when the status is unrecognized (render nothing).
+export function buildFreshnessLabel(s: RegistryStatus): string | null {
+  if (s.source === 'live') {
+    const version = s.liveVersion ? ` ${s.liveVersion}` : '';
+    const date = s.liveLastModified ? ` · updated ${s.liveLastModified}` : '';
+    return `Live registry${version}${date} — this browser matches what Citadel serves today.`;
+  }
+  if (s.source !== 'snapshot') return null;
+  const dated = s.snapshotLastUpdated ? ` (dated ${s.snapshotLastUpdated})` : '';
+  switch (s.reason) {
+    case 'not-deployed':
+      // Day-one reality on staging: nothing to be behind, so no staleness alarm.
+      return `Built-in snapshot${dated} — the live registry isn't available on this Citadel yet.`;
+    case 'no-secrets':
+      return `Snapshot${dated} — may be stale. Add your Noon keys to check the live registry.`;
+    default:
+      return `Snapshot${dated} — may be stale. Couldn't reach the live registry.`;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Prompt builders (the model-A hand-off to the Replit build agent)
 // ---------------------------------------------------------------------------
@@ -79,6 +110,7 @@ export function filterTables(tables: TableProjection[], query: string): TablePro
 export function GetDataTab({ onNavigate }: { onNavigate: (tab: TabId) => void }) {
   const overview = useJson<Overview>('/__synapse/overview');
   const tables = useJson<TableProjection[]>('/__synapse/tables');
+  const registry = useJson<RegistryStatus>('/__synapse/registry/status');
 
   const secretsMissing =
     overview.status === 'ready' && (!overview.data.configured || !overview.data.connection.ok);
@@ -89,10 +121,35 @@ export function GetDataTab({ onNavigate }: { onNavigate: (tab: TabId) => void })
 
       <Disclosure summary="Or browse all Noon data yourself">
         <div className="mt-1">
+          <RegistryFreshness registry={registry} />
           <DataBrowser tables={tables} />
         </div>
       </Disclosure>
     </section>
+  );
+}
+
+// Quiet one-liner on the registry's source + a raw-text affordance. Renders nothing while
+// loading, on error, or on an unrecognized payload — freshness must never break browsing.
+function RegistryFreshness({ registry }: { registry: LoadState<RegistryStatus> }) {
+  if (registry.status !== 'ready') return null;
+  const label = buildFreshnessLabel(registry.data);
+  if (!label) return null;
+  return (
+    <p className="mb-3 flex flex-wrap items-center gap-x-2 text-xs text-slate-500">
+      <Pill tone={registry.data.source === 'live' ? 'good' : 'neutral'}>
+        {registry.data.source === 'live' ? 'live' : 'snapshot'}
+      </Pill>
+      <span>{label}</span>
+      <a
+        href="/__synapse/registry"
+        target="_blank"
+        rel="noreferrer"
+        className="font-medium text-indigo-600 hover:text-indigo-800"
+      >
+        view raw registry →
+      </a>
+    </p>
   );
 }
 

@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildAgentPrompt,
+  buildFreshnessLabel,
   buildRequestPrompt,
   filterTables,
   GetDataTab,
@@ -131,5 +132,92 @@ describe('<GetDataTab />', () => {
     const scoped = screen.getByText(/Using the/i);
     expect(scoped.textContent).toContain('`f_user_session`');
     expect(scoped.textContent).toContain('top 10 students by learning time');
+  });
+});
+
+describe('buildFreshnessLabel', () => {
+  const base = {
+    source: 'snapshot' as const,
+    reason: null,
+    liveVersion: null,
+    liveLastModified: null,
+    snapshotLastUpdated: '2026-05-04',
+  };
+
+  it('live: names version and date when meta delivered them', () => {
+    expect(
+      buildFreshnessLabel({
+        ...base,
+        source: 'live',
+        snapshotLastUpdated: null,
+        liveVersion: 'v2.30',
+        liveLastModified: '2026-07-20',
+      }),
+    ).toBe(
+      'Live registry v2.30 · updated 2026-07-20 — this browser matches what Citadel serves today.',
+    );
+  });
+
+  it('live: still labels live when meta was unavailable', () => {
+    expect(buildFreshnessLabel({ ...base, source: 'live', snapshotLastUpdated: null })).toContain(
+      'Live registry —',
+    );
+  });
+
+  it('not-deployed is quiet — no staleness alarm, since there is nothing to be behind', () => {
+    const label = buildFreshnessLabel({ ...base, reason: 'not-deployed' });
+    expect(label).toBe(
+      "Built-in snapshot (dated 2026-05-04) — the live registry isn't available on this Citadel yet.",
+    );
+    expect(label).not.toContain('stale');
+  });
+
+  it('no-secrets and unreachable say "may be stale" with distinct causes', () => {
+    expect(buildFreshnessLabel({ ...base, reason: 'no-secrets' })).toBe(
+      'Snapshot (dated 2026-05-04) — may be stale. Add your Noon keys to check the live registry.',
+    );
+    expect(buildFreshnessLabel({ ...base, reason: 'unreachable' })).toBe(
+      "Snapshot (dated 2026-05-04) — may be stale. Couldn't reach the live registry.",
+    );
+  });
+
+  it('returns null on an unrecognized payload (render nothing, never break the tab)', () => {
+    expect(buildFreshnessLabel({} as never)).toBeNull();
+  });
+});
+
+describe('registry freshness banner', () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('renders the source pill, label, and raw-registry link', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => ({
+        ok: true,
+        headers: { get: () => 'application/json' },
+        json: async () => {
+          if (url.endsWith('/__synapse/overview'))
+            return { configured: true, connection: { ok: true } };
+          if (url.endsWith('/__synapse/registry/status')) {
+            return {
+              source: 'snapshot',
+              reason: 'not-deployed',
+              liveVersion: null,
+              liveLastModified: null,
+              snapshotLastUpdated: '2026-05-04',
+            };
+          }
+          return TABLES;
+        },
+      })),
+    );
+    render(<GetDataTab onNavigate={vi.fn()} />);
+
+    expect(await screen.findByText(/Built-in snapshot \(dated 2026-05-04\)/)).toBeTruthy();
+    const link = screen.getByText('view raw registry →') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/__synapse/registry');
   });
 });
