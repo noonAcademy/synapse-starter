@@ -35,6 +35,10 @@ grep npm.pkg.github.com package-lock.json   # must print nothing
 #    then commit vendor/, package.json, and package-lock.json together.
 ```
 
+A vendor refresh changes synapse-owned paths, so it ships like any template change:
+**bump `TEMPLATE_VERSION` and append the `UPGRADES.md` entry in the same PR** — CI enforces
+it. See [`RELEASING.md`](../RELEASING.md).
+
 ## Known gap: stale clones fail without naming the cause
 
 A clone of this template keeps whatever tarballs it was cloned with, forever — template

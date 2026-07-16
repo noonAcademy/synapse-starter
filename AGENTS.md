@@ -41,6 +41,38 @@ things: **publishes events** and **runs reads**. Read this before adding either.
    holds the starter's example views and status — frozen scaffolding, never extended. New pages,
    views, and features live in the builder's app: `client/app/pages/` and the app nav.
 
+## Who owns what — the upgrade contract
+
+This app was cloned from the `synapse-starter` template, and the template keeps improving.
+Upgrades are recipe-driven ([`UPGRADE.md`](UPGRADE.md) is the how, [`UPGRADES.md`](UPGRADES.md)
+is the what) — **never a blind merge from the template** — and they are only safe because every
+path in the repo has exactly one owner. The machine-readable contract is
+[`.synapse/ownership.json`](.synapse/ownership.json); this is the same contract in words:
+
+- **Synapse-owned** — the template's to manage; an upgrade may overwrite, add, or delete here.
+  The console (`client/console/`), the skills (`.agents/skills/`, `skill/`), `vendor/`,
+  `scripts/`, `.github/`, the server scaffolding (`server/**`), the client primitives
+  (`client/useView.ts`, `client/sendEvent.ts`, …), the docs (`AGENTS.md`, `README.md`,
+  `INTEGRATE.md`, `replit.md`, upgrade files), tooling configs, and exactly two files inside
+  the app surface: `client/app/pages/synapse.tsx` and `client/app/blocks/ViewBlock.tsx`.
+  A synapse-owned pattern claims **only files the template actually ships** — a file the
+  builder created that happens to match (e.g. a new file under `server/`) is builder-owned.
+- **Builder-owned** — **never touched by an upgrade.** The app surface is released to the
+  builder at clone time: everything under `client/app/` (pages, `AppShell.tsx`,
+  `LoginScreen.tsx`, `config.ts`, `home.tsx` — even though the template shipped them),
+  `server/queries/` (including the example read), `SPEC.md`, and any path nothing else claims.
+  Upgrades may *create* a file at a path the clone doesn't have, but never edit or delete an
+  existing one.
+- **Shared** — both sides edit; upgrades change these only via the guided edits in an
+  `UPGRADES.md` entry, preserving the builder's additions: `package.json` (+ lockfile —
+  regenerated, never copied), `server/index.ts`, the two registries
+  (`server/queries/index.ts`, `client/app/pages/index.ts`), `client/app/theme.css`,
+  `client/index.html` (RTL lives here), `.replit`.
+
+Precedence is most-specific-wins (`client/app/pages/synapse.tsx` beats `client/app/**`).
+Any PR in the **template repo** that touches a synapse-owned path must bump
+`TEMPLATE_VERSION` and append an `UPGRADES.md` entry — see [`RELEASING.md`](RELEASING.md).
+
 ## To add a read
 
 1. **Describe the data you want** and let the SQL skill write it: open
@@ -134,12 +166,14 @@ Deeper recipes live as agent skills. Reach for them by task:
 | [`.agents/skills/synapse-workflow/SKILL.md`](.agents/skills/synapse-workflow/SKILL.md) (**synapse-workflow**) | Any form → workflow feature — "submit a request", "log an incident", "approve", "track status", "let people report/log X" — the three-stores rule, per-app Postgres storage, and the row-first-event-second recipe. |
 | [`.agents/skills/synapse-event-design/SKILL.md`](.agents/skills/synapse-event-design/SKILL.md) (**synapse-event-design**) | Tracking or instrumenting anything — which moments deserve events, `publishEvent` vs `sendEvent`, `declareEvent`, payload and naming rules, verifying delivery. |
 | [`.agents/skills/synapse-error-report/SKILL.md`](.agents/skills/synapse-error-report/SKILL.md) (**synapse-error-report**) | Something broke and needs escalating — produces a structured, paste-ready report for the Synapse Slack channel (never includes secret values). |
+| [`.agents/skills/synapse-upgrade/SKILL.md`](.agents/skills/synapse-upgrade/SKILL.md) (**synapse-upgrade**) | The builder asks to "upgrade the synapse kit" / "update synapse", or the console Home tab shows "Kit update available" — applies the template's per-version recipes from `UPGRADES.md`, following `UPGRADE.md` exactly; never touches builder-owned paths. |
 
 ## Where things live
 
 | Path | What it is |
 |---|---|
 | [`SPEC.md`](SPEC.md) | **The app's memory** — what this app is, who uses it, where every number comes from, events, scope, and the Decisions log. Read it first, every session; keep it current (rules 1–3 above). |
+| [`TEMPLATE_VERSION`](TEMPLATE_VERSION), [`UPGRADES.md`](UPGRADES.md), [`UPGRADE.md`](UPGRADE.md), [`.synapse/ownership.json`](.synapse/ownership.json) | **The kit upgrade path** — which template version this clone is on, the per-version change log + recipes, the agent guide for applying them, and the ownership map that makes it safe ("Who owns what" above). |
 | [`server/citadel-schema.ts`](server/citadel-schema.ts) | **The data registry snapshot** — Athena tables (columns, types, enums, grain, example queries) + `BUSINESS_RULES`. Browse it in the **Get data** tab. The **source of truth is Citadel's live `GET /api/registry`** (HMAC-authed, ETag'd — contract in [INTEGRATE.md §5](INTEGRATE.md)); this snapshot stands in until that endpoint is deployed on the staging Citadel this app targets, after which it will be deleted and fetched live at build time. |
 | [`skill/SKILL.md`](skill/SKILL.md) | The SQL-analyst skill. Use it to write reads. |
 | [`server/queries/`](server/queries/) | Baked reads (`<name>.sql.ts`) + their registry. |
