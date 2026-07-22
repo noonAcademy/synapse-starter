@@ -25,6 +25,42 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.07.22 — registry snapshot refreshed to v2.22 (+19 tables)
+
+### What changed (PR #23)
+
+- **`server/citadel-schema.ts` re-synced to registry v2.22** (the `npm run sync:registry`
+  equivalent). 19 new tables (57 → 76): the **Lesson Builder** model in `noon2_core`
+  (`lesson`, `lesson_version`, `lesson_session_link`, `lesson_activity`,
+  `lesson_activity_question`, `lesson_curriculum`, `lesson_segment`,
+  `lesson_session_materialization`, `lesson_session_materialization_mapping`,
+  `lesson_share_link`), a new **`datamart_v`** database (`kyy_nn_session_details`,
+  `nn_activity_details`, `nn_activity_quality`), and six **`noon2_replit`** tables
+  (`nn_assessment_details`, `nn_learning_gains`, `hk_f_course_session`, `hk_f_user_session`,
+  `hk_session_questions`, `session_transcriptions`). `BUSINESS_RULES`,
+  `COMPACT_TABLE_OVERVIEW`, and the "Last updated" header were refreshed with them.
+
+### Why a clone should care
+
+Until Citadel serves `GET /api/registry` live on your target environment, the Get-data tab
+and the SQL skill browse this committed snapshot. Without the refresh, your agent can't see
+the Lesson Builder, `datamart_v`, or `noon2_replit` tables and will write SQL as if they
+don't exist.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `server/citadel-schema.ts`
+
+### Verify
+
+- `npm run verify` green — the refreshed snapshot still satisfies its consumers
+  (`server/tables.ts` imports `ATHENA_REGISTRY`/`AthenaTableMeta`; the SQL skill parses its
+  `BUSINESS_RULES`/`COMPACT_TABLE_OVERVIEW` text).
+- The new tables are present: `grep -c "AthenaTableMeta = {" server/citadel-schema.ts`
+  reports **76**, and `grep "key: 'noon2_core_lesson'" server/citadel-schema.ts` matches.
+
+---
+
 ## 2026.07.16.2 — live registry in the workspace, labeled snapshot fallback
 
 ### What changed (PR #22)

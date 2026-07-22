@@ -4,7 +4,15 @@
 // Generated from Notion Data Dictionary (Layer 2 & Layer 3)
 // Source: https://www.notion.so/noonacademy/Layer-2-Fact-and-Dim-tables-fb4ed4d903be4e6baee7dd7ec63cd71d
 // Source: https://www.notion.so/noonacademy/Layer-3-Business-Aggregation-Tables-c794c8972edf43b198ffa89e413bb982
-// Last updated: 2026-05-04
+// Last updated: 2026-07-22
+// =============================================================================
+// v2.22 (2026-07-22) — Registry-gap fill:
+//   • noon2_core Lesson Builder model: lesson, lesson_version, lesson_session_link,
+//     lesson_activity, lesson_activity_question, lesson_curriculum, lesson_segment,
+//     lesson_session_materialization, lesson_session_materialization_mapping, lesson_share_link
+//   • NEW database datamart_v: kyy_nn_session_details, nn_activity_details, nn_activity_quality
+//   • noon2_replit: nn_assessment_details, nn_learning_gains, hk_f_course_session,
+//     hk_f_user_session, hk_session_questions, session_transcriptions
 // =============================================================================
 
 export interface AthenaColumnMeta {
@@ -4542,6 +4550,1446 @@ const f_user_activity_feature_duration: AthenaTableMeta = {
 };
 
 // ---------------------------------------------------------------------------
+// LESSON BUILDER MODEL (noon2_core — sqooped)
+// ---------------------------------------------------------------------------
+// The "Lesson" content system: a teacher authors a Lesson (optionally a reusable
+// template), which is snapshotted into immutable Lesson Versions. A version holds
+// ordered Segments and Activities (each activity may map to Questions), and is tagged
+// with Curriculum. A Lesson Version is linked to a course session (lesson_session_link)
+// and then materialized into concrete session content (lesson_session_materialization
+// + _mapping). Lessons can be shared via lesson_share_link.
+// ⚠ ALL id / *_id columns here are STRING (UUIDs), EXCEPT course_session_id / created_by /
+//   linked_by / question_id / *curriculum FKs which are BIGINT. ⚠ All timestamps are VARCHAR
+//   (TRY_CAST before comparing). Filter is_deleted = 0 for active lessons.
+// ---------------------------------------------------------------------------
+
+const noon2_core_lesson: AthenaTableMeta = {
+  key: 'noon2_core_lesson',
+  database: 'noon2_core',
+  table: 'lesson',
+  description:
+    'Root of the Lesson Builder model: one row per authored lesson (a lesson plan). ' +
+    'May be a reusable template (is_template=1) with a template_key/version. Published lessons ' +
+    'are snapshotted into immutable noon2_core.lesson_version rows. Sqooped from noon2_core production MySQL. ' +
+    'Filter is_deleted=0 for active lessons.',
+  grain: '1 row = lesson (id, UUID string)',
+  partition: null,
+  refreshCadence: 'Daily (sqooped)',
+  accessLevel: 'all',
+  scopeColumn: null,
+  scopeType: null,
+  columns: [
+    {
+      name: 'id',
+      type: 'string',
+      description:
+        'Lesson ID (PK, UUID). FK target of lesson_version.lesson_id, lesson_curriculum.lesson_id, etc.',
+    },
+    { name: 'name', type: 'string', description: 'Lesson display name/title' },
+    {
+      name: 'class_type',
+      type: 'string',
+      description: 'Live class type this lesson is built for',
+      enumValues: ['LIVE_CLASS', 'LIVE_MASTERY'],
+    },
+    {
+      name: 'lesson_type',
+      type: 'string',
+      description: 'Delivery mode of the lesson',
+      enumValues: ['HYBRID', 'ONLINE'],
+    },
+    { name: 'duration_minutes', type: 'bigint', description: 'Planned lesson duration in minutes' },
+    {
+      name: 'is_template',
+      type: 'tinyint',
+      description: '1 = reusable template lesson, 0 = concrete lesson',
+      enumValues: ['0', '1'],
+    },
+    {
+      name: 'template_key',
+      type: 'string',
+      description: 'Template family key (only for templates)',
+      enumValues: ['concept_coverage', 'practice', 'revision'],
+    },
+    {
+      name: 'template_version',
+      type: 'int',
+      description: 'Version number of the template definition',
+    },
+    {
+      name: 'is_published',
+      type: 'tinyint',
+      description: '1 = lesson has a published version, 0 = draft-only',
+      enumValues: ['0', '1'],
+    },
+    {
+      name: 'is_deleted',
+      type: 'tinyint',
+      description: 'Soft-delete flag (0=active, 1=deleted)',
+      enumValues: ['0', '1'],
+    },
+    {
+      name: 'created_by',
+      type: 'bigint',
+      description: 'Profile ID (teacher/author) who created the lesson (FK → d_user.user_id)',
+    },
+    {
+      name: 'created_at',
+      type: 'string',
+      description: 'Record creation timestamp (UTC, VARCHAR — TRY_CAST to timestamp)',
+    },
+    {
+      name: 'updated_at',
+      type: 'string',
+      description: 'Record last-updated timestamp (UTC, VARCHAR)',
+    },
+  ],
+};
+
+const noon2_core_lesson_version: AthenaTableMeta = {
+  key: 'noon2_core_lesson_version',
+  database: 'noon2_core',
+  table: 'lesson_version',
+  description:
+    'Immutable versioned snapshot of a lesson. Each publish/edit produces a new version_number. ' +
+    'Segments and activities hang off lesson_version_id. Sqooped from noon2_core production MySQL.',
+  grain: '1 row = lesson version (id, UUID string)',
+  partition: null,
+  refreshCadence: 'Daily (sqooped)',
+  accessLevel: 'all',
+  scopeColumn: null,
+  scopeType: null,
+  columns: [
+    {
+      name: 'id',
+      type: 'string',
+      description:
+        'Lesson version ID (PK, UUID). Referenced by lesson_activity.lesson_version_id, lesson_segment.lesson_version_id, lesson_session_link.lesson_version_id, etc.',
+    },
+    { name: 'lesson_id', type: 'string', description: 'Parent lesson (FK → noon2_core.lesson.id)' },
+    {
+      name: 'version_number',
+      type: 'int',
+      description: 'Monotonic version number within the lesson',
+    },
+    { name: 'title', type: 'string', description: 'Version title' },
+    {
+      name: 'status',
+      type: 'string',
+      description: 'Lifecycle status of this version',
+      enumValues: ['ARCHIVED', 'DRAFT', 'PUBLISHED'],
+    },
+    {
+      name: 'is_published',
+      type: 'tinyint',
+      description: '1 = this version is published',
+      enumValues: ['0', '1'],
+    },
+    {
+      name: 'duration_seconds',
+      type: 'int',
+      description: 'Total planned duration of this version in seconds',
+    },
+    {
+      name: 'source_course_session_id',
+      type: 'bigint',
+      description: 'Course session this version was derived/recorded from, if any',
+    },
+    {
+      name: 'created_by',
+      type: 'bigint',
+      description: 'Profile ID that created the version (FK → d_user.user_id)',
+    },
+    {
+      name: 'created_at',
+      type: 'string',
+      description: 'Version creation timestamp (UTC, VARCHAR)',
+    },
+    {
+      name: 'updated_at',
+      type: 'string',
+      description: 'Version last-updated timestamp (UTC, VARCHAR)',
+    },
+  ],
+};
+
+const noon2_core_lesson_session_link: AthenaTableMeta = {
+  key: 'noon2_core_lesson_session_link',
+  database: 'noon2_core',
+  table: 'lesson_session_link',
+  description:
+    'Links a lesson version to a course session (which lesson a session is teaching). ' +
+    'A link can be superseded (replaced_by_link_id) or unlinked (unlinked_at). Sqooped from noon2_core.',
+  grain: '1 row = lesson↔session link (id, UUID string)',
+  partition: null,
+  refreshCadence: 'Daily (sqooped)',
+  accessLevel: 'all',
+  scopeColumn: null,
+  scopeType: null,
+  columns: [
+    { name: 'id', type: 'string', description: 'Link ID (PK, UUID)' },
+    { name: 'lesson_id', type: 'string', description: 'Lesson (FK → noon2_core.lesson.id)' },
+    {
+      name: 'lesson_version_id',
+      type: 'string',
+      description: 'Lesson version linked (FK → noon2_core.lesson_version.id)',
+    },
+    {
+      name: 'course_session_id',
+      type: 'bigint',
+      description:
+        'Course session the lesson is linked to (FK → f_course_session.course_session_id)',
+    },
+    { name: 'linked_by', type: 'bigint', description: 'Profile ID that created the link' },
+    { name: 'linked_at', type: 'string', description: 'When the lesson was linked (UTC, VARCHAR)' },
+    {
+      name: 'unlinked_at',
+      type: 'string',
+      description: 'When the link was removed, if any (UTC, VARCHAR). NULL = still active',
+    },
+    {
+      name: 'replaced_by_link_id',
+      type: 'string',
+      description: 'ID of the link that superseded this one, if any (FK → self)',
+    },
+    { name: 'created_at', type: 'string', description: 'Record creation timestamp (UTC, VARCHAR)' },
+    {
+      name: 'updated_at',
+      type: 'string',
+      description: 'Record last-updated timestamp (UTC, VARCHAR)',
+    },
+  ],
+};
+
+const noon2_core_lesson_activity: AthenaTableMeta = {
+  key: 'noon2_core_lesson_activity',
+  database: 'noon2_core',
+  table: 'lesson_activity',
+  description:
+    'An ordered activity within a lesson version (question, marathon, team duel, exit ticket, etc.). ' +
+    'Maps to a lesson slide; questions attached via lesson_activity_question. Sqooped from noon2_core.',
+  grain: '1 row = lesson activity (id, UUID string)',
+  partition: null,
+  refreshCadence: 'Daily (sqooped)',
+  accessLevel: 'all',
+  scopeColumn: null,
+  scopeType: null,
+  columns: [
+    {
+      name: 'id',
+      type: 'string',
+      description:
+        'Lesson activity ID (PK, UUID). FK target of lesson_activity_question.lesson_activity_id',
+    },
+    {
+      name: 'lesson_version_id',
+      type: 'string',
+      description: 'Parent lesson version (FK → noon2_core.lesson_version.id)',
+    },
+    {
+      name: 'activity_index',
+      type: 'int',
+      description: 'Ordering of the activity within the lesson version',
+    },
+    {
+      name: 'activity_logical_id',
+      type: 'string',
+      description:
+        "Stable logical ID that survives across versions (identifies 'the same' activity)",
+    },
+    { name: 'lesson_slide_id', type: 'string', description: 'Slide this activity is anchored to' },
+    {
+      name: 'type',
+      type: 'string',
+      description: 'Activity type',
+      enumValues: [
+        'ANNOTATION_RESPONSE',
+        'BETTER_CALL_SAUL',
+        'CUSTOM',
+        'DRAG_AND_DROP_RESPONSE',
+        'EMBEDDED',
+        'EXIT_TICKET',
+        'MARATHON',
+        'OPEN_RESPONSE',
+        'QUESTION',
+        'SECTION_CHECK',
+        'SQUID_GAME',
+        'TEAM_DUEL',
+        'TEAM_EXERCISE',
+      ],
+    },
+    {
+      name: 'marathon_config_json',
+      type: 'string',
+      description: 'JSON config for MARATHON-type activities (use get_json_object to parse)',
+    },
+    { name: 'created_at', type: 'string', description: 'Record creation timestamp (UTC, VARCHAR)' },
+    {
+      name: 'updated_at',
+      type: 'string',
+      description: 'Record last-updated timestamp (UTC, VARCHAR)',
+    },
+  ],
+};
+
+const noon2_core_lesson_activity_question: AthenaTableMeta = {
+  key: 'noon2_core_lesson_activity_question',
+  database: 'noon2_core',
+  table: 'lesson_activity_question',
+  description:
+    'Bridge: questions assigned to a lesson activity, in order. Join question_id → d_question / noon2_core.question. ' +
+    'Sqooped from noon2_core.',
+  grain: '1 row = activity × question (id, UUID string)',
+  partition: null,
+  refreshCadence: 'Daily (sqooped)',
+  accessLevel: 'all',
+  scopeColumn: null,
+  scopeType: null,
+  columns: [
+    { name: 'id', type: 'string', description: 'Row ID (PK, UUID)' },
+    {
+      name: 'lesson_activity_id',
+      type: 'string',
+      description: 'Lesson activity (FK → noon2_core.lesson_activity.id)',
+    },
+    {
+      name: 'question_id',
+      type: 'bigint',
+      description: 'Question (FK → d_question.question_id / noon2_core.question.id)',
+    },
+    {
+      name: 'question_index',
+      type: 'int',
+      description: 'Ordering of the question within the activity',
+    },
+    { name: 'created_at', type: 'string', description: 'Record creation timestamp (UTC, VARCHAR)' },
+    {
+      name: 'updated_at',
+      type: 'string',
+      description: 'Record last-updated timestamp (UTC, VARCHAR)',
+    },
+  ],
+};
+
+const noon2_core_lesson_curriculum: AthenaTableMeta = {
+  key: 'noon2_core_lesson_curriculum',
+  database: 'noon2_core',
+  table: 'lesson_curriculum',
+  description:
+    'Curriculum tagging for a lesson: which subject/chapter/topic/subtopic/concept it covers. ' +
+    'One lesson may have multiple curriculum rows. Sqooped from noon2_core.',
+  grain: '1 row = lesson × curriculum node (id, UUID string)',
+  partition: null,
+  refreshCadence: 'Daily (sqooped)',
+  accessLevel: 'all',
+  scopeColumn: null,
+  scopeType: null,
+  columns: [
+    { name: 'id', type: 'string', description: 'Row ID (PK, UUID)' },
+    { name: 'lesson_id', type: 'string', description: 'Lesson (FK → noon2_core.lesson.id)' },
+    {
+      name: 'subject_id',
+      type: 'bigint',
+      description:
+        'Subject (FK → noon2_core.subject.id). Qudrat IDs: 248=Quant, 249=Verbal, 250=Quant prep.',
+    },
+    { name: 'chapter_id', type: 'bigint', description: 'Chapter (FK → noon2_core.chapter.id)' },
+    { name: 'topic_id', type: 'bigint', description: 'Topic (FK → noon2_core.topic.id)' },
+    { name: 'subtopic_id', type: 'bigint', description: 'Subtopic ID, if tagged' },
+    { name: 'concept_id', type: 'bigint', description: 'Concept ID, if tagged' },
+    { name: 'created_at', type: 'string', description: 'Record creation timestamp (UTC, VARCHAR)' },
+    {
+      name: 'updated_at',
+      type: 'string',
+      description: 'Record last-updated timestamp (UTC, VARCHAR)',
+    },
+  ],
+};
+
+const noon2_core_lesson_segment: AthenaTableMeta = {
+  key: 'noon2_core_lesson_segment',
+  database: 'noon2_core',
+  table: 'lesson_segment',
+  description:
+    'An ordered segment (pacing block) within a lesson version. Groups activities/slides into sections ' +
+    'with a planned duration. Sqooped from noon2_core.',
+  grain: '1 row = lesson segment (id, UUID string)',
+  partition: null,
+  refreshCadence: 'Daily (sqooped)',
+  accessLevel: 'all',
+  scopeColumn: null,
+  scopeType: null,
+  columns: [
+    { name: 'id', type: 'string', description: 'Lesson segment ID (PK, UUID)' },
+    {
+      name: 'lesson_version_id',
+      type: 'string',
+      description: 'Parent lesson version (FK → noon2_core.lesson_version.id)',
+    },
+    { name: 'name', type: 'string', description: 'Segment name' },
+    {
+      name: 'segment_index',
+      type: 'int',
+      description: 'Ordering of the segment within the lesson version',
+    },
+    {
+      name: 'segment_logical_id',
+      type: 'string',
+      description: 'Stable logical ID for the segment across versions',
+    },
+    { name: 'duration_seconds', type: 'int', description: 'Planned segment duration in seconds' },
+    { name: 'pace', type: 'string', description: 'Pace/tempo tag for the segment' },
+    { name: 'created_at', type: 'string', description: 'Record creation timestamp (UTC, VARCHAR)' },
+    {
+      name: 'updated_at',
+      type: 'string',
+      description: 'Record last-updated timestamp (UTC, VARCHAR)',
+    },
+  ],
+};
+
+const noon2_core_lesson_session_materialization: AthenaTableMeta = {
+  key: 'noon2_core_lesson_session_materialization',
+  database: 'noon2_core',
+  table: 'lesson_session_materialization',
+  description:
+    'Tracks materialization of a linked lesson version into concrete session content (slides/activities). ' +
+    'status READY = live; SUPERSEDED = replaced by a newer materialization. error_* fields populated on failure. ' +
+    'Sqooped from noon2_core.',
+  grain: '1 row = materialization attempt (id, UUID string)',
+  partition: null,
+  refreshCadence: 'Daily (sqooped)',
+  accessLevel: 'all',
+  scopeColumn: null,
+  scopeType: null,
+  columns: [
+    {
+      name: 'id',
+      type: 'string',
+      description:
+        'Materialization ID (PK, UUID). Referenced by lesson_session_materialization_mapping.materialization_id',
+    },
+    { name: 'lesson_id', type: 'string', description: 'Lesson (FK → noon2_core.lesson.id)' },
+    {
+      name: 'lesson_version_id',
+      type: 'string',
+      description: 'Lesson version materialized (FK → noon2_core.lesson_version.id)',
+    },
+    {
+      name: 'lesson_session_link_id',
+      type: 'string',
+      description: 'Originating link (FK → noon2_core.lesson_session_link.id)',
+    },
+    {
+      name: 'course_session_id',
+      type: 'bigint',
+      description: 'Target course session (FK → f_course_session.course_session_id)',
+    },
+    {
+      name: 'status',
+      type: 'string',
+      description: 'Materialization status',
+      enumValues: ['READY', 'SUPERSEDED'],
+    },
+    {
+      name: 'ready_at',
+      type: 'string',
+      description: 'When materialization completed (UTC, VARCHAR)',
+    },
+    {
+      name: 'failed_at',
+      type: 'string',
+      description: 'When materialization failed, if any (UTC, VARCHAR)',
+    },
+    { name: 'error_code', type: 'string', description: 'Error code on failure' },
+    { name: 'error_message', type: 'string', description: 'Error message on failure' },
+    {
+      name: 'created_by',
+      type: 'bigint',
+      description: 'Profile ID that triggered the materialization',
+    },
+    { name: 'created_at', type: 'string', description: 'Record creation timestamp (UTC, VARCHAR)' },
+    {
+      name: 'updated_at',
+      type: 'string',
+      description: 'Record last-updated timestamp (UTC, VARCHAR)',
+    },
+  ],
+};
+
+const noon2_core_lesson_session_materialization_mapping: AthenaTableMeta = {
+  key: 'noon2_core_lesson_session_materialization_mapping',
+  database: 'noon2_core',
+  table: 'lesson_session_materialization_mapping',
+  description:
+    'Bridge produced by materialization: maps a lesson-side entity ref to the concrete session-side entity ref ' +
+    'it became (kind identifies the entity type, e.g. slide/activity/question). Sqooped from noon2_core. ' +
+    '⚠ Unlike the other lesson tables, id here is BIGINT.',
+  grain: '1 row = lesson_ref ↔ session_ref mapping (id, bigint)',
+  partition: null,
+  refreshCadence: 'Daily (sqooped)',
+  accessLevel: 'all',
+  scopeColumn: null,
+  scopeType: null,
+  columns: [
+    { name: 'id', type: 'bigint', description: 'Row ID (PK, bigint)' },
+    {
+      name: 'materialization_id',
+      type: 'string',
+      description: 'Materialization (FK → noon2_core.lesson_session_materialization.id)',
+    },
+    {
+      name: 'kind',
+      type: 'string',
+      description: 'Type of entity being mapped (e.g. slide / activity / question)',
+    },
+    { name: 'lesson_ref_id', type: 'string', description: 'Lesson-side entity reference ID' },
+    {
+      name: 'session_ref_id',
+      type: 'string',
+      description: 'Session-side entity reference ID produced by materialization',
+    },
+    { name: 'created_at', type: 'string', description: 'Record creation timestamp (UTC, VARCHAR)' },
+  ],
+};
+
+const noon2_core_lesson_share_link: AthenaTableMeta = {
+  key: 'noon2_core_lesson_share_link',
+  database: 'noon2_core',
+  table: 'lesson_share_link',
+  description:
+    'Shareable access token for a lesson (version). Can expire (expires_at) or be revoked (revoked_at). ' +
+    'Sqooped from noon2_core.',
+  grain: '1 row = share link (id, UUID string)',
+  partition: null,
+  refreshCadence: 'Daily (sqooped)',
+  accessLevel: 'all',
+  scopeColumn: null,
+  scopeType: null,
+  columns: [
+    { name: 'id', type: 'string', description: 'Share link ID (PK, UUID)' },
+    { name: 'lesson_id', type: 'string', description: 'Lesson (FK → noon2_core.lesson.id)' },
+    {
+      name: 'lesson_version_id',
+      type: 'string',
+      description: 'Lesson version shared (FK → noon2_core.lesson_version.id)',
+    },
+    { name: 'token', type: 'string', description: 'Opaque share token' },
+    { name: 'expires_at', type: 'string', description: 'Expiry timestamp, if any (UTC, VARCHAR)' },
+    {
+      name: 'revoked_at',
+      type: 'string',
+      description: 'Revocation timestamp, if any (UTC, VARCHAR). NULL = still valid',
+    },
+    { name: 'created_by', type: 'bigint', description: 'Profile ID that created the share link' },
+    { name: 'created_at', type: 'string', description: 'Record creation timestamp (UTC, VARCHAR)' },
+    {
+      name: 'updated_at',
+      type: 'string',
+      description: 'Record last-updated timestamp (UTC, VARCHAR)',
+    },
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// datamart_v — Curated analyst views (KYY / activity quality)
+// ---------------------------------------------------------------------------
+// datamart_v is a separate Athena database of stored views curated by the analytics
+// team. They pre-join campus/subject/curriculum context onto session & activity grain.
+// Business-rule defaults STILL apply (exclude country_name='Noon internal', is_deleted, etc.)
+// — these views do NOT pre-filter Nooners.
+// ---------------------------------------------------------------------------
+
+const kyy_nn_session_details: AthenaTableMeta = {
+  key: 'kyy_nn_session_details',
+  database: 'datamart_v',
+  table: 'kyy_nn_session_details',
+  description:
+    'Curated session-level view: one row per course session with teacher, subject, course, campus and ' +
+    'curriculum context pre-joined, plus session temperature and planned vs actual half-hour (h) durations. ' +
+    'Session-grain — do NOT GROUP BY campus for session counts (hybrid-session trap); campus_* here reflect ' +
+    "the course's owning campus, not per-student campus.",
+  grain: '1 row = course session (course_session_id)',
+  partition: null,
+  refreshCadence: 'View (computed on query)',
+  accessLevel: 'all',
+  scopeColumn: null,
+  scopeType: null,
+  columns: [
+    { name: 'course_session_id', type: 'bigint', description: 'Course session ID (grain)' },
+    { name: 'course_id', type: 'bigint', description: 'Course ID (FK → d_course.course_id)' },
+    { name: 'teacher_name', type: 'varchar', description: 'Name of the session teacher' },
+    { name: 'date', type: 'date', description: 'Session date' },
+    {
+      name: 'session_temperature',
+      type: 'double',
+      description: 'Session temperature ((positive-negative)/total)×100, range -100..+100',
+    },
+    {
+      name: 'planned_h_duration',
+      type: 'bigint',
+      description: 'Planned duration in half-hours (h = 30-min unit)',
+    },
+    {
+      name: 'planned_uh_duration',
+      type: 'bigint',
+      description: 'Planned un-hybrid (uh) duration in half-hours',
+    },
+    { name: 'h_duration', type: 'decimal(38,2)', description: 'Actual half-hour-based duration' },
+    { name: 'subject_id', type: 'bigint', description: 'Subject ID (FK → noon2_core.subject.id)' },
+    {
+      name: 'subject_name',
+      type: 'varchar',
+      description: 'Subject name (display only — classify by subject_id)',
+    },
+    {
+      name: 'course_type',
+      type: 'varchar',
+      description: 'Course type (O2O / MARKETPLACE / SCHOOL)',
+    },
+    {
+      name: 'country_name',
+      type: 'varchar',
+      description: "Country name of the course. ⚠ Exclude 'Noon internal'.",
+    },
+    { name: 'campus_id', type: 'bigint', description: 'Owning campus ID' },
+    { name: 'campus_name', type: 'varchar', description: 'Owning campus name' },
+    {
+      name: 'campus_type',
+      type: 'varchar',
+      description: 'Campus type (e.g. UFFUQ / TRACKS / LABS / B2B / MARKETPLACE)',
+    },
+    { name: 'campus_name_eng', type: 'varchar', description: 'English short campus name' },
+    { name: 'campus_gender', type: 'varchar', description: 'Campus gender segment' },
+    { name: 'grade_eng', type: 'varchar', description: 'English grade label' },
+    { name: 'teaching_mode', type: 'varchar', description: 'Teaching mode of the course/session' },
+    { name: 'course_status', type: 'varchar', description: 'Course status' },
+  ],
+};
+
+const nn_activity_details: AthenaTableMeta = {
+  key: 'nn_activity_details',
+  database: 'datamart_v',
+  table: 'nn_activity_details',
+  description:
+    'Curated in-session activity view: one row per session activity (slide) with reaction/temperature counts ' +
+    'AND question performance (attempted/correct, valid attempts, avg question duration) pre-aggregated, ' +
+    'plus campus/subject context. Rows with NULL activity_type/poll_type are reaction-only slides (no question). ' +
+    '⚠ Large view — always constrain by date and, where possible, course_session_id.',
+  grain:
+    '1 row = session activity slide (course_session_id + session_slide_id / classroom_activity_id)',
+  partition: null,
+  refreshCadence: 'View (computed on query)',
+  accessLevel: 'all',
+  scopeColumn: null,
+  scopeType: null,
+  columns: [
+    { name: 'course_session_id', type: 'bigint', description: 'Course session ID' },
+    { name: 'session_slide_id', type: 'bigint', description: 'Session slide ID for the activity' },
+    {
+      name: 'classroom_activity_id',
+      type: 'bigint',
+      description: 'Classroom activity ID (FK → d_classroom_activity.activity_id)',
+    },
+    { name: 'date', type: 'date', description: 'Session/activity date' },
+    {
+      name: 'activity_type',
+      type: 'varchar',
+      description: 'Activity type (NULL for reaction-only slides)',
+      enumValues: [
+        'ANNOTATION_RESPONSE',
+        'BETTER_CALL_SAUL',
+        'CUSTOM',
+        'DRAG_AND_DROP_RESPONSE',
+        'EMBEDDED',
+        'EXIT_TICKET',
+        'MARATHON',
+        'OPEN_RESPONSE',
+        'QUESTION',
+        'SECTION_CHECK',
+        'SQUID_GAME',
+        'TEAM_DUEL',
+        'TEAM_EXERCISE',
+      ],
+    },
+    {
+      name: 'poll_type',
+      type: 'varchar',
+      description:
+        "Poll type of the activity (all questions are 'mcq' since Feb 2025); NULL for reaction-only slides",
+      enumValues: ['mcq'],
+    },
+    {
+      name: 'poll_type_2',
+      type: 'varchar',
+      description: 'Finer poll granularity (CUSTOM, QUESTION, MARATHON, EXIT_TICKET, TEAM_DUEL, …)',
+    },
+    { name: 'subject_id', type: 'bigint', description: 'Subject ID (FK → noon2_core.subject.id)' },
+    {
+      name: 'country_name',
+      type: 'varchar',
+      description: "Country name. ⚠ Exclude 'Noon internal'.",
+    },
+    { name: 'campus_name', type: 'varchar', description: 'Campus name' },
+    { name: 'campus_id', type: 'bigint', description: 'Campus ID' },
+    {
+      name: 'campus_type',
+      type: 'varchar',
+      description: 'Campus type (UFFUQ / TRACKS / LABS / B2B / …)',
+    },
+    { name: 'campus_name_eng', type: 'varchar', description: 'English short campus name' },
+    { name: 'campus_gender', type: 'varchar', description: 'Campus gender segment' },
+    { name: 'grade_eng', type: 'varchar', description: 'English grade label' },
+    {
+      name: 'temperature_participants',
+      type: 'bigint',
+      description: 'Number of students who reacted (temperature denominator)',
+    },
+    {
+      name: 'total_positive',
+      type: 'bigint',
+      description: 'Count of positive reactions at activity level',
+    },
+    {
+      name: 'total_negative',
+      type: 'bigint',
+      description: 'Count of negative reactions at activity level',
+    },
+    {
+      name: 'total_reactors_activity_level',
+      type: 'bigint',
+      description: 'Distinct reactors on this activity',
+    },
+    {
+      name: 'activity_temp_reactions',
+      type: 'bigint',
+      description: 'Total reactions counted toward activity temperature',
+    },
+    { name: 'skipped', type: 'bigint', description: 'Count of skip reactions' },
+    {
+      name: 'planned_duration',
+      type: 'bigint',
+      description: 'Planned activity duration (seconds)',
+    },
+    {
+      name: 'happened_duration',
+      type: 'decimal(32,2)',
+      description: 'Actual elapsed activity duration',
+    },
+    {
+      name: 'duration',
+      type: 'double',
+      description: 'Effective activity duration used in reporting',
+    },
+    {
+      name: 'questions_floated',
+      type: 'double',
+      description: 'Number of questions floated in the activity',
+    },
+    {
+      name: 'activity_participants',
+      type: 'bigint',
+      description: 'Distinct students who participated in the activity',
+    },
+    { name: 'total_attempted', type: 'bigint', description: 'Total question attempts' },
+    { name: 'correct_attempts', type: 'bigint', description: 'Total correct attempts' },
+    {
+      name: 'valid_attempts',
+      type: 'bigint',
+      description: 'Attempts counted as valid (excludes non-graded/edge cases)',
+    },
+    { name: 'valid_correct', type: 'bigint', description: 'Valid attempts that were correct' },
+    {
+      name: 'avg_q_duration',
+      type: 'double',
+      description: 'Average per-question answer duration (seconds)',
+    },
+  ],
+};
+
+const nn_activity_quality: AthenaTableMeta = {
+  key: 'nn_activity_quality',
+  database: 'datamart_v',
+  table: 'nn_activity_quality',
+  description:
+    'Curated activity-quality view: one row per session activity with question metadata (difficulty, topic/chapter/subject), ' +
+    'planned vs actual duration, and gamification signals (duel/BCS invites, punishment). ' +
+    "⚠ KNOWN ISSUE (as of 2026-07-22): this stored view fails to compile in Athena — it references 'noon2_core.room' " +
+    'which does not resolve in the query catalog, so direct SELECTs error with INVALID_VIEW. Treat the schema below ' +
+    'as documentation until the underlying view is fixed; verify with a probe query before relying on it.',
+  grain: '1 row = session activity (course_session_id + session_slide_id / activity_id)',
+  partition: null,
+  refreshCadence: 'View (computed on query) — currently non-compiling, see description',
+  accessLevel: 'all',
+  scopeColumn: null,
+  scopeType: null,
+  columns: [
+    { name: 'activity_id', type: 'bigint', description: 'Classroom activity ID' },
+    { name: 'course_session_id', type: 'bigint', description: 'Course session ID' },
+    { name: 'session_slide_id', type: 'bigint', description: 'Session slide ID' },
+    {
+      name: 'type',
+      type: 'varchar',
+      description:
+        'Activity/question type (mirrors activity type families; enum unverified — view non-compiling)',
+    },
+    {
+      name: 'question_id',
+      type: 'bigint',
+      description: 'Question ID (FK → d_question.question_id)',
+    },
+    { name: 'difficulty_level', type: 'int', description: 'Question difficulty level (1-5)' },
+    { name: 'topic_id', type: 'bigint', description: 'Topic ID (FK → noon2_core.topic.id)' },
+    { name: 'topic_name', type: 'varchar', description: 'Topic name' },
+    { name: 'chapter_id', type: 'bigint', description: 'Chapter ID (FK → noon2_core.chapter.id)' },
+    { name: 'chapter_name', type: 'varchar', description: 'Chapter name' },
+    { name: 'subject_id', type: 'bigint', description: 'Subject ID (FK → noon2_core.subject.id)' },
+    { name: 'subject_name', type: 'varchar', description: 'Subject name (display only)' },
+    { name: 'date', type: 'date', description: 'Session/activity date' },
+    {
+      name: 'planned_duration',
+      type: 'bigint',
+      description: 'Planned activity duration (seconds)',
+    },
+    { name: 'duration', type: 'decimal(32,2)', description: 'Actual activity duration' },
+    {
+      name: 'activity_happened',
+      type: 'int',
+      description: '1 = activity actually ran, 0 = did not',
+    },
+    { name: 'punishment', type: 'bigint', description: 'Gamification punishment signal count' },
+    { name: 'duel_invites', type: 'bigint', description: 'Team-duel invites issued' },
+    { name: 'bcs_invites', type: 'bigint', description: 'Better-Call-Saul invites issued' },
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// noon2_replit — Analyst views (nn_* metrics, hk_* fact rebuilds, transcriptions)
+// ---------------------------------------------------------------------------
+// nn_* and hk_* are analyst-curated views in the noon2_replit database. Defaults STILL
+// apply (exclude Nooners, deleted rows, filter user_type='STUDENT' for student metrics).
+// ---------------------------------------------------------------------------
+
+const nn_assessment_details: AthenaTableMeta = {
+  key: 'nn_assessment_details',
+  database: 'noon2_replit',
+  table: 'nn_assessment_details',
+  description:
+    'Curated assessment view at student × question grain, tagged by program (Qudrat/Tahsili/Nafes/National Curriculum/ESL), ' +
+    'subject_type, level, campus and teacher. Pre-computes total_questions / total_attempts / total_questions_correct and ' +
+    'avg_time_taken. Use for program-level assessment performance. ⚠ A same-named view also exists in datamart_v — this is ' +
+    'the noon2_replit one.',
+  grain: '1 row = student × assessment question (profile_id + question_id)',
+  partition: null,
+  refreshCadence: 'View (computed on query)',
+  accessLevel: 'all',
+  scopeColumn: 'profile_id',
+  scopeType: 'user_id',
+  columns: [
+    { name: 'profile_id', type: 'bigint', description: 'Student profile ID (= user_id)' },
+    { name: 'assessment_label', type: 'varchar', description: 'Assessment label/identifier' },
+    {
+      name: 'program',
+      type: 'varchar',
+      description: 'Learning program',
+      enumValues: [
+        'Qudrat',
+        'Tahsili',
+        'Nafes',
+        'High School National Curriculum',
+        'Middle School National Curriculum',
+        'ESL',
+        'لغتي',
+      ],
+    },
+    {
+      name: 'subject_type',
+      type: 'varchar',
+      description: 'Subject family',
+      enumValues: [
+        'Quant',
+        'Verbal',
+        'Mathematics',
+        'Physics',
+        'Chemistry',
+        'Biology',
+        'Science',
+        'Arabic',
+        'ESL',
+        'لغتي',
+      ],
+    },
+    {
+      name: 'level',
+      type: 'varchar',
+      description:
+        'Level within the program (mainly Qudrat/ESL). NULL for programs without levels.',
+      enumValues: ['Level 1', 'Level 2', 'Level 3'],
+    },
+    { name: 'subject_id', type: 'bigint', description: 'Subject ID (FK → noon2_core.subject.id)' },
+    { name: 'subject_name', type: 'varchar', description: 'Subject name (display only)' },
+    {
+      name: 'question_id',
+      type: 'bigint',
+      description: 'Question ID (FK → d_question.question_id)',
+    },
+    { name: 'difficulty_level', type: 'int', description: 'Question difficulty level (1-5)' },
+    { name: 'chapter_id', type: 'bigint', description: 'Chapter ID (FK → noon2_core.chapter.id)' },
+    { name: 'chapter_name', type: 'varchar', description: 'Chapter name' },
+    { name: 'campus_type', type: 'varchar', description: 'Campus type' },
+    { name: 'campus_gender', type: 'varchar', description: 'Campus gender segment' },
+    { name: 'campus_name', type: 'varchar', description: 'Campus name' },
+    { name: 'course_teacher_id', type: 'bigint', description: 'Course teacher profile ID' },
+    { name: 'teacher_name', type: 'varchar', description: 'Teacher name' },
+    { name: 'grade_eng', type: 'varchar', description: 'English grade label' },
+    { name: 'date', type: 'timestamp', description: 'Assessment attempt datetime (UTC)' },
+    {
+      name: 'total_questions',
+      type: 'bigint',
+      description: 'Total questions in the assessment (at this grain)',
+    },
+    { name: 'total_attempts', type: 'bigint', description: 'Total attempts made' },
+    {
+      name: 'total_questions_correct',
+      type: 'bigint',
+      description: 'Total questions answered correctly',
+    },
+    {
+      name: 'avg_time_taken',
+      type: 'double',
+      description: 'Average time taken per question (seconds)',
+    },
+  ],
+};
+
+const nn_learning_gains: AthenaTableMeta = {
+  key: 'nn_learning_gains',
+  database: 'noon2_replit',
+  table: 'nn_learning_gains',
+  description:
+    'Pre/post learning-gains view: one row per student per program/subject/level with a pre-test and a post-test ' +
+    'score and question count (compute gain as post_score/post_total_ques − pre_score/pre_total_ques). Used for ' +
+    'measuring learning improvement across a program cohort.',
+  grain: '1 row = student × program × subject × level (user_id)',
+  partition: null,
+  refreshCadence: 'View (computed on query)',
+  accessLevel: 'all',
+  scopeColumn: 'user_id',
+  scopeType: 'user_id',
+  columns: [
+    { name: 'user_id', type: 'bigint', description: 'Student profile ID (= user_id)' },
+    { name: 'campus', type: 'varchar', description: 'Campus name/label' },
+    {
+      name: 'program',
+      type: 'varchar',
+      description: 'Learning program',
+      enumValues: [
+        'Qudrat',
+        'Tahsili',
+        'Nafes',
+        'High School National Curriculum',
+        'Middle School National Curriculum',
+        'ESL',
+      ],
+    },
+    {
+      name: 'subject',
+      type: 'varchar',
+      description: 'Subject family',
+      enumValues: [
+        'Quant',
+        'Verbal',
+        'Mathematics',
+        'Physics',
+        'Chemistry',
+        'Biology',
+        'Arabic',
+        'ESL',
+      ],
+    },
+    {
+      name: 'level',
+      type: 'varchar',
+      description: 'Level/grade label',
+      enumValues: ['Level 1', 'Level 2', 'Level 3', 'Grade 10', 'Grade 11', 'Grade 12'],
+    },
+    { name: 'pre_score', type: 'bigint', description: 'Number of correct answers on the pre-test' },
+    { name: 'pre_total_ques', type: 'bigint', description: 'Total questions on the pre-test' },
+    { name: 'pre_date', type: 'date', description: 'Date of the pre-test' },
+    {
+      name: 'post_score',
+      type: 'bigint',
+      description: 'Number of correct answers on the post-test',
+    },
+    { name: 'post_total_ques', type: 'bigint', description: 'Total questions on the post-test' },
+    { name: 'post_date', type: 'date', description: 'Date of the post-test' },
+  ],
+};
+
+const hk_f_course_session: AthenaTableMeta = {
+  key: 'hk_f_course_session',
+  database: 'noon2_replit',
+  table: 'hk_f_course_session',
+  description:
+    'Analyst rebuild of session-level facts (hk_ = curated). One row per course session with teaching/session time, ' +
+    'avg & median active time per student, segment/breakout counts, temperature (positive/negative/neutral users), ' +
+    'spotlight usage, curriculum arrays, feature active-duration JSON, and lesson-template tags. ' +
+    'Session-grain — do NOT GROUP BY campus (has no campus column; hybrid-session trap). Filter ' +
+    'is_course_session_deleted=0 / is_course_deleted=0.',
+  grain: '1 row = course session (course_session_id)',
+  partition: null,
+  refreshCadence: 'View (computed on query)',
+  accessLevel: 'all',
+  scopeColumn: null,
+  scopeType: null,
+  columns: [
+    { name: 'course_session_id', type: 'bigint', description: 'Course session ID (grain)' },
+    { name: 'course_id', type: 'bigint', description: 'Course ID (FK → d_course.course_id)' },
+    { name: 'course_session_name', type: 'varchar', description: 'Session name' },
+    {
+      name: 'course_session_class_type',
+      type: 'varchar',
+      description: 'Live class type',
+      enumValues: ['LIVE_CLASS', 'LIVE_MASTERY'],
+    },
+    {
+      name: 'course_session_type',
+      type: 'varchar',
+      description: 'Delivery type',
+      enumValues: ['HYBRID', 'ONLINE', 'OFFLINE'],
+    },
+    {
+      name: 'is_course_session_paid',
+      type: 'tinyint',
+      description: '1 = paid session',
+      enumValues: ['0', '1'],
+    },
+    { name: 'course_teacher_id', type: 'bigint', description: 'Course teacher profile ID' },
+    {
+      name: 'course_session_teacher_id',
+      type: 'bigint',
+      description: 'Teacher with longest room presence (may differ from course_teacher_id)',
+    },
+    {
+      name: 'course_session_scheduled_start_time',
+      type: 'timestamp',
+      description: 'Scheduled start (UTC)',
+    },
+    {
+      name: 'course_session_scheduled_end_time',
+      type: 'timestamp',
+      description: 'Scheduled end (UTC)',
+    },
+    { name: 'room_open_time', type: 'timestamp', description: 'Room open time (UTC)' },
+    { name: 'room_end_time', type: 'timestamp', description: 'Room end time (UTC)' },
+    {
+      name: 'teacher_start_time',
+      type: 'timestamp',
+      description: 'First teacher entry (UTC). NULL for Live Mastery.',
+    },
+    { name: 'teacher_end_time', type: 'timestamp', description: 'Last teacher exit (UTC)' },
+    {
+      name: 'teaching_time',
+      type: 'decimal(27,2)',
+      description:
+        'Teaching time in minutes (first entry → last exit of teacher). 0 for Live Mastery.',
+    },
+    { name: 'session_time', type: 'decimal(27,2)', description: 'Session time in minutes' },
+    {
+      name: 'avg_active_time_per_student',
+      type: 'decimal(29,2)',
+      description: 'Average student active time (minutes)',
+    },
+    {
+      name: 'median_active_time_per_student',
+      type: 'decimal(29,2)',
+      description: 'Median student active time (minutes)',
+    },
+    {
+      name: 'course_session_status',
+      type: 'varchar',
+      description: 'Session status',
+      enumValues: ['ended', 'planned', 'scheduled'],
+    },
+    { name: 'course_section_id', type: 'bigint', description: 'Course section (week/unit) ID' },
+    {
+      name: 'room_ids',
+      type: 'array<bigint>',
+      description: 'All room IDs in the session (use CONTAINS, not LIKE/IN)',
+    },
+    { name: 'main_room_id', type: 'int', description: 'Main room ID' },
+    { name: 'total_segments', type: 'bigint', description: 'Number of segments in the session' },
+    { name: 'total_breakouts', type: 'bigint', description: 'Number of breakouts planned' },
+    {
+      name: 'total_breakouts_happened',
+      type: 'bigint',
+      description: 'Number of breakouts that happened',
+    },
+    {
+      name: 'feature_avg_active_duration',
+      type: 'varchar',
+      description: 'Avg feature active-duration (JSON string — parse with get_json_object)',
+    },
+    {
+      name: 'feature_median_active_duration',
+      type: 'varchar',
+      description: 'Median feature active-duration (JSON string)',
+    },
+    {
+      name: 'activity_feature_avg_active_duration',
+      type: 'varchar',
+      description: 'Avg feature active-duration during activities (JSON string)',
+    },
+    {
+      name: 'activity_feature_median_active_duration',
+      type: 'varchar',
+      description: 'Median feature active-duration during activities (JSON string)',
+    },
+    {
+      name: 'session_slide_id_list',
+      type: 'array<varchar>',
+      description: 'List of session slide IDs (use CONTAINS)',
+    },
+    { name: 'subject_id', type: 'bigint', description: 'Subject ID (FK → noon2_core.subject.id)' },
+    {
+      name: 'chapter_ids',
+      type: 'array<bigint>',
+      description: 'Chapter IDs covered (use CONTAINS)',
+    },
+    { name: 'topic_ids', type: 'array<bigint>', description: 'Topic IDs covered (use CONTAINS)' },
+    {
+      name: 'sub_topic_ids',
+      type: 'array<bigint>',
+      description: 'Subtopic IDs covered (use CONTAINS)',
+    },
+    {
+      name: 'concept_ids',
+      type: 'array<bigint>',
+      description: 'Concept IDs covered (use CONTAINS)',
+    },
+    {
+      name: 'is_course_session_deleted',
+      type: 'tinyint',
+      description: 'Soft-delete flag for the session (filter =0)',
+      enumValues: ['0', '1'],
+    },
+    {
+      name: 'is_course_deleted',
+      type: 'tinyint',
+      description: 'Soft-delete flag for the course (filter =0)',
+      enumValues: ['0', '1'],
+    },
+    { name: 'created_at', type: 'timestamp', description: 'Record creation timestamp (UTC)' },
+    {
+      name: 'positive_users',
+      type: 'bigint',
+      description: 'Users with positive sentiment (temperature numerator+)',
+    },
+    {
+      name: 'negative_users',
+      type: 'bigint',
+      description: 'Users with negative sentiment (temperature numerator−)',
+    },
+    { name: 'neutral_users', type: 'bigint', description: 'Users with neutral sentiment' },
+    {
+      name: 'session_temperature',
+      type: 'double',
+      description: 'Session temperature ((positive-negative)/total)×100, range -100..+100',
+    },
+    { name: 'spotlight_count', type: 'bigint', description: 'Number of spotlight events' },
+    {
+      name: 'total_spotlight_duration_seconds',
+      type: 'bigint',
+      description: 'Total spotlight duration (seconds)',
+    },
+    {
+      name: 'lesson_template_key',
+      type: 'varchar',
+      description:
+        'Lesson Builder template key, if the session used a lesson (FK sense → noon2_core.lesson.template_key). Currently sparsely populated.',
+    },
+    {
+      name: 'lesson_template_version',
+      type: 'int',
+      description: 'Lesson Builder template version, if applicable',
+    },
+  ],
+};
+
+const hk_f_user_session: AthenaTableMeta = {
+  key: 'hk_f_user_session',
+  database: 'noon2_replit',
+  table: 'hk_f_user_session',
+  description:
+    'Analyst rebuild of f_user_session (hk_ = curated): one row per user × session with attendance, learning/room/active/lobby ' +
+    'time, poll & engagement counts, platforms/devices, classroom info, and curriculum context. Mirrors noon2_datamart.f_user_session ' +
+    "field-for-field. ⚠ Filter user_type='STUDENT' for student queries; exclude Nooners via country_names. Partitioned on dt (int YYYYMMDD).",
+  grain: '1 row = user × course session (user_id + course_session_id)',
+  partition: 'dt',
+  refreshCadence: 'View (computed on query)',
+  accessLevel: 'all',
+  scopeColumn: 'user_id',
+  scopeType: 'user_id',
+  columns: [
+    { name: 'user_id', type: 'int', description: 'User profile ID' },
+    { name: 'user_name', type: 'varchar', description: 'User name' },
+    {
+      name: 'user_type',
+      type: 'varchar',
+      description: 'User type (case-sensitive UPPERCASE)',
+      enumValues: ['FACILITATOR', 'PRESENTER', 'STUDENT', 'TEACHER', 'TEACHING_ASSISTANT'],
+    },
+    {
+      name: 'user_sentiment',
+      type: 'varchar',
+      description: 'Combined user sentiment',
+      enumValues: ['negative', 'neutral', 'positive'],
+    },
+    { name: 'course_session_id', type: 'bigint', description: 'Course session ID' },
+    { name: 'course_id', type: 'bigint', description: 'Course ID (FK → d_course.course_id)' },
+    {
+      name: 'course_session_class_type',
+      type: 'varchar',
+      description: 'Live class type',
+      enumValues: ['LIVE_CLASS', 'LIVE_MASTERY'],
+    },
+    { name: 'room_id', type: 'bigint', description: 'Room ID' },
+    {
+      name: 'room_ids',
+      type: 'array<bigint>',
+      description: 'Room IDs joined by this user (use CONTAINS)',
+    },
+    { name: 'total_rooms_joined', type: 'bigint', description: 'Total rooms joined' },
+    { name: 'total_breakouts_attended', type: 'bigint', description: 'Breakout rooms attended' },
+    {
+      name: 'total_breakouts_happened',
+      type: 'bigint',
+      description: 'Breakout rooms that happened',
+    },
+    { name: 'teacher_id', type: 'bigint', description: 'Teacher profile ID for the session' },
+    {
+      name: 'is_course_session_teacher',
+      type: 'tinyint',
+      description: '1 = this user is the session teacher',
+      enumValues: ['0', '1'],
+    },
+    {
+      name: 'teacher_start_datetime',
+      type: 'timestamp',
+      description: 'First teacher entry (UTC). NULL for Live Mastery.',
+    },
+    { name: 'teacher_end_datetime', type: 'timestamp', description: 'Last teacher exit (UTC)' },
+    {
+      name: 'teaching_time',
+      type: 'decimal(38,2)',
+      description: 'Teaching time in minutes (teachers)',
+    },
+    { name: 'session_time', type: 'decimal(38,2)', description: 'Session time in minutes' },
+    { name: 'room_open_time', type: 'timestamp', description: 'Room open time (UTC)' },
+    { name: 'room_end_time', type: 'timestamp', description: 'Room end time (UTC)' },
+    { name: 'user_enter_time', type: 'timestamp', description: 'First user entry (UTC)' },
+    { name: 'user_exit_time', type: 'timestamp', description: 'Last user exit (UTC)' },
+    {
+      name: 'entered_room',
+      type: 'bigint',
+      description: 'Number of times the user entered the room',
+    },
+    {
+      name: 'room_time',
+      type: 'decimal(38,2)',
+      description: 'Total time in room (minutes, includes lobby)',
+    },
+    {
+      name: 'learning_time',
+      type: 'decimal(38,2)',
+      description:
+        "Time with teacher present (minutes). ⚠ Filter learning_time >= 0 for 'time studying'.",
+    },
+    {
+      name: 'lobby_before_time',
+      type: 'decimal(38,2)',
+      description: 'Lobby time before teacher joined (minutes)',
+    },
+    {
+      name: 'lobby_after_time',
+      type: 'decimal(38,2)',
+      description: 'Lobby time after teacher left (minutes)',
+    },
+    { name: 'lobby_time', type: 'decimal(38,2)', description: 'Total lobby time (minutes)' },
+    {
+      name: 'active_time',
+      type: 'decimal(38,2)',
+      description: 'Total active time for student (minutes). NULL for teacher.',
+    },
+    { name: 'total_polls_seen', type: 'bigint', description: 'Total polls seen by the student' },
+    {
+      name: 'total_polls_responded',
+      type: 'bigint',
+      description: 'Total polls answered by the student',
+    },
+    { name: 'total_messages', type: 'bigint', description: 'Total chat messages sent' },
+    { name: 'total_hand_raise', type: 'bigint', description: 'Total hand raises' },
+    { name: 'total_unmutes', type: 'bigint', description: 'Total unmutes' },
+    { name: 'total_video_on', type: 'bigint', description: 'Total times video turned on' },
+    {
+      name: 'platforms',
+      type: 'array<varchar>',
+      description: 'Platforms used (use CONTAINS)',
+      enumValues: ['android', 'ios', 'web'],
+    },
+    { name: 'device_ids', type: 'array<varchar>', description: 'Device IDs used (use CONTAINS)' },
+    {
+      name: 'country_ids',
+      type: 'array<int>',
+      description: 'Country IDs of the course (use CONTAINS)',
+    },
+    {
+      name: 'country_names',
+      type: 'array<varchar>',
+      description: "Country names of the course. ⚠ Exclude 'Noon internal' (ANY_MATCH).",
+    },
+    {
+      name: 'feature_active_duration',
+      type: 'varchar',
+      description: 'Feature active-duration (JSON string)',
+    },
+    {
+      name: 'feature_active_duration_during_activity',
+      type: 'varchar',
+      description: 'Feature active-duration during activities (JSON string)',
+    },
+    {
+      name: 'classroom_name',
+      type: 'varchar',
+      description: 'Physical classroom name (first joined)',
+    },
+    {
+      name: 'classroom_description',
+      type: 'varchar',
+      description: 'Physical classroom description',
+    },
+    { name: 'classroom_join_code', type: 'varchar', description: 'Physical classroom join code' },
+    {
+      name: 'dt',
+      type: 'int',
+      description: 'Partition column YYYYMMDD (int) — ALWAYS filter to avoid full scans',
+    },
+  ],
+};
+
+const hk_session_questions: AthenaTableMeta = {
+  key: 'hk_session_questions',
+  database: 'noon2_replit',
+  table: 'hk_session_questions',
+  description:
+    'Analyst view of questions floated in sessions (hk_ = curated): one row per session × question with question metadata ' +
+    '(text, type, difficulty, chapter/topic/subtopic), poll granularity, segment type, and seen/answered/valid/correct counts. ' +
+    'Use for question-quality and session-question performance analysis.',
+  grain: '1 row = course session × question (course_session_id + question_id)',
+  partition: null,
+  refreshCadence: 'View (computed on query)',
+  accessLevel: 'all',
+  scopeColumn: null,
+  scopeType: null,
+  columns: [
+    { name: 'course_session_id', type: 'bigint', description: 'Course session ID' },
+    {
+      name: 'question_id',
+      type: 'bigint',
+      description: 'Question ID (FK → d_question.question_id)',
+    },
+    { name: 'question_text', type: 'varchar', description: 'Question text' },
+    {
+      name: 'question_type',
+      type: 'varchar',
+      description: 'Whether the question is graded',
+      enumValues: ['has correct answer', 'no correct answer'],
+    },
+    {
+      name: 'choice_type',
+      type: 'varchar',
+      description: 'Answer/choice format',
+      enumValues: ['MCQ', 'ANNOTATION', 'MATCH', 'OPEN_TEXT'],
+    },
+    {
+      name: 'poll_type_2',
+      type: 'varchar',
+      description:
+        'Finer poll/activity granularity (in-session families like CUSTOM/QUESTION/MARATHON/EXIT_TICKET/TEAM_DUEL/TEAM_EXERCISE/SECTION_CHECK/SQUID_GAME/BETTER_CALL_SAUL/OPEN_RESPONSE/ANNOTATION_RESPONSE/DRAG_AND_DROP_RESPONSE/EMBEDDED, plus practice families: practice/revision/mcq/poll/on-demand mastery/smart practice/custom practice/daily challenge)',
+    },
+    {
+      name: 'segment_type',
+      type: 'varchar',
+      description: 'Segment the question ran in',
+      enumValues: ['MAIN', 'BREAKOUT', 'LIVE_MASTERY'],
+    },
+    { name: 'campus_type', type: 'varchar', description: 'Campus type' },
+    { name: 'chapter_name', type: 'varchar', description: 'Chapter name' },
+    { name: 'topic_name', type: 'varchar', description: 'Topic name' },
+    { name: 'subtopic_name', type: 'varchar', description: 'Subtopic name' },
+    { name: 'difficulty_level', type: 'int', description: 'Question difficulty level (1-5)' },
+    {
+      name: 'is_suitable_for_practice',
+      type: 'tinyint',
+      description: '1 = question is suitable for practice',
+      enumValues: ['0', '1'],
+    },
+    {
+      name: 'poll_created_at',
+      type: 'timestamp',
+      description: 'When the poll/question was floated (UTC)',
+    },
+    {
+      name: 'questions_seen',
+      type: 'bigint',
+      description: 'Number of students who saw the question',
+    },
+    { name: 'questions_answered', type: 'bigint', description: 'Number of students who answered' },
+    {
+      name: 'valid_qs_done',
+      type: 'bigint',
+      description: 'Valid answered count (excludes non-graded/edge cases)',
+    },
+    { name: 'valid_correct', type: 'bigint', description: 'Valid answers that were correct' },
+  ],
+};
+
+const session_transcriptions: AthenaTableMeta = {
+  key: 'session_transcriptions',
+  database: 'noon2_replit',
+  table: 'session_transcriptions',
+  description:
+    'Speech-to-text transcript segments for course sessions: one row per utterance with speaker, timing, and text. ' +
+    'Use for content/transcript analysis of what was said in a session. ⚠ start_time/end_time are VARCHAR (segment offsets, ' +
+    'not absolute timestamps). Transcript text may contain personal references — treat as sensitive.',
+  grain: '1 row = transcript utterance (course_session_id + start_time)',
+  partition: null,
+  refreshCadence: 'View (computed on query)',
+  accessLevel: 'all',
+  scopeColumn: null,
+  scopeType: null,
+  columns: [
+    {
+      name: 'course_session_id',
+      type: 'bigint',
+      description: 'Course session ID (FK → f_course_session.course_session_id)',
+    },
+    { name: 'speaker', type: 'varchar', description: 'Speaker label/identifier for the utterance' },
+    { name: 'text', type: 'varchar', description: 'Transcribed text of the utterance' },
+    {
+      name: 'start_time',
+      type: 'varchar',
+      description: 'Utterance start offset within the session (VARCHAR)',
+    },
+    {
+      name: 'end_time',
+      type: 'varchar',
+      description: 'Utterance end offset within the session (VARCHAR)',
+    },
+  ],
+};
+
+// ---------------------------------------------------------------------------
 // REGISTRY — Single export
 // ---------------------------------------------------------------------------
 
@@ -4616,6 +6064,28 @@ export const ATHENA_REGISTRY: Record<string, AthenaTableMeta> = {
   noon2_core_mcq_selected_choice_choices,
   // noon2_datamart — activity feature duration
   f_user_activity_feature_duration,
+  // Lesson Builder model (noon2_core)
+  noon2_core_lesson,
+  noon2_core_lesson_version,
+  noon2_core_lesson_session_link,
+  noon2_core_lesson_activity,
+  noon2_core_lesson_activity_question,
+  noon2_core_lesson_curriculum,
+  noon2_core_lesson_segment,
+  noon2_core_lesson_session_materialization,
+  noon2_core_lesson_session_materialization_mapping,
+  noon2_core_lesson_share_link,
+  // datamart_v — curated analyst views
+  kyy_nn_session_details,
+  nn_activity_details,
+  nn_activity_quality,
+  // noon2_replit — analyst views (nn_* / hk_* / transcriptions)
+  nn_assessment_details,
+  nn_learning_gains,
+  hk_f_course_session,
+  hk_f_user_session,
+  hk_session_questions,
+  session_transcriptions,
 };
 
 // ---------------------------------------------------------------------------
@@ -5054,6 +6524,54 @@ Database: noon2_datamart | Refresh: Every 12 hours | Partitioned tables use dt (
    Tip: Filter hw_order = 1 to deduplicate. ⚠ Data starts 2026-01-18.
    Tracks filter for homework: campus_type='TRACKS' AND cohort_name LIKE '%ثانوي%' AND cohort_name NOT LIKE '%قدرات%'
 
+━━━ LESSON BUILDER MODEL (noon2_core — sqooped) ━━━
+Content-authoring model: lesson → lesson_version → (segments, activities → questions), tagged by curriculum,
+linked to a session and materialized into it. ⚠ All id/*_id are UUID STRINGs (except course_session_id, question_id,
+curriculum FKs, created_by, and lesson_session_materialization_mapping.id which are BIGINT). Timestamps are VARCHAR. Filter is_deleted=0.
+
+📘 lesson (noon2_core) — Authored lessons / templates
+   Grain: id (UUID) | No partition | Key: name, class_type (LIVE_CLASS/LIVE_MASTERY), lesson_type (HYBRID/ONLINE), is_template, template_key (concept_coverage/practice/revision), is_published, created_by
+🧾 lesson_version (noon2_core) — Immutable lesson snapshots
+   Grain: id (UUID) | Key: lesson_id, version_number, status (DRAFT/PUBLISHED/ARCHIVED), duration_seconds, source_course_session_id
+🔗 lesson_session_link (noon2_core) — Lesson version ↔ course session
+   Grain: id (UUID) | Key: lesson_id, lesson_version_id, course_session_id, linked_at, unlinked_at, replaced_by_link_id
+🎬 lesson_activity (noon2_core) — Activities within a lesson version
+   Grain: id (UUID) | Key: lesson_version_id, activity_index, type (QUESTION/MARATHON/TEAM_DUEL/EXIT_TICKET/…), lesson_slide_id
+❓ lesson_activity_question (noon2_core) — Questions on an activity
+   Grain: id (UUID) | Key: lesson_activity_id, question_id (→ d_question), question_index
+🧭 lesson_curriculum (noon2_core) — Curriculum tags for a lesson
+   Grain: id (UUID) | Key: lesson_id, subject_id, chapter_id, topic_id, subtopic_id, concept_id
+🧩 lesson_segment (noon2_core) — Pacing segments in a lesson version
+   Grain: id (UUID) | Key: lesson_version_id, segment_index, name, duration_seconds, pace
+⚙ lesson_session_materialization (noon2_core) — Lesson→session materialization
+   Grain: id (UUID) | Key: lesson_version_id, lesson_session_link_id, course_session_id, status (READY/SUPERSEDED), ready_at, error_message
+🗺 lesson_session_materialization_mapping (noon2_core) — Lesson ref ↔ session ref (id is BIGINT)
+   Grain: id (bigint) | Key: materialization_id, kind, lesson_ref_id, session_ref_id
+🔑 lesson_share_link (noon2_core) — Shareable lesson links
+   Grain: id (UUID) | Key: lesson_id, lesson_version_id, token, expires_at, revoked_at
+
+━━━ CURATED ANALYST VIEWS (datamart_v & noon2_replit) ━━━
+⚠ Defaults STILL apply to all of these — they do NOT pre-filter Nooners/deleted/non-students.
+
+🗂 kyy_nn_session_details (datamart_v) — Session view w/ teacher, subject, campus, temperature, planned vs actual h-duration
+   Grain: course_session_id | View | Session-grain: don't GROUP BY campus for session counts (hybrid trap).
+🎯 nn_activity_details (datamart_v) — Activity (slide) view: reactions/temperature + question perf (attempted/correct, avg_q_duration)
+   Grain: course_session_id + session_slide_id | View | NULL activity_type = reaction-only slide. ⚠ Large — filter by date.
+🧪 nn_activity_quality (datamart_v) — Activity quality: difficulty/topic/duration + gamification (duel/BCS invites)
+   Grain: course_session_id + session_slide_id | ⚠ Stored view currently FAILS to compile (bad noon2_core.room ref) — probe before use.
+📝 nn_assessment_details (noon2_replit) — Assessment perf by program/subject_type/level (Qudrat/Tahsili/Nafes/NC/ESL)
+   Grain: profile_id + question_id | Scope: profile_id | View | Metrics: total_questions, total_attempts, total_questions_correct, avg_time_taken
+📈 nn_learning_gains (noon2_replit) — Pre/post learning gains per student × program × subject × level
+   Grain: user_id | Scope: user_id | View | gain = post_score/post_total_ques − pre_score/pre_total_ques
+📊 hk_f_course_session (noon2_replit) — Curated f_course_session rebuild (teaching/session/active time, temperature, spotlight, curriculum arrays, lesson_template)
+   Grain: course_session_id | View | No campus col. Filter is_course_session_deleted=0. Array cols → CONTAINS.
+👥 hk_f_user_session (noon2_replit) — Curated f_user_session rebuild (learning/room/active/lobby time, poll & engagement counts)
+   Grain: user_id + course_session_id | Scope: user_id | Partition: dt (int YYYYMMDD) | Filter user_type='STUDENT'.
+❔ hk_session_questions (noon2_replit) — Questions floated in sessions w/ metadata + seen/answered/valid/correct
+   Grain: course_session_id + question_id | View | question_type: 'has correct answer' vs 'no correct answer'; segment_type MAIN/BREAKOUT/LIVE_MASTERY
+🎙 session_transcriptions (noon2_replit) — Speech-to-text transcript segments (speaker, text, start/end offsets)
+   Grain: course_session_id + start_time | View | start_time/end_time are VARCHAR offsets. Text may be sensitive.
+
 ━━━ COMMON JOIN PATTERNS ━━━
 • Student sessions + user info: f_user_session JOIN d_user ON user_id
 • Session + course country: f_course_session JOIN d_course ON course_id → country_names
@@ -5077,6 +6595,11 @@ Database: noon2_datamart | Refresh: Every 12 hours | Partitioned tables use dt (
 • Campus lookup: d_user JOIN noon2_core.campus ON campus_id (for campus_type/country details)
 • Profile → grade: noon2_core.profile JOIN noon2_core.grade ON grade_id
 • MCQ response chain: noon2_core.mcq m JOIN noon2_core.mcq_selected_choice msc ON m.id = msc.mcq_id JOIN noon2_core.choice c ON msc.choice_id = c.id
+• Lesson taught in a session: noon2_core.lesson_session_link l ON l.course_session_id = <session> (WHERE l.unlinked_at IS NULL) → lesson_version ON l.lesson_version_id = lesson_version.id → lesson ON lesson_version.lesson_id = lesson.id
+• Lesson content: noon2_core.lesson_version JOIN lesson_segment ON lesson_version_id JOIN lesson_activity ON lesson_version_id JOIN lesson_activity_question ON lesson_activity.id = lesson_activity_question.lesson_activity_id (→ d_question ON question_id)
+• Lesson curriculum: noon2_core.lesson JOIN lesson_curriculum ON lesson.id = lesson_curriculum.lesson_id (→ subject/chapter/topic)
+• Lesson materialization: noon2_core.lesson_session_materialization m (status='READY') JOIN lesson_session_materialization_mapping mm ON m.id = mm.materialization_id
+• Session transcript: noon2_replit.session_transcriptions ON course_session_id (ORDER BY CAST-able start_time for chronology)
 `;
 
 // Helper to build full schema for only specific tables (Layer 2 selective loading)
