@@ -25,6 +25,74 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.07.23.3 — verify CI on template PRs (maintainer tooling; no clone action)
+
+### What changed (PR follows #25)
+
+- **`.github/workflows/verify.yml`** — runs `npm run verify` (secret scan · typecheck · lint ·
+  tests) on every PR to `main`, guarded to `noonAcademy/synapse-starter`. Until now the only
+  template CI was the release-discipline check, so a typecheck/lint/test regression could land in
+  `main` unnoticed (that's how two `scripts/scan-secrets.ts` lint warnings had accumulated).
+- **`scripts/scan-secrets.ts`** — applied the `useRegexLiterals` autofix (`new RegExp('…')` →
+  regex literal) so the tree is warning-clean under the new gate. No behavior change.
+
+### Why a clone should care
+
+**It doesn't** — template-repo CI, `if:`-guarded to this repo and inert in a clone (clones run
+`npm run verify` themselves before every deploy). Recorded here only because the CI gate requires
+an entry for any synapse-owned change.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `.github/workflows/verify.yml scripts/scan-secrets.ts`
+
+### Verify
+
+- `npm run verify` green.
+- `.github/workflows/verify.yml` exists and its job is guarded by
+  `github.repository == 'noonAcademy/synapse-starter'`.
+
+---
+
+## 2026.07.23.2 — pre-push release gate (maintainer tooling; no clone action)
+
+### What changed (PR follows #24)
+
+Moves the release-discipline check (bump `TEMPLATE_VERSION` + append an `UPGRADES.md` entry when a
+synapse-owned path changes) **earlier than CI**, so a maintainer never pushes a red PR:
+
+- **`.githooks/pre-push`** — runs `scripts/check-template-version.ts` and blocks a violating push.
+- **`scripts/setup-hooks.mjs`** + a `package.json` `prepare` script — activate the hook via
+  `core.hooksPath`, but **only when origin is the template repo**, so a clone's git config is
+  untouched.
+- **`package.json` `check:release`** — one-command manual run of the same check.
+- **`AGENTS.md`** — a loud "Definition of done for any template-repo PR" callout; **`RELEASING.md`**
+  documents all three layers (authoring · pre-push · CI).
+
+### Why a clone should care
+
+**It doesn't** — this is template-maintainer tooling. The hook is identity-gated to
+`noonAcademy/synapse-starter` and no-ops everywhere else; release discipline was never a clone's
+job. This entry exists only because the CI gate (correctly) requires one for any synapse-owned
+change. No behavior in a running app changes.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `.githooks/pre-push scripts/setup-hooks.mjs
+   AGENTS.md RELEASING.md`
+2. **Guided edit — `package.json`** (shared; skip any already present): add
+   `"check:release": "tsx scripts/check-template-version.ts"` and
+   `"prepare": "node scripts/setup-hooks.mjs"` under `scripts`; leave builder scripts untouched.
+   (In a clone the `prepare` step self-detects a non-template origin and does nothing.)
+
+### Verify
+
+- `npm run verify` green.
+- `npm run check:release` runs and reports OK on a clean tree.
+- The hook is executable: `test -x .githooks/pre-push`.
+
+---
+
 ## 2026.07.23 — reads paginate across pages; row cap raised 1k → 100k
 
 ### What changed (PR #24)

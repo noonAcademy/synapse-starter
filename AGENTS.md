@@ -70,8 +70,16 @@ path in the repo has exactly one owner. The machine-readable contract is
   `client/index.html` (RTL lives here), `.replit`.
 
 Precedence is most-specific-wins (`client/app/pages/synapse.tsx` beats `client/app/**`).
-Any PR in the **template repo** that touches a synapse-owned path must bump
-`TEMPLATE_VERSION` and append an `UPGRADES.md` entry — see [`RELEASING.md`](RELEASING.md).
+
+> **⛔ Definition of done for ANY template-repo PR — check before you commit or push.**
+> If your diff touches a **synapse-owned** path, it is not done until you have **also**:
+> 1. bumped [`TEMPLATE_VERSION`](TEMPLATE_VERSION) (`YYYY.MM.DD`, `.N` for a same-day second bump), and
+> 2. appended an [`UPGRADES.md`](UPGRADES.md) entry — what changed, why a clone cares, the ensure-recipe, and how to verify.
+>
+> Run **`npm run check:release`** to confirm (it's the exact check CI runs, and a committed
+> `.githooks/pre-push` gate — active in this repo via `npm install`'s `prepare` step — blocks a
+> push that fails it). This is a maintainer rule for the template repo only; it's inert in clones.
+> Full procedure and rationale: [`RELEASING.md`](RELEASING.md).
 
 ## To add a read
 
