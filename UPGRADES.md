@@ -25,6 +25,35 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.07.23.3 — verify CI on template PRs (maintainer tooling; no clone action)
+
+### What changed (PR follows #25)
+
+- **`.github/workflows/verify.yml`** — runs `npm run verify` (secret scan · typecheck · lint ·
+  tests) on every PR to `main`, guarded to `noonAcademy/synapse-starter`. Until now the only
+  template CI was the release-discipline check, so a typecheck/lint/test regression could land in
+  `main` unnoticed (that's how two `scripts/scan-secrets.ts` lint warnings had accumulated).
+- **`scripts/scan-secrets.ts`** — applied the `useRegexLiterals` autofix (`new RegExp('…')` →
+  regex literal) so the tree is warning-clean under the new gate. No behavior change.
+
+### Why a clone should care
+
+**It doesn't** — template-repo CI, `if:`-guarded to this repo and inert in a clone (clones run
+`npm run verify` themselves before every deploy). Recorded here only because the CI gate requires
+an entry for any synapse-owned change.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `.github/workflows/verify.yml scripts/scan-secrets.ts`
+
+### Verify
+
+- `npm run verify` green.
+- `.github/workflows/verify.yml` exists and its job is guarded by
+  `github.repository == 'noonAcademy/synapse-starter'`.
+
+---
+
 ## 2026.07.23.2 — pre-push release gate (maintainer tooling; no clone action)
 
 ### What changed (PR follows #24)
