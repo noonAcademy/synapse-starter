@@ -11,9 +11,24 @@ export interface BakedQuery {
   sql: string;
   registryVersion: string;
   skillVersion: string;
+  // Optional per-read row ceiling handed to Citadel's SQL guard. Omit to use the platform max
+  // (server/athena.ts MAX_ROWS). A read that returns rows and wants more than the SDK's default
+  // 1000 must set this AND carry a matching explicit top-level `LIMIT` in its SQL.
+  maxRows?: number;
 }
 
-function toBakedQuery(m: typeof coursesByType): BakedQuery {
+// Structural shape of a query module — `maxRows` is optional so most modules can omit it.
+interface QueryModule {
+  name: string;
+  title: string;
+  description: string;
+  sql: string;
+  registryVersion: string;
+  skillVersion: string;
+  maxRows?: number;
+}
+
+function toBakedQuery(m: QueryModule): BakedQuery {
   return {
     name: m.name,
     title: m.title,
@@ -21,6 +36,7 @@ function toBakedQuery(m: typeof coursesByType): BakedQuery {
     sql: m.sql,
     registryVersion: m.registryVersion,
     skillVersion: m.skillVersion,
+    maxRows: m.maxRows,
   };
 }
 

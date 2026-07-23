@@ -25,6 +25,53 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.07.23 — reads paginate across pages; row cap raised 1k → 100k
+
+### What changed (PR #24)
+
+- **`server/athena.ts` — reads now paginate.** `runAthenaQuery` follows Citadel's
+  `nextToken`/`executionId` across pages instead of taking only the first ~1000-row page, and
+  passes `maxRows` (default `MAX_ROWS`) so the guard's `LIMIT` ceiling is lifted off its 1000
+  default. `MAX_ROWS` is raised **10,000 → 100,000**. If pages still remain when the backstop
+  stops accumulation, `truncated` is surfaced — never a silent clip.
+- **`server/reads.ts`** forwards an optional per-read `maxRows`.
+- **`server/queries/index.ts`** (shared): `BakedQuery` gains an optional `maxRows` override.
+- Pairs with Citadel's `MAX_ROWS_HARD_CAP` 10k → 100k (**noonAcademy/noon-citadel#270**). The
+  client change is **decoupled from that deploy**: after upgrading, a clone gets up to **10,000**
+  rows immediately against today's Citadel, and up to **100,000 automatically** once #270 ships —
+  no second upgrade.
+
+### Why a clone should care
+
+Today a read that asks for more than 1000 rows dies with `LIMIT cannot exceed 1000 rows`, and any
+other read is **silently clipped to Citadel's first ~1000-row page**. After this, reads page
+through to the platform ceiling and surface `truncated` instead of quietly dropping rows. (The cap
+is a ceiling, not a target — Citadel still pages at ~1000 rows, so a 100k read is ~100 sequential
+fetches; prefer aggregates for large pulls.)
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `server/athena.ts server/reads.ts
+   server/athena.test.ts MIGRATE-SYNC.md`
+2. **Guided edit — `server/queries/index.ts`** (shared; skip if already present): add
+   `maxRows?: number` to the `BakedQuery` interface; make `toBakedQuery` accept any query module
+   with an optional `maxRows` (a structural `QueryModule` type) and forward `maxRows: m.maxRows`;
+   leave every query registered in `BAKED_QUERIES` untouched. This is what lets the copied
+   `server/reads.ts` (which passes `query.maxRows`) typecheck.
+3. **Builder-owned reads** (`server/queries/*.sql.ts`) are never touched by this upgrade. Flag for
+   the builder: a read that should return more than 1000 rows must carry an explicit top-level
+   `LIMIT` (without one the guard appends `LIMIT 20`); set a smaller per-read ceiling with
+   `export const maxRows` on the query module if it needs fewer.
+
+### Verify
+
+- `npm run verify` green.
+- Pagination and the new cap are present: `grep -q "nextToken" server/athena.ts` and
+  `grep -q "MAX_ROWS = 100_000" server/athena.ts` both succeed.
+- `BakedQuery` carries the optional override: `grep -q "maxRows" server/queries/index.ts` succeeds.
+
+---
+
 ## 2026.07.22 — registry snapshot refreshed to v2.22 (+19 tables)
 
 ### What changed (PR #23)

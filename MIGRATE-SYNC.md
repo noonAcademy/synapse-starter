@@ -108,14 +108,14 @@ Notes on why this shape:
 
 Citadel's SQL guard enforces the row cap in two independent ways, and **misreading either one silently syncs 20 rows and reports success**:
 
-1. **A query with no top-level `LIMIT` gets `LIMIT 20` appended — even if you pass `maxRows`.** The guard's appended default is `min(20, maxRows)`, so `maxRows: 10000` does **not** lift it. The SQL itself must carry an explicit top-level `LIMIT` (the §1.2 wrapper's job).
-2. **`maxRows` is the ceiling your explicit `LIMIT` is checked against**, and it defaults to 1000. `… LIMIT 10000` without `maxRows: 10000` is rejected with `LIMIT cannot exceed 1000 rows.`
+1. **A query with no top-level `LIMIT` gets `LIMIT 20` appended — even if you pass `maxRows`.** The guard's appended default is `min(20, maxRows)`, so `maxRows: 100000` does **not** lift it. The SQL itself must carry an explicit top-level `LIMIT` (the §1.2 wrapper's job).
+2. **`maxRows` is the ceiling your explicit `LIMIT` is checked against**, and it defaults to 1000. `… LIMIT 100000` without `maxRows: 100000` is rejected with `LIMIT cannot exceed 1000 rows.`
 
-So every sync read needs **both**: an explicit `LIMIT 10000` in the SQL **and** `maxRows: 10000` in the call. The §1.2 `runQuery` does both — if you write your own, do both.
+So every sync read needs **both**: an explicit `LIMIT 100000` in the SQL **and** `maxRows: 100000` in the call. The §1.2 `runQuery` does both — if you write your own, do both.
 
-### 2.2 The 10,000-row hard cap per query → chunk your backfills
+### 2.2 The 100,000-row hard cap per query → chunk your backfills
 
-`maxRows` is capped server-side at **10,000 rows per query**, full stop. Incremental syncs (last-24h watermark filters) almost always fit. **Backfills (semester/full-history branches) almost never do** — and per §2.1 the overflow is a *silent truncation*, not an error.
+`maxRows` is capped server-side at **100,000 rows per query**, full stop (raised from 10,000 — Citadel `MAX_ROWS_HARD_CAP`). Note that Citadel still pages at ~1000 rows, so a 100k read is ~100 sequential page round-trips; prefer aggregates. Incremental syncs (last-24h watermark filters) almost always fit. **Backfills (semester/full-history branches) can still exceed it** — and per §2.1 the overflow is a *silent truncation*, not an error.
 
 Recipe: **chunk the backfill branch of each query builder by date window**, one guarded query per window, e.g. week-by-week from `BACKFILL_START`:
 

@@ -59,7 +59,7 @@ export async function runRead(
   const cache = deps.cache ?? defaultCache;
   try {
     const { value, fetchedAt, cached } = await cache.get(query.name, () =>
-      runAthenaQuery(client, query.sql),
+      runAthenaQuery(client, query.sql, query.maxRows),
     );
     return {
       ...base,
