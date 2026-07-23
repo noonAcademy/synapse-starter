@@ -25,6 +25,45 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.07.23.2 — pre-push release gate (maintainer tooling; no clone action)
+
+### What changed (PR follows #24)
+
+Moves the release-discipline check (bump `TEMPLATE_VERSION` + append an `UPGRADES.md` entry when a
+synapse-owned path changes) **earlier than CI**, so a maintainer never pushes a red PR:
+
+- **`.githooks/pre-push`** — runs `scripts/check-template-version.ts` and blocks a violating push.
+- **`scripts/setup-hooks.mjs`** + a `package.json` `prepare` script — activate the hook via
+  `core.hooksPath`, but **only when origin is the template repo**, so a clone's git config is
+  untouched.
+- **`package.json` `check:release`** — one-command manual run of the same check.
+- **`AGENTS.md`** — a loud "Definition of done for any template-repo PR" callout; **`RELEASING.md`**
+  documents all three layers (authoring · pre-push · CI).
+
+### Why a clone should care
+
+**It doesn't** — this is template-maintainer tooling. The hook is identity-gated to
+`noonAcademy/synapse-starter` and no-ops everywhere else; release discipline was never a clone's
+job. This entry exists only because the CI gate (correctly) requires one for any synapse-owned
+change. No behavior in a running app changes.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `.githooks/pre-push scripts/setup-hooks.mjs
+   AGENTS.md RELEASING.md`
+2. **Guided edit — `package.json`** (shared; skip any already present): add
+   `"check:release": "tsx scripts/check-template-version.ts"` and
+   `"prepare": "node scripts/setup-hooks.mjs"` under `scripts`; leave builder scripts untouched.
+   (In a clone the `prepare` step self-detects a non-template origin and does nothing.)
+
+### Verify
+
+- `npm run verify` green.
+- `npm run check:release` runs and reports OK on a clean tree.
+- The hook is executable: `test -x .githooks/pre-push`.
+
+---
+
 ## 2026.07.23 — reads paginate across pages; row cap raised 1k → 100k
 
 ### What changed (PR #24)

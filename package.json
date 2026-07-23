@@ -18,7 +18,9 @@
     "test": "vitest run",
     "secrets": "tsx scripts/scan-secrets.ts",
     "sync:registry": "tsx scripts/sync-registry.ts",
-    "verify": "npm run secrets && npm run typecheck && npm run lint && npm run test"
+    "verify": "npm run secrets && npm run typecheck && npm run lint && npm run test",
+    "check:release": "tsx scripts/check-template-version.ts",
+    "prepare": "node scripts/setup-hooks.mjs"
   },
   "dependencies": {
     "@noonacademy/citadel-transport": "file:vendor/noonacademy-citadel-transport-0.1.0.tgz",
