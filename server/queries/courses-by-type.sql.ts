@@ -22,6 +22,14 @@ export const description =
 // app-wide with no per-user scope. Business rule applied: exclude deleted courses
 // (is_course_deleted = 0), per the skill's default assumptions. Naturally bounded to a
 // handful of rows (one per course_type), so no LIMIT is needed.
+//
+// Writing a read that returns ROWS (not an aggregate)? Two rules, or Citadel bites:
+//   1. Carry an explicit top-level `LIMIT n` in the SQL. Without one the guard silently
+//      appends `LIMIT 20` — you get 20 rows and a "success".
+//   2. `n` must be ≤ the platform hard cap (server/athena.ts MAX_ROWS = 100,000). The read
+//      path passes that cap as `maxRows`; ask for more and Citadel rejects it with
+//      `LIMIT cannot exceed N rows`. Set a smaller per-read ceiling via `export const maxRows`.
+// Need more than 100,000 rows? No single read can do it — aggregate in SQL, or chunk the sync.
 export const sql = `SELECT
   course_type,
   COUNT(*) AS course_count

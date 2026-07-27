@@ -13,13 +13,21 @@ with a version bump and a recipe. That's this file's one rule:
 
 ## Enforced, not remembered
 
-CI enforces this (the automated check, not just a checklist note):
-[`.github/workflows/template-version.yml`](.github/workflows/template-version.yml) runs
-[`scripts/check-template-version.ts`](scripts/check-template-version.ts) on every PR to
-`main` — if the diff touches a synapse-owned path and `TEMPLATE_VERSION` + `UPGRADES.md`
-didn't change with it, the PR fails. The check is guarded to this repo only and is **not**
-part of `npm run verify` (clones run verify before every deploy; release discipline is not
-their problem).
+Three layers run the **same** [`scripts/check-template-version.ts`](scripts/check-template-version.ts),
+earliest first, so the miss is caught before it costs a round-trip:
+
+1. **At authoring time** — the "Definition of done" callout in
+   [`AGENTS.md`](AGENTS.md) ("Who owns what") tells the author/agent to bump + write the entry,
+   and to run `npm run check:release` (a thin wrapper over the check).
+2. **Before push** — [`.githooks/pre-push`](.githooks/pre-push) blocks a push that fails the
+   check. It's activated by the `prepare` npm script ([`scripts/setup-hooks.mjs`](scripts/setup-hooks.mjs))
+   on `npm install`, which points `core.hooksPath` at `.githooks` **only when origin is this
+   template repo** — so a clone's git config is never touched. Bypass with `git push --no-verify`.
+3. **In CI** — [`.github/workflows/template-version.yml`](.github/workflows/template-version.yml)
+   runs it on every PR to `main`; a violating PR fails.
+
+All three are guarded to this repo only (origin/`github.repository` check) and are **not** part of
+`npm run verify` (clones run verify before every deploy; release discipline is not their problem).
 
 ## How to bump
 

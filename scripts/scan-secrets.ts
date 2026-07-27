@@ -37,7 +37,7 @@ const PATTERNS: Pattern[] = [
   {
     // Citadel app secrets have a fixed prefix, so they're detectable anywhere, even unassigned.
     kind: 'Replit app secret',
-    re: new RegExp(`(rpl_secret_[A-Za-z0-9]{8,})`),
+    re: /(rpl_secret_[A-Za-z0-9]{8,})/,
     valueGroup: 1,
     skipPlaceholders: false,
   },
@@ -59,10 +59,7 @@ const PATTERNS: Pattern[] = [
     // names (signingToken, apiKey) match too; the trailing lookahead still rejects mid-word
     // hits like SECRETISH or tokenizer.
     kind: 'high-entropy literal near a secret-like word',
-    re: new RegExp(
-      `(?:secret|token|password|credential|api.?key)s?(?![A-Za-z0-9])[^\\n]{0,40}?['"\`]([A-Fa-f0-9]{32,}|[A-Za-z0-9+/]{32,}={0,2}|[A-Za-z0-9_-]{32,})['"\`]`,
-      'i',
-    ),
+    re: /(?:secret|token|password|credential|api.?key)s?(?![A-Za-z0-9])[^\n]{0,40}?['"`]([A-Fa-f0-9]{32,}|[A-Za-z0-9+/]{32,}={0,2}|[A-Za-z0-9_-]{32,})['"`]/i,
     valueGroup: 1,
     skipPlaceholders: true,
   },
