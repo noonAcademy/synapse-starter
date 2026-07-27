@@ -25,6 +25,48 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.07.22.2 — Get-data tab browses the live registry (snapshot is the fallback)
+
+### What changed (PR #23)
+
+- **`GET /__synapse/tables`** now serves the registry **live-parsed from Citadel** when reachable
+  (same fetch + ETag cache as `/__synapse/registry`, just structured instead of raw text), falling
+  back to the committed snapshot otherwise. An `X-Tables-Source: live | snapshot` header says which.
+- **`server/registryParse.ts`** (new) turns the registry **text** into the browse structures by
+  regex — the text is treated as data, **never executed** (same rule the registry route follows).
+  It's quote-style agnostic (the S3 master uses `"`, the snapshot uses `'`) and parses columns,
+  enum values, and example queries. Proven against the real registry: a round-trip test asserts
+  `parse(snapshot text)` equals the structured import, table-for-table, field-for-field.
+- **Fail-safe:** the live parse is trusted only when it yields at least as many tables as the
+  snapshot; a short parse (registry format drift) falls back to the snapshot rather than showing a
+  truncated list — so the tab degrades to "slightly stale", never breaks.
+
+### Why a clone should care
+
+The Get-data tab stops browsing a catalog frozen on clone day: once Citadel serves the live
+registry, new tables/columns/enums show up in the browser with no template release in between. This
+completes the live-registry path started in 2026.07.16.2 (which made the agent-facing registry text
+live) — now the structured browser is live too, so the committed snapshot is a pure offline fallback
+you never hand-maintain.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `server/registryParse.ts server/registryParse.test.ts`
+2. **Guided edit — `server/index.ts`** (shared; skip any part already present): import
+   `chooseBrowseTables` from `./registryParse.js`; make the `GET /__synapse/tables` handler `async`
+   — fetch `getRegistry()`, pass `{ source, text }` + `projectTables()` to `chooseBrowseTables`, set
+   the `X-Tables-Source` header, and fall back to the snapshot in a `catch`. The template's
+   `server/index.ts` is the reference.
+
+### Verify
+
+- `npm run verify` green (the round-trip parser test proves live-parse ≡ snapshot import).
+- With the app running against a Citadel that serves `GET /api/registry`:
+  `curl -si localhost:3000/__synapse/tables | grep -i x-tables-source` returns `live`; otherwise
+  `snapshot`.
+
+---
+
 ## 2026.07.22 — registry snapshot refreshed to v2.22 (+19 tables)
 
 ### What changed (PR #23)
