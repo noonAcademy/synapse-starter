@@ -2,11 +2,10 @@ import { buildHeaders } from '@noonacademy/citadel-transport';
 
 // Live-registry access for the workspace console (and the maintainer sync script). Citadel
 // serves the registry as TS source TEXT at GET /api/registry (HMAC-signed, ETag'd, with a
-// /meta sibling for cheap version checks — contract in INTEGRATE.md §6). We deliberately
-// neither execute nor parse that text at runtime: agents consume it as text (the freshest
-// source when writing SQL), while the Get-data tab keeps browsing the committed snapshot's
-// structures (server/citadel-schema.ts via tables.ts) and only renders freshness from here.
-// Every failure mode falls back to the snapshot, labeled — the tab never breaks on this.
+// /meta sibling for cheap version checks — contract in INTEGRATE.md §6). We never EXECUTE that
+// text: agents consume it as text (the freshest source when writing SQL), and the Get-data tab
+// parses it into browse structures live (server/registryParse.ts — parse, never eval).
+// Every failure mode falls back to the committed snapshot, labeled — the tab never breaks on this.
 
 export interface RegistryCreds {
   baseUrl: string;

@@ -37,8 +37,9 @@ interface RegistryStatus {
 }
 
 // The freshness line under "browse all Noon data". One sentence, quiet, never an error state —
-// the browser itself always renders from the snapshot's structures either way. Exported for
-// unit testing. Returns null when the status is unrecognized (render nothing).
+// the table browser above renders the live registry when the source is live, else the snapshot
+// (server/registryParse.ts), and this label reports which. Exported for unit testing. Returns
+// null when the status is unrecognized (render nothing).
 export function buildFreshnessLabel(s: RegistryStatus): string | null {
   if (s.source === 'live') {
     const version = s.liveVersion ? ` ${s.liveVersion}` : '';
