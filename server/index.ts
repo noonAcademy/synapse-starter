@@ -15,6 +15,7 @@ import { buildOverview } from './overview.js';
 import { listBakedQueries } from './queries/index.js';
 import { runRead } from './reads.js';
 import { registryFetcher } from './registry.js';
+import { chooseBrowseTables } from './registryParse.js';
 import { buildSetup, readSpecText } from './setup.js';
 import {
   appOauthRedirectUri,
@@ -77,9 +78,26 @@ export function buildApp(opts: {
       );
     });
 
-    // Bundled Citadel registry, projected for the Get data tab's table browser.
-    app.get('/__synapse/tables', (_req, res) => {
-      res.json(projectTables());
+    // The Citadel registry, projected for the Get data tab's table browser. Live-parsed from
+    // Citadel when reachable (same fetch+cache as /__synapse/registry, just structured instead of
+    // raw text), else the committed snapshot. The live parse is trusted only when it yields at
+    // least as many tables as the snapshot — a short parse (registry format drift) falls back to
+    // the snapshot rather than showing a truncated list. X-Tables-Source says which one you got.
+    app.get('/__synapse/tables', async (_req, res) => {
+      const snapshot = projectTables();
+      try {
+        const { status, text } = await getRegistry();
+        const { tables, source } = chooseBrowseTables({ source: status.source, text }, snapshot);
+        res.setHeader('x-tables-source', source);
+        res.json(tables);
+      } catch (err) {
+        console.error(
+          '[synapse] tables route fell back to snapshot:',
+          err instanceof Error ? err.message : err,
+        );
+        res.setHeader('x-tables-source', 'snapshot');
+        res.json(snapshot);
+      }
     });
 
     // The registry as TEXT, live from Citadel when reachable (ETag-revalidated per request),
