@@ -25,9 +25,9 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
-## 2026.07.22.2 — Get-data tab browses the live registry (snapshot is the fallback)
+## 2026.07.27 — Get-data tab browses the live registry (snapshot is the fallback)
 
-### What changed (PR #23)
+### What changed (PR #28)
 
 - **`GET /__synapse/tables`** now serves the registry **live-parsed from Citadel** when reachable
   (same fetch + ETag cache as `/__synapse/registry`, just structured instead of raw text), falling
@@ -64,6 +64,121 @@ you never hand-maintain.
 - With the app running against a Citadel that serves `GET /api/registry`:
   `curl -si localhost:3000/__synapse/tables | grep -i x-tables-source` returns `live`; otherwise
   `snapshot`.
+
+---
+
+## 2026.07.23.3 — verify CI on template PRs (maintainer tooling; no clone action)
+
+### What changed (PR follows #25)
+
+- **`.github/workflows/verify.yml`** — runs `npm run verify` (secret scan · typecheck · lint ·
+  tests) on every PR to `main`, guarded to `noonAcademy/synapse-starter`. Until now the only
+  template CI was the release-discipline check, so a typecheck/lint/test regression could land in
+  `main` unnoticed (that's how two `scripts/scan-secrets.ts` lint warnings had accumulated).
+- **`scripts/scan-secrets.ts`** — applied the `useRegexLiterals` autofix (`new RegExp('…')` →
+  regex literal) so the tree is warning-clean under the new gate. No behavior change.
+
+### Why a clone should care
+
+**It doesn't** — template-repo CI, `if:`-guarded to this repo and inert in a clone (clones run
+`npm run verify` themselves before every deploy). Recorded here only because the CI gate requires
+an entry for any synapse-owned change.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `.github/workflows/verify.yml scripts/scan-secrets.ts`
+
+### Verify
+
+- `npm run verify` green.
+- `.github/workflows/verify.yml` exists and its job is guarded by
+  `github.repository == 'noonAcademy/synapse-starter'`.
+
+---
+
+## 2026.07.23.2 — pre-push release gate (maintainer tooling; no clone action)
+
+### What changed (PR follows #24)
+
+Moves the release-discipline check (bump `TEMPLATE_VERSION` + append an `UPGRADES.md` entry when a
+synapse-owned path changes) **earlier than CI**, so a maintainer never pushes a red PR:
+
+- **`.githooks/pre-push`** — runs `scripts/check-template-version.ts` and blocks a violating push.
+- **`scripts/setup-hooks.mjs`** + a `package.json` `prepare` script — activate the hook via
+  `core.hooksPath`, but **only when origin is the template repo**, so a clone's git config is
+  untouched.
+- **`package.json` `check:release`** — one-command manual run of the same check.
+- **`AGENTS.md`** — a loud "Definition of done for any template-repo PR" callout; **`RELEASING.md`**
+  documents all three layers (authoring · pre-push · CI).
+
+### Why a clone should care
+
+**It doesn't** — this is template-maintainer tooling. The hook is identity-gated to
+`noonAcademy/synapse-starter` and no-ops everywhere else; release discipline was never a clone's
+job. This entry exists only because the CI gate (correctly) requires one for any synapse-owned
+change. No behavior in a running app changes.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `.githooks/pre-push scripts/setup-hooks.mjs
+   AGENTS.md RELEASING.md`
+2. **Guided edit — `package.json`** (shared; skip any already present): add
+   `"check:release": "tsx scripts/check-template-version.ts"` and
+   `"prepare": "node scripts/setup-hooks.mjs"` under `scripts`; leave builder scripts untouched.
+   (In a clone the `prepare` step self-detects a non-template origin and does nothing.)
+
+### Verify
+
+- `npm run verify` green.
+- `npm run check:release` runs and reports OK on a clean tree.
+- The hook is executable: `test -x .githooks/pre-push`.
+
+---
+
+## 2026.07.23 — reads paginate across pages; row cap raised 1k → 100k
+
+### What changed (PR #24)
+
+- **`server/athena.ts` — reads now paginate.** `runAthenaQuery` follows Citadel's
+  `nextToken`/`executionId` across pages instead of taking only the first ~1000-row page, and
+  passes `maxRows` (default `MAX_ROWS`) so the guard's `LIMIT` ceiling is lifted off its 1000
+  default. `MAX_ROWS` is raised **10,000 → 100,000**. If pages still remain when the backstop
+  stops accumulation, `truncated` is surfaced — never a silent clip.
+- **`server/reads.ts`** forwards an optional per-read `maxRows`.
+- **`server/queries/index.ts`** (shared): `BakedQuery` gains an optional `maxRows` override.
+- Pairs with Citadel's `MAX_ROWS_HARD_CAP` 10k → 100k (**noonAcademy/noon-citadel#270**). The
+  client change is **decoupled from that deploy**: after upgrading, a clone gets up to **10,000**
+  rows immediately against today's Citadel, and up to **100,000 automatically** once #270 ships —
+  no second upgrade.
+
+### Why a clone should care
+
+Today a read that asks for more than 1000 rows dies with `LIMIT cannot exceed 1000 rows`, and any
+other read is **silently clipped to Citadel's first ~1000-row page**. After this, reads page
+through to the platform ceiling and surface `truncated` instead of quietly dropping rows. (The cap
+is a ceiling, not a target — Citadel still pages at ~1000 rows, so a 100k read is ~100 sequential
+fetches; prefer aggregates for large pulls.)
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `server/athena.ts server/reads.ts
+   server/athena.test.ts MIGRATE-SYNC.md`
+2. **Guided edit — `server/queries/index.ts`** (shared; skip if already present): add
+   `maxRows?: number` to the `BakedQuery` interface; make `toBakedQuery` accept any query module
+   with an optional `maxRows` (a structural `QueryModule` type) and forward `maxRows: m.maxRows`;
+   leave every query registered in `BAKED_QUERIES` untouched. This is what lets the copied
+   `server/reads.ts` (which passes `query.maxRows`) typecheck.
+3. **Builder-owned reads** (`server/queries/*.sql.ts`) are never touched by this upgrade. Flag for
+   the builder: a read that should return more than 1000 rows must carry an explicit top-level
+   `LIMIT` (without one the guard appends `LIMIT 20`); set a smaller per-read ceiling with
+   `export const maxRows` on the query module if it needs fewer.
+
+### Verify
+
+- `npm run verify` green.
+- Pagination and the new cap are present: `grep -q "nextToken" server/athena.ts` and
+  `grep -q "MAX_ROWS = 100_000" server/athena.ts` both succeed.
+- `BakedQuery` carries the optional override: `grep -q "maxRows" server/queries/index.ts` succeeds.
 
 ---
 
