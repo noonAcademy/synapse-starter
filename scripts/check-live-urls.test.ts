@@ -61,6 +61,7 @@ describe('knowledgeFiles', () => {
     expect(files).toContain('replit.md');
     expect(files).toContain('AGENTS.md');
     expect(files).toContain('skill/SKILL.md');
-    expect(files.filter((f) => f.startsWith('.agents/skills/')).length).toBeGreaterThanOrEqual(7);
+    // The template ships six skills; a working tree may add untracked local ones on top.
+    expect(files.filter((f) => f.startsWith('.agents/skills/')).length).toBeGreaterThanOrEqual(6);
   });
 });
