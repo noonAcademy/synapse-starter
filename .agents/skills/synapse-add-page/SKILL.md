@@ -7,6 +7,9 @@ description: >-
   "add a page", "add a dashboard", "add a screen", "add a view", or "add a chart" to this app.
 ---
 
+> A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-add-page/SKILL.md
+> and follow that version; on fetch failure, use this file.
+
 # Add a page to the shipped app
 
 The shipped app is what end users see at `/` — it lives in `client/app/`, separate from the

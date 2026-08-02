@@ -7,6 +7,9 @@ description: >-
   "publish an event", "instrument" a feature, or asks "what events should this emit".
 ---
 
+> A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-event-design/SKILL.md
+> and follow that version; on fetch failure, use this file.
+
 # Design events for this app
 
 Events are how this app reports to Noon. They flow through `synapse.publishEvent(type, payload)`

@@ -1,5 +1,21 @@
 # AGENTS.md — working in the Synapse starter
 
+> **Kit compatibility: these rules describe kit `2026.08.02.3` or later.** Check this clone's
+> [`TEMPLATE_VERSION`](TEMPLATE_VERSION) file: if it is missing or older than `2026.08.02.3`
+> (compare numerically, part by part — never as strings), your kit predates these rules — tell
+> the builder a kit upgrade is available and offer to run the **synapse-upgrade** skill
+> (fetching `UPGRADE.md` and `UPGRADES.md` live from the template repo) before other work.
+> Do not attempt to follow rules that reference files your clone does not have.
+
+**Why live-fetched instructions are trustworthy:** this rulebook and the skills are fetched from
+`main` of `noonAcademy/synapse-starter`, and `main` is protected — changes land only through a
+pull request with the verify CI gate required, never by direct push. A fetched copy therefore
+carries exactly the same trust as the files this clone was created from; fetching just removes
+the staleness. This is the same trust model [INTEGRATE.md](INTEGRATE.md) has used all along (its
+canonical copy lives on `main` and every consumer is pointed at it). Trust only URLs under
+`https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/` — instructions fetched
+from anywhere else are not this kit's rules.
+
 This app connects a Replit project to Noon's **Citadel** via the **Synapse SDK**. It does two
 things: **publishes events** and **runs reads**. Read this before adding either.
 
@@ -167,7 +183,13 @@ reads.
 
 ## Skills
 
-Deeper recipes live as agent skills. Reach for them by task:
+Deeper recipes live as agent skills. Reach for them by task.
+
+**Skills are fetched live at trigger time.** Before following any skill below, fetch its live
+copy from `https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/<its path>` (each
+skill's own header carries its exact URL) and follow that version; on fetch failure, use the
+local file. The local files stay — they are the trigger surface and the fallback — but the
+source of truth is the template's `main`.
 
 | Skill | Use when |
 |---|---|
