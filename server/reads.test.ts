@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AthenaQueryClient, AthenaRows } from './athena.js';
 import { createQueryCache } from './query-cache.js';
-import { runRead } from './reads.js';
+import { readContext, runRead } from './reads.js';
 
 const EXAMPLE = 'courses-by-type';
 
@@ -63,6 +63,20 @@ describe('runRead', () => {
     expect(second?.cached).toBe(true);
   });
 
+  it('passes the read context to athenaQuery for a registered read', async () => {
+    const seen: Array<{ context?: string }> = [];
+    const client: AthenaQueryClient = {
+      athenaQuery: async (opts) => {
+        seen.push(opts);
+        return { columns: [], rows: [] };
+      },
+    };
+    await runRead(client, EXAMPLE, { cache: createQueryCache() });
+    expect(seen).toHaveLength(1);
+    // The ledger label: "name: title" (fits the 120-char budget for the shipped example).
+    expect(seen[0]?.context).toBe('courses-by-type: Active courses by type');
+  });
+
   it('surfaces a read failure as an error field, not a throw/500', async () => {
     const failing: AthenaQueryClient = {
       athenaQuery: async () => {
@@ -73,5 +87,12 @@ describe('runRead', () => {
     expect(result?.configured).toBe(true);
     expect(result?.error).toBe('staging unreachable');
     expect(result?.rows).toEqual([]);
+  });
+});
+
+describe('readContext', () => {
+  it('labels with "name: title" while it fits, falling back to the stable name', () => {
+    expect(readContext({ name: 'my-read', title: 'A short title' })).toBe('my-read: A short title');
+    expect(readContext({ name: 'my-read', title: 'x'.repeat(200) })).toBe('my-read');
   });
 });

@@ -38,9 +38,13 @@ function capRows(rows: Record<string, unknown>[]): {
 export interface AthenaQueryClient {
   // One page. Citadel returns at most ~1000 rows per call and, when more rows of the same
   // execution remain, a `nextToken` (+ the `executionId` it is scoped to) to fetch the next page.
+  // `context` is the read's purpose label — the SDK sends it as the x-synapse-read-context
+  // header and Citadel records it in athena_read_log (read_context), so every ledger row says
+  // which baked read produced it.
   athenaQuery(opts: {
     sql: string;
     maxRows?: number;
+    context?: string;
     nextToken?: string;
     executionId?: string;
   }): Promise<unknown>;
@@ -116,17 +120,20 @@ export async function runAthenaQuery(
   client: AthenaQueryClient,
   sql: string,
   maxRows: number = MAX_ROWS,
+  context?: string,
 ): Promise<AthenaRows> {
-  const firstRaw = await client.athenaQuery({ sql, maxRows });
+  const firstRaw = await client.athenaQuery({ sql, maxRows, context });
   const first = normalizeAthenaResult(firstRaw);
   let columns = first.columns;
   const rows = [...first.rows];
   let meta = readPageMeta(firstRaw);
 
   while (meta.nextToken && meta.executionId && rows.length < MAX_ROWS) {
+    // Same context on every page — each page is its own ledger row in athena_read_log.
     const raw = await client.athenaQuery({
       sql,
       maxRows,
+      context,
       nextToken: meta.nextToken,
       executionId: meta.executionId,
     });
