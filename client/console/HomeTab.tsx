@@ -30,6 +30,13 @@ interface ReadListItem {
   title: string;
   description: string;
 }
+// Mirrors what /__synapse/registry/status serves: server/registry.ts RegistryStatus plus the
+// per-read staleness verdicts (readsFreshness). Only `stamp` and `reads` matter here; both are
+// optional so an older or partial payload renders nothing rather than breaking the tab.
+interface RegistryFreshnessPayload {
+  stamp?: string;
+  reads?: Array<{ name: string; title: string; registryVersion: string; verdict: string }>;
+}
 interface EventCatalog {
   total: number;
 }
@@ -63,6 +70,7 @@ export function HomeTab({
   const reads = useJson<ReadListItem[]>('/__synapse/reads');
   const catalog = useJson<EventCatalog>('/__synapse/catalog');
   const kit = useJson<Kit>('/__synapse/kit');
+  const registry = useJson<RegistryFreshnessPayload>('/__synapse/registry/status');
 
   const readCount = reads.status === 'ready' ? reads.data.length : null;
   const firstView = reads.status === 'ready' ? reads.data[0]?.title : undefined;
@@ -83,6 +91,8 @@ export function HomeTab({
       <SetupChecklist overview={overview} setup={setup} verify={verify} />
 
       <KitUpdateNotice kit={kit} />
+
+      <StaleReadsNotice registry={registry} />
 
       <KickoffCard />
 
@@ -355,6 +365,48 @@ function ChecklistRow({ n, check }: { n: number; check: Check }) {
 // Exported for unit testing (same pattern as buildKickoffPrompt).
 export function buildKitUpdateMessage(latest: string): string {
   return `Kit update available (${latest}): tell your agent to upgrade the synapse kit`;
+}
+
+// The paste-to-agent message for reads baked against an older registry. Names the SQL skill so
+// pasting it starts the re-check with the right tool. Exported for unit testing.
+export function buildStaleReadsMessage(names: string[], stamp: string): string {
+  return (
+    `These baked reads were written against an older data registry: ${names.join(', ')}. ` +
+    `Re-check each against the current registry with the noon-sql-analyst skill (skill/SKILL.md) ` +
+    `and re-stamp it with the current registry stamp (${stamp}) from /__synapse/registry/status.`
+  );
+}
+
+// A QUIET notice in the KitUpdateNotice pattern: renders only when at least one read's stamp is
+// verifiably older than the registry being served ('stale'); 'ok' and 'unknown' (unstamped or
+// pre-stamp formats like "v2.21") render nothing, as does any fetch failure. Never a red check.
+function StaleReadsNotice({ registry }: { registry: LoadState<RegistryFreshnessPayload> }) {
+  if (registry.status !== 'ready' || !registry.data.stamp) return null;
+  const stale = (registry.data.reads ?? []).filter((r) => r.verdict === 'stale');
+  if (stale.length === 0) return null;
+  return (
+    <Card className="border-slate-200 bg-slate-50/60">
+      <h3 className="text-sm font-semibold text-slate-700">
+        {stale.length === 1
+          ? '1 read predates the current data registry'
+          : `${stale.length} reads predate the current data registry`}
+      </h3>
+      <p className="mt-1 text-sm text-slate-600">
+        The registry has changed since {stale.length === 1 ? 'this read was' : 'these reads were'}{' '}
+        baked ({stale.map((r) => r.title).join(', ')}). Nothing is necessarily broken — when you're
+        ready, paste this to your agent to re-check {stale.length === 1 ? 'it' : 'them'}:
+      </p>
+      <div className="mt-2">
+        <CopyBox
+          text={buildStaleReadsMessage(
+            stale.map((r) => r.name),
+            registry.data.stamp,
+          )}
+          wrap
+        />
+      </div>
+    </Card>
+  );
 }
 
 // A QUIET notice, deliberately not a checklist row: an available update never turns anything

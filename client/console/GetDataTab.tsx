@@ -27,35 +27,41 @@ interface Overview {
   connection: { ok: boolean };
 }
 
-// Mirrors server/registry.ts RegistryStatus (served by /__synapse/registry/status).
+// Mirrors server/registry.ts RegistryStatus (served by /__synapse/registry/status, which also
+// appends per-read staleness verdicts — see HomeTab's stale-reads notice). `stamp` is the
+// app-computed content stamp (server/registry.ts registryStamp) an agent copies verbatim into a
+// baked read's `registryVersion`; optional here so the label degrades on any older payload.
 interface RegistryStatus {
   source: 'live' | 'snapshot';
   reason: 'no-secrets' | 'not-deployed' | 'unreachable' | null;
   liveVersion: string | null;
   liveLastModified: string | null;
   snapshotLastUpdated: string | null;
+  stamp?: string;
 }
 
 // The freshness line under "browse all Noon data". One sentence, quiet, never an error state —
 // the table browser above renders the live registry when the source is live, else the snapshot
-// (server/registryParse.ts), and this label reports which. Exported for unit testing. Returns
-// null when the status is unrecognized (render nothing).
+// (server/registryParse.ts), and this label reports which. The trailing stamp is the same token
+// /__synapse/registry/status serves — the one identity a baked read is stamped with. Exported
+// for unit testing. Returns null when the status is unrecognized (render nothing).
 export function buildFreshnessLabel(s: RegistryStatus): string | null {
+  const stamp = s.stamp ? ` Registry stamp ${s.stamp}.` : '';
   if (s.source === 'live') {
     const version = s.liveVersion ? ` ${s.liveVersion}` : '';
     const date = s.liveLastModified ? ` · updated ${s.liveLastModified}` : '';
-    return `Live registry${version}${date} — this browser matches what Citadel serves today.`;
+    return `Live registry${version}${date} — this browser matches what Citadel serves today.${stamp}`;
   }
   if (s.source !== 'snapshot') return null;
   const dated = s.snapshotLastUpdated ? ` (dated ${s.snapshotLastUpdated})` : '';
   switch (s.reason) {
     case 'not-deployed':
       // Day-one reality on staging: nothing to be behind, so no staleness alarm.
-      return `Built-in snapshot${dated} — the live registry isn't available on this Citadel yet.`;
+      return `Built-in snapshot${dated} — the live registry isn't available on this Citadel yet.${stamp}`;
     case 'no-secrets':
-      return `Snapshot${dated} — may be stale. Add your Noon keys to check the live registry.`;
+      return `Snapshot${dated} — may be stale. Add your Noon keys to check the live registry.${stamp}`;
     default:
-      return `Snapshot${dated} — may be stale. Couldn't reach the live registry.`;
+      return `Snapshot${dated} — may be stale. Couldn't reach the live registry.${stamp}`;
   }
 }
 

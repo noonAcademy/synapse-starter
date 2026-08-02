@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fetchLiveRegistryText, registryFetcher, snapshotLastUpdated } from './registry.js';
+import {
+  compareStamp,
+  fetchLiveRegistryText,
+  parseStampToken,
+  readsFreshness,
+  registryFetcher,
+  registryStamp,
+  snapshotLastUpdated,
+} from './registry.js';
 
 const CREDS = { baseUrl: 'https://citadel.test', appId: 'app_x', appSecret: 'rpl_test_secret' };
 const SNAPSHOT = '// Last updated: 2026-05-04\nexport const ATHENA_REGISTRY = {};\n';
@@ -48,6 +56,7 @@ describe('registryFetcher', () => {
       liveVersion: 'v2.30',
       liveLastModified: '2026-07-20',
       snapshotLastUpdated: null,
+      stamp: registryStamp(LIVE_TEXT, '2026-07-20'),
     });
     // HMAC headers on the wire (INTEGRATE.md §6): app id + t=,v1= signature.
     expect(calls[0]?.headers['x-replit-app-id']).toBe('app_x');
@@ -84,6 +93,8 @@ describe('registryFetcher', () => {
     expect(result.status.source).toBe('snapshot');
     expect(result.status.reason).toBe('not-deployed');
     expect(result.status.snapshotLastUpdated).toBe('2026-05-04');
+    // The snapshot's stamp is dated by its own "Last updated:" header line.
+    expect(result.status.stamp).toBe(registryStamp(SNAPSHOT, '2026-05-04'));
   });
 
   it('503 and network failure fall back to the snapshot, labeled unreachable', async () => {
@@ -140,5 +151,79 @@ describe('snapshotLastUpdated', () => {
   it('reads the header date and tolerates its absence', () => {
     expect(snapshotLastUpdated(SNAPSHOT)).toBe('2026-05-04');
     expect(snapshotLastUpdated('export const X = 1;')).toBeNull();
+  });
+});
+
+describe('registryStamp (frozen fleet contract — see the comment on the helper)', () => {
+  it('CRLF and trailing newlines never change the identity; content always does', () => {
+    const base = registryStamp('a\nb', null);
+    expect(registryStamp('a\r\nb', null)).toBe(base);
+    expect(registryStamp('a\nb\n', null)).toBe(base);
+    expect(registryStamp('a\nb\n\n\n', null)).toBe(base);
+    expect(registryStamp('a\nc', null)).not.toBe(base);
+  });
+
+  it('is 12 lowercase hex chars, with the date appended when known', () => {
+    expect(registryStamp('x', null)).toMatch(/^[0-9a-f]{12}$/);
+    expect(registryStamp('x', '2026-07-20')).toMatch(/^[0-9a-f]{12}@2026-07-20$/);
+  });
+
+  it('normalizes HTTP-dates (live Last-Modified) to YYYY-MM-DD and drops unparseable ones', () => {
+    expect(registryStamp('x', 'Wed, 22 Jul 2026 10:15:00 GMT')).toMatch(/@2026-07-22$/);
+    expect(registryStamp('x', 'not a date')).toMatch(/^[0-9a-f]{12}$/);
+  });
+});
+
+describe('parseStampToken / compareStamp (the detector rules)', () => {
+  const current = registryStamp('registry v2', '2026-08-01');
+  const OLD = registryStamp('registry v1', '2026-07-01');
+
+  it('parses stamp tokens and rejects pre-stamp formats', () => {
+    expect(parseStampToken(current)).toEqual({
+      hash: current.slice(0, 12),
+      date: '2026-08-01',
+    });
+    expect(parseStampToken('v2.21')).toBeNull();
+    expect(parseStampToken('')).toBeNull();
+  });
+
+  it('same hash → ok, even with different dates', () => {
+    const sameContentOtherDay = registryStamp('registry v2', '2026-07-15');
+    expect(compareStamp(sameContentOtherDay, current)).toBe('ok');
+  });
+
+  it('different hash + strictly older date → stale (the only warning verdict)', () => {
+    expect(compareStamp(OLD, current)).toBe('stale');
+  });
+
+  it('different hash + newer-or-equal date → ok (never warn about being ahead)', () => {
+    expect(compareStamp(registryStamp('registry v3', '2026-08-09'), current)).toBe('ok');
+    expect(compareStamp(registryStamp('registry v3', '2026-08-01'), current)).toBe('ok');
+  });
+
+  it('pre-stamp formats and missing dates → unknown, silently', () => {
+    expect(compareStamp('v2.21', current)).toBe('unknown');
+    expect(compareStamp(registryStamp('registry v1', null), current)).toBe('unknown');
+    expect(compareStamp(OLD, registryStamp('registry v2', null))).toBe('unknown');
+  });
+});
+
+describe('readsFreshness', () => {
+  it('verdicts every registered read against the served stamp', () => {
+    const current = registryStamp('registry v2', '2026-08-01');
+    const reads = [
+      {
+        name: 'old-read',
+        title: 'Old',
+        registryVersion: registryStamp('registry v1', '2026-07-01'),
+      },
+      { name: 'fresh-read', title: 'Fresh', registryVersion: current },
+      { name: 'legacy-read', title: 'Legacy', registryVersion: 'v2.21' },
+    ];
+    expect(readsFreshness(current, reads).map((r) => r.verdict)).toEqual([
+      'stale',
+      'ok',
+      'unknown',
+    ]);
   });
 });

@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { buildKickoffPrompt, buildKitUpdateMessage, HomeTab } from './HomeTab';
+import {
+  buildKickoffPrompt,
+  buildKitUpdateMessage,
+  buildStaleReadsMessage,
+  HomeTab,
+} from './HomeTab';
 import type { VerifyState } from './useVerify';
 
 const READY_OVERVIEW = {
@@ -29,11 +34,14 @@ const GREEN_VERIFY: VerifyState = {
 // Up to date is the default — the kit notice only appears when a test opts in via overrides.
 const UP_TO_DATE_KIT = { local: '2026.07.16', latest: '2026.07.16', updateAvailable: false };
 
-function stubFetch(overrides: { overview?: unknown; setup?: unknown; kit?: unknown } = {}): void {
+function stubFetch(
+  overrides: { overview?: unknown; setup?: unknown; kit?: unknown; registry?: unknown } = {},
+): void {
   const payload = (url: string): unknown => {
     if (url.endsWith('/__synapse/overview')) return overrides.overview ?? READY_OVERVIEW;
     if (url.endsWith('/__synapse/setup')) return overrides.setup ?? ALL_SET_SETUP;
     if (url.endsWith('/__synapse/kit')) return overrides.kit ?? UP_TO_DATE_KIT;
+    if (url.endsWith('/__synapse/registry/status')) return overrides.registry ?? {};
     if (url.endsWith('/__synapse/reads')) {
       return [{ name: 'courses-by-type', title: 'Active courses by type', description: 'd' }];
     }
@@ -176,6 +184,69 @@ describe('kit update notice', () => {
     );
     render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
     expect(screen.queryByText(/Kit update available/)).toBeNull();
+  });
+});
+
+describe('stale reads notice', () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  const STAMP = 'a1b2c3d4e5f6@2026-08-01';
+  const readRow = (verdict: string, name = 'old-read', title = 'Old read') => ({
+    name,
+    title,
+    registryVersion: 'ffffffffffff@2026-07-01',
+    verdict,
+  });
+
+  it('shows a quiet notice with the paste-to-agent message for stale reads only', async () => {
+    stubFetch({
+      registry: { stamp: STAMP, reads: [readRow('stale'), readRow('ok', 'fresh-read', 'Fresh')] },
+    });
+    render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+
+    expect(await screen.findByText('1 read predates the current data registry')).toBeTruthy();
+    expect(
+      screen.getByText(buildStaleReadsMessage(['old-read'], STAMP), { exact: false }),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Fresh/)).toBeNull();
+  });
+
+  it("renders nothing for 'ok' and 'unknown' verdicts (pre-stamp formats stay silent)", async () => {
+    stubFetch({
+      registry: {
+        stamp: STAMP,
+        reads: [readRow('ok'), { ...readRow('unknown'), registryVersion: 'v2.21' }],
+      },
+    });
+    render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+
+    await screen.findByText('All keys are set.'); // wait for data so absence is meaningful
+    expect(screen.queryByText(/predates? the current data registry/)).toBeNull();
+  });
+
+  it('renders nothing when the status check fails — never a red state', async () => {
+    stubFetch();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('offline');
+      }),
+    );
+    render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+    expect(screen.queryByText(/predates? the current data registry/)).toBeNull();
+  });
+});
+
+describe('buildStaleReadsMessage', () => {
+  it('names the reads, the SQL skill, and the current stamp to re-stamp with', () => {
+    const msg = buildStaleReadsMessage(['old-read', 'other-read'], 'a1b2c3d4e5f6@2026-08-01');
+    expect(msg).toContain('old-read, other-read');
+    expect(msg).toContain('noon-sql-analyst');
+    expect(msg).toContain('a1b2c3d4e5f6@2026-08-01');
+    expect(msg).toContain('/__synapse/registry/status');
   });
 });
 
