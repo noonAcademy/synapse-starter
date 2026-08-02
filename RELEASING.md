@@ -41,6 +41,14 @@ All three are guarded to this repo only (origin/`github.repository` check) and a
    verify**.
 3. If you changed the ownership contract itself, update `.synapse/ownership.json` **and**
    the "Who owns what" section of `AGENTS.md` together — they must never disagree.
+4. If the PR changes the **rules** so they start assuming code or files an older clone lacks
+   (AGENTS.md or a skill now references a file, script, or endpoint the previous kit didn't
+   ship), update the **kit-compatibility header** at the top of `AGENTS.md` to the version
+   you just bumped to, in the same PR. Agents fetch these rules live, so a stale clone will
+   read them: the header is what tells that clone's agent to offer an upgrade instead of
+   following rules its kit can't satisfy. The pre-push gate's bump is the natural moment to
+   check this. (Purely additive rule changes that any older kit can follow don't need a
+   header move.)
 
 Special case: refreshing the vendored SDK tarballs
 ([`scripts/sync-sdk.md`](scripts/sync-sdk.md)) changes `vendor/` — synapse-owned — so it

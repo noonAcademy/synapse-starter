@@ -8,6 +8,9 @@ description: >-
   builder-owned paths.
 ---
 
+> A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-upgrade/SKILL.md
+> and follow that version; on fetch failure, use this file.
+
 # Upgrade the Synapse kit
 
 This app is a **clone** of the `synapse-starter` template, not a fork. It has diverged —

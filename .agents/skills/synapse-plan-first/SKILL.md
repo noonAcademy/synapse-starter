@@ -8,6 +8,9 @@ description: >-
   still says "status: not yet filled in", and before any first feature of a new app.
 ---
 
+> A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-plan-first/SKILL.md
+> and follow that version; on fetch failure, use this file.
+
 # Plan first — fill SPEC.md before building
 
 `SPEC.md` (repo root) is this app's memory: agents read it at the start of every session, and

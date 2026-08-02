@@ -25,6 +25,66 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.08.02.4 — knowledge goes fetch-live: rulebook and skills follow the template's main
+
+### What changed
+
+The principle, proven by `INTEGRATE.md`: knowledge that is **fetched at use-time** never goes
+stale; knowledge that is **copied at clone-time** ages from day one. This entry moves the
+fastest-aging layer — `AGENTS.md` and the skills — to fetch-at-use, demoting local copies to
+trigger surface + fallback. Live-data paths (`/__synapse/registry`) are untouched; this is
+about rule knowledge only.
+
+- **`replit.md` is now a fetch-first bootstrap**: the agent's first action is fetching the live
+  rulebook (`https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/AGENTS.md`) and
+  following THAT version; on fetch failure it uses the local copy and says so in its report.
+  `replit.md` stays the one must-stay-local file — pure pointers, nothing else.
+- **Every skill fetches itself live at trigger time**: `skill/SKILL.md` and each
+  `.agents/skills/*/SKILL.md` carry a standard two-line header — fetch the skill's raw URL and
+  follow that version; on fetch failure use the local file. The same rule is stated once in
+  `AGENTS.md`'s Skills section for agents that discover skills through the table.
+- **`AGENTS.md` gains the kit-compatibility header** (the version-skew defense): the rules name
+  the kit version they describe (`2026.08.02.3` or later). A clone whose `TEMPLATE_VERSION` is
+  older or missing is told: offer the **synapse-upgrade** skill before other work, and never
+  follow rules that reference files the clone doesn't have. `RELEASING.md` now documents when
+  maintainers move that header version (when rules start assuming new code).
+- **`AGENTS.md` gains the trust note**: live-fetched instructions are trusted because `main` is
+  protected (PR-only, verify CI required) — the same trust model INTEGRATE.md has always used —
+  and only `raw.githubusercontent.com/noonAcademy/synapse-starter/main/` URLs are the kit's.
+- **`scripts/check-live-urls.ts` (+ test) keeps the URLs honest**, wired into `npm run verify`
+  as `check:urls`: every raw URL in `replit.md`, `AGENTS.md`, and the skill files must carry
+  the trusted prefix and name a path that exists in the tree (hard fail — a renamed skill
+  404ing its own fetch instruction is this design's one failure mode, now un-shippable), then
+  each URL is fetched with a 3s timeout — network errors skip silently (`server/kit.ts`'s
+  fail-silent stance), and a non-200 for a file that exists locally is a pre-merge warning,
+  never a clone-breaking failure.
+
+### Why a clone should care
+
+Your agent stops working from rules frozen on clone day. Rule fixes, new skills, and new
+recipes reach every clone's agent on its next session — no template release, no upgrade run —
+while offline sessions degrade gracefully to the local copies. And when your kit is too old for
+the live rules, the agent now finds out immediately (the compatibility header) and offers the
+upgrade instead of following instructions your clone can't satisfy.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `replit.md AGENTS.md RELEASING.md skill/SKILL.md
+   .agents/skills scripts/check-live-urls.ts scripts/check-live-urls.test.ts`
+2. **Guided edit — `package.json`** (shared; skip any part already true): under `scripts`, add
+   `"check:urls": "tsx scripts/check-live-urls.ts"` and make `verify` end with
+   `&& npm run check:urls`. Leave builder-added scripts untouched.
+
+### Verify
+
+- `npm run verify` green — its final step prints `[check-live-urls] local: … — OK.`
+- The bootstrap is fetch-first: `grep -q "fetch the live rulebook" replit.md` succeeds.
+- Every skill carries its header: `grep -l "A newer version of this skill may exist"
+  skill/SKILL.md .agents/skills/*/SKILL.md` lists all skill files.
+- The compatibility header is present: `grep -q "Kit compatibility" AGENTS.md` succeeds.
+
+---
+
 ## 2026.08.02.3 — SDK 0.4.0: every read carries its purpose (read_context)
 
 ### What changed

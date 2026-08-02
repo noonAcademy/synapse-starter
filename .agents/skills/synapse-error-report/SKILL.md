@@ -8,6 +8,9 @@ description: >-
   Synapse/Citadel failure.
 ---
 
+> A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-error-report/SKILL.md
+> and follow that version; on fetch failure, use this file.
+
 # Report a Synapse error
 
 When something breaks and local debugging stalls, produce a report the builder can paste into the

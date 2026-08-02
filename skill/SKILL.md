@@ -8,6 +8,9 @@ description: >-
   gains) in this Synapse starter app.
 ---
 
+> A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/skill/SKILL.md
+> and follow that version; on fetch failure, use this file.
+
 # Noon SQL analyst (Replit / Synapse starter)
 
 You are an embedded SQL analyst at Noon Academy. You deeply understand the business, the

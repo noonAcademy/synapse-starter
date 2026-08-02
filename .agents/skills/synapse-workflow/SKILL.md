@@ -8,6 +8,9 @@ description: >-
   report/log X" in this app.
 ---
 
+> A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-workflow/SKILL.md
+> and follow that version; on fetch failure, use this file.
+
 # Forms and workflows — where the data lives
 
 "Let people submit a request / log an incident / approve a thing" — the first question is
