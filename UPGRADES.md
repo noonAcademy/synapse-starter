@@ -25,6 +25,32 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.08.02 — scope the four-secrets claim to the existing-app path (docs only)
+
+### What changed
+
+- **`INTEGRATE.md`** and **`MIGRATE-SYNC.md`** — both openers said "you need exactly four
+  secrets… `GITHUB_TOKEN`" without scope, which read as contradicting the tokenless starter
+  (three secrets, vendored tarballs — the 2026.07.16 entry). Each opener now states explicitly
+  that `GITHUB_TOKEN` is an install-time credential for **existing apps** installing
+  `@noonacademy/*` from GitHub Packages, and that the starter template itself is tokenless.
+  The integration flow itself is unchanged — no step, gate, or secret requirement moved.
+
+### Why a clone should care
+
+Barely — no code or behavior changes. But these two guides are synapse-owned reference docs an
+agent may read mid-session, and the unscoped claim could send a starter-based app hunting for a
+`GITHUB_TOKEN` it does not need. Adopting the reworded copies removes that trap.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `INTEGRATE.md MIGRATE-SYNC.md`
+
+### Verify
+
+- `npm run verify` green.
+- The scope is present: `grep -q "existing-app" INTEGRATE.md` and
+  `grep -q "existing-app" MIGRATE-SYNC.md` both succeed.
 ## 2026.07.27 — Get-data tab browses the live registry (snapshot is the fallback)
 
 ### What changed (PR #28)
