@@ -25,6 +25,15 @@ export interface ReadResult {
 // Module-level cache so hits survive across requests for the life of the process.
 const defaultCache = createQueryCache<AthenaRows>();
 
+// The purpose label Citadel records for every page of this read (athena_read_log.read_context,
+// via the SDK's context arg → x-synapse-read-context header). "name: title" when it fits the
+// header budget, else the name alone — the name is the stable identifier, the title is garnish.
+const READ_CONTEXT_MAX = 120;
+export function readContext(query: { name: string; title: string }): string {
+  const labeled = `${query.name}: ${query.title}`;
+  return labeled.length <= READ_CONTEXT_MAX ? labeled : query.name;
+}
+
 // Returns null when `name` is unknown (route answers 404); otherwise always a ReadResult.
 export async function runRead(
   client: AthenaQueryClient | null,
@@ -59,7 +68,7 @@ export async function runRead(
   const cache = deps.cache ?? defaultCache;
   try {
     const { value, fetchedAt, cached } = await cache.get(query.name, () =>
-      runAthenaQuery(client, query.sql, query.maxRows),
+      runAthenaQuery(client, query.sql, query.maxRows, readContext(query)),
     );
     return {
       ...base,

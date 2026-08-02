@@ -25,6 +25,60 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.08.02.3 — SDK 0.4.0: every read carries its purpose (read_context)
+
+### What changed
+
+- **Vendored packages refreshed**: `@noonacademy/synapse-sdk` 0.2.0 → **0.4.0** and
+  `@noonacademy/citadel-transport` 0.1.0 → **0.3.0** (catalog stays 0.1.1), published from
+  noon-citadel `9219e84` (tags `synapse-sdk-v0.4.0`, `citadel-transport-v0.3.0`). Tarballs under
+  `vendor/`, `file:` deps + overrides updated, lockfile regenerated registry-free (a token-less
+  `env -u GITHUB_TOKEN npm install` is the proof).
+- **Reads now carry context.** `runAthenaQuery` accepts an optional `context`; the read path
+  passes a purpose label for every baked read — `"name: title"` when ≤120 chars, else the name
+  (`readContext` in `server/reads.ts`). The SDK sends it as the `x-synapse-read-context` header
+  on every page, and Citadel records it as `athena_read_log.read_context` — the ledger now says
+  *which read, for what* instead of just *which app*.
+- **0.2.0 → 0.4.0 surface audit: fully additive.** `AthenaQueryArgs`/`AthenaQueryAllArgs` gain
+  `context?`; `SynapseClientOptions` gains optional `heartbeat` + `appHost`; `buildHeaders`
+  gains an optional per-call `{ readContext }` argument (existing call sites in
+  `server/registry.ts` are untouched). One behavior change to know about: **the 0.4.0 client
+  heartbeats by default** — a signed `GET /api/whoami` every ~5 minutes (skipped when
+  `NODE_ENV=test`), giving Citadel liveness telemetry per app. No template code opts out.
+
+### Why a clone should care
+
+Citadel's read ledger has recorded `read_context` since 2026-07-18, but a 0.2.0 clone sends
+nothing — its reads are attributable to the app, never to a specific read. After upgrading,
+every ledger row names the baked read that produced it (debuggability, per-read usage, and the
+platform's read-quality review all key off it), and the app reports liveness via heartbeat.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `vendor/noonacademy-synapse-sdk-0.4.0.tgz
+   vendor/noonacademy-citadel-transport-0.3.0.tgz server/athena.ts server/reads.ts
+   server/reads.test.ts scripts/sync-sdk.md` — then delete
+   `vendor/noonacademy-synapse-sdk-0.2.0.tgz` and `vendor/noonacademy-citadel-transport-0.1.0.tgz`
+   if still present.
+2. **Guided edit — `package.json`** (shared; skip any part already true): point
+   `@noonacademy/synapse-sdk` at `file:vendor/noonacademy-synapse-sdk-0.4.0.tgz` and
+   `@noonacademy/citadel-transport` at `file:vendor/noonacademy-citadel-transport-0.3.0.tgz`
+   in BOTH `dependencies` and `overrides` (they must stay identical). Leave builder deps alone.
+3. **Regenerate the lockfile**: `rm -rf node_modules package-lock.json && npm install`, then
+   confirm `grep npm.pkg.github.com package-lock.json` prints nothing.
+4. **Builder-owned reads** (`server/queries/*.sql.ts`) are never touched — context is derived
+   at run time from each read's registered `name`/`title`; no query file changes.
+### Verify
+
+- `npm run verify` green.
+- The SDK is 0.4.0: `grep -q "synapse-sdk-0.4.0.tgz" package.json` succeeds and
+  `grep -q "context" server/athena.ts` succeeds.
+- Live proof (workspace with secrets): run one read (Views tab or
+  `curl -s localhost:3000/__synapse/reads/<name>`), then check Citadel's `athena_read_log` —
+  the newest row's `read_context` is the read's label.
+
+---
+
 ## 2026.08.02.2 — registry stamp + stale-read detector
 
 ### What changed
