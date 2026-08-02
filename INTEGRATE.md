@@ -2,7 +2,7 @@
 
 This guide is for an **AI coding agent** integrating Synapse (Noon's Citadel proxy) into an app that **already works and already has users**. The greenfield path — cloning this repo, the [`synapse-starter` scaffold](./README.md) — is not this. Here you are a **guest in someone else's working app, not an owner**.
 
-This file is self-contained: everything you need is inlined below. You need exactly four secrets from the operator (`SYNAPSE_APP_ID`, `SYNAPSE_APP_SECRET`, `SYNAPSE_BASE_URL`, `GITHUB_TOKEN` — section 7); everything else (including the data schema registry) is fetched live from Citadel.
+This file is self-contained: everything you need is inlined below. For this **existing-app** path you need exactly four secrets from the operator (`SYNAPSE_APP_ID`, `SYNAPSE_APP_SECRET`, `SYNAPSE_BASE_URL`, `GITHUB_TOKEN` — section 7). `GITHUB_TOKEN` is an install-time credential this path alone needs, because an existing app installs `@noonacademy/*` from GitHub Packages; the `synapse-starter` template itself is **tokenless** — it vendors those packages as committed tarballs under `vendor/` (see section 7). Everything else (including the data schema registry) is fetched live from Citadel.
 
 You have exactly three jobs, in this order:
 

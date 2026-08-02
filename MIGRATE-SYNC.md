@@ -2,7 +2,7 @@
 
 This guide is for an **AI coding agent** migrating the **transport** of an existing "Athena → Postgres sync" app (the old internal guide's pattern) onto Citadel's sanctioned read path. You should already have a **Migration Report** from Job 0 of [`INTEGRATE.md`](./INTEGRATE.md) telling you which views the app reads, their filter shapes, and their per-run row counts. If you don't, run Job 0 first.
 
-This file is self-contained: everything you need is inlined below. You need exactly four secrets from the operator (`SYNAPSE_APP_ID`, `SYNAPSE_APP_SECRET`, `SYNAPSE_BASE_URL`, `GITHUB_TOKEN`); they may already be set if Job 1 of `INTEGRATE.md` was done. Never print a secret value.
+This file is self-contained: everything you need is inlined below. For this **existing-app** path you need exactly four secrets from the operator (`SYNAPSE_APP_ID`, `SYNAPSE_APP_SECRET`, `SYNAPSE_BASE_URL`, `GITHUB_TOKEN`); they may already be set if Job 1 of `INTEGRATE.md` was done. `GITHUB_TOKEN` is needed here only because an existing app installs `@noonacademy/*` from GitHub Packages — the `synapse-starter` template itself is tokenless (it vendors the packages under `vendor/`). Never print a secret value.
 
 ## The prime directive
 
