@@ -184,6 +184,23 @@ describe('buildFreshnessLabel', () => {
   it('returns null on an unrecognized payload (render nothing, never break the tab)', () => {
     expect(buildFreshnessLabel({} as never)).toBeNull();
   });
+
+  it('appends the registry stamp when the status carries one — live and snapshot alike', () => {
+    expect(
+      buildFreshnessLabel({
+        ...base,
+        source: 'live',
+        snapshotLastUpdated: null,
+        stamp: 'a1b2c3d4e5f6@2026-07-20',
+      }),
+    ).toBe(
+      'Live registry — this browser matches what Citadel serves today. ' +
+        'Registry stamp a1b2c3d4e5f6@2026-07-20.',
+    );
+    expect(buildFreshnessLabel({ ...base, reason: 'no-secrets', stamp: 'a1b2c3d4e5f6' })).toContain(
+      'Registry stamp a1b2c3d4e5f6.',
+    );
+  });
 });
 
 describe('registry freshness banner', () => {

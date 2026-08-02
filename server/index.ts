@@ -14,7 +14,7 @@ import { buildKit, latestVersionFetcher, readTemplateVersion } from './kit.js';
 import { buildOverview } from './overview.js';
 import { listBakedQueries } from './queries/index.js';
 import { runRead } from './reads.js';
-import { registryFetcher } from './registry.js';
+import { readsFreshness, registryFetcher } from './registry.js';
 import { chooseBrowseTables } from './registryParse.js';
 import { buildSetup, readSpecText } from './setup.js';
 import {
@@ -116,10 +116,13 @@ export function buildApp(opts: {
       }
     });
 
-    // Freshness only (no text) for the Get data tab's quiet source banner.
+    // Freshness only (no text): the Get data tab's quiet source banner, the stamp an agent
+    // copies into a baked read's `registryVersion` (skill/SKILL.md "Bake the read"), and the
+    // per-read staleness verdicts behind the Home tab's quiet stale-reads notice.
     app.get('/__synapse/registry/status', async (_req, res) => {
       try {
-        res.json((await getRegistry()).status);
+        const { status } = await getRegistry();
+        res.json({ ...status, reads: readsFreshness(status.stamp, listBakedQueries()) });
       } catch (err) {
         console.error(
           '[synapse] registry status failed:',

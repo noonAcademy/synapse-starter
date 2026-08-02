@@ -25,6 +25,70 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.08.02.2 — registry stamp + stale-read detector
+
+### What changed
+
+The old `registryVersion` convention (a hand-copied literal like `'v2.21'`) said nothing
+verifiable about which registry a read was actually written against. It is replaced by the
+**registry stamp**: an app-computed content identity of the registry text.
+
+- **`server/registry.ts`** — `registryStamp(text, date)`: normalized content hash (UTF-8,
+  CRLF→LF, trailing newlines trimmed, SHA-256 truncated to 12 hex) plus the text's date
+  (live: the response's `Last-Modified`, meta as fallback; snapshot: its `Last updated:`
+  header line), as a single token `<hash12>@<YYYY-MM-DD>`. The normalization rules are a
+  **frozen fleet contract** — the doc comment on the helper says exactly why and what a
+  format change requires. Also: `parseStampToken`, `compareStamp`, `readsFreshness`, and the
+  fetcher now captures `Last-Modified` and stamps every status it returns.
+- **`GET /__synapse/registry/status`** now serves `stamp` plus per-read verdicts (`reads:
+  [{ name, title, registryVersion, verdict }]`) over the reads registered in
+  `server/queries/index.ts`. Verdicts: same hash → `ok`; different hash + strictly older
+  date → `stale`; different hash + newer-or-equal date → `ok`; unparseable (pre-stamp
+  formats like `v2.21`) or missing dates → `unknown`. Only `stale` ever surfaces.
+- **`client/console/HomeTab.tsx`** — a quiet stale-reads notice in the kit-update-notice
+  pattern: renders only when a read is verifiably stale, never red, nothing on any failure;
+  its copy button carries a paste-to-agent message naming the reads, the noon-sql-analyst
+  skill, and the current stamp.
+- **`client/console/GetDataTab.tsx`** — the freshness label appends the served stamp.
+- **`skill/SKILL.md` ("Bake the read") + `AGENTS.md`** — `registryVersion` is now a
+  **transcription**: copy the `stamp` field from `/__synapse/registry/status` verbatim. The
+  example's copyable `'v2.21'` literal is gone; agents never compute or reuse a stamp.
+- **The `X-Registry-Version` header idea is formally dropped** — the stamp is app-computed
+  from content, not a server-asserted version header.
+
+### Why a clone should care
+
+Today nothing tells a builder that a read was baked against a registry that has since
+changed — wrong numbers surface as user reports, not console signals. After this, the Home
+tab quietly flags provably-stale reads with a ready-made re-check prompt, and every new bake
+carries a verifiable content identity instead of a folklore version string.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `server/registry.ts server/registry.test.ts
+   client/console/GetDataTab.tsx client/console/GetDataTab.test.tsx client/console/HomeTab.tsx
+   client/console/HomeTab.test.tsx skill/SKILL.md AGENTS.md`
+2. **Guided edit — `server/index.ts`** (shared; skip if already present): import
+   `readsFreshness` from `./registry.js`, and in the `/__synapse/registry/status` handler
+   respond with `{ ...status, reads: readsFreshness(status.stamp, listBakedQueries()) }`
+   instead of the bare status. Leave every builder-added route untouched.
+3. **Builder-owned reads** (`server/queries/*.sql.ts`) are **never edited** by this upgrade.
+   Existing `registryVersion` literals (`'v2.21'`-style) parse as `unknown` and stay silent —
+   do not rewrite them speculatively. From now on, any newly baked or re-verified read copies
+   the `stamp` from `/__synapse/registry/status` into `registryVersion`, per the skill.
+### Verify
+
+- `npm run verify` green.
+- The contract is present: `grep -q "FROZEN FLEET CONTRACT" server/registry.ts` succeeds.
+- With the app running, `curl -s localhost:3000/__synapse/registry/status` shows a `stamp`
+  token and a `reads` array with a `verdict` per registered read.
+- The skill no longer carries a copyable literal: `grep -q "paste the \"stamp\"" skill/SKILL.md`
+  succeeds.
+
+---
+
+---
+
 ## 2026.08.02 — scope the four-secrets claim to the existing-app path (docs only)
 
 ### What changed
@@ -45,12 +109,14 @@ agent may read mid-session, and the unscoped claim could send a starter-based ap
 ### Recipe (every step is an ensure — skip what's already true)
 
 1. **Copy from the template** (synapse-owned): `INTEGRATE.md MIGRATE-SYNC.md`
-
 ### Verify
 
 - `npm run verify` green.
 - The scope is present: `grep -q "existing-app" INTEGRATE.md` and
   `grep -q "existing-app" MIGRATE-SYNC.md` both succeed.
+
+---
+
 ## 2026.07.27 — Get-data tab browses the live registry (snapshot is the fallback)
 
 ### What changed (PR #28)

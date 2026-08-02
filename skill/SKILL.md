@@ -130,9 +130,18 @@ After you've written and explained the final `SELECT`:
    export const title = '<short human title>';
    export const description = '<one-line: what it answers, which table, app-wide>';
    export const sql = `SELECT ... FROM noon2_datamart.<table> WHERE ...`;
-   export const registryVersion = 'v2.21';
+   export const registryVersion = '<paste the "stamp" from /__synapse/registry/status>';
    export const skillVersion = 'replit-v2.21.0';
    ```
+
+   **`registryVersion` is a transcription, never a computation or a reuse.** Fetch
+   `curl -s localhost:3000/__synapse/registry/status` and copy its `stamp` field **verbatim**
+   (it looks like `a1b2c3d4e5f6@2026-01-01`: an app-computed content hash of the registry text
+   plus its date — contract in `server/registry.ts`). That endpoint shares the fetch cache with
+   `/__synapse/registry`, so the stamp identifies exactly the registry text you just read.
+   Never invent a stamp, never copy one from another read, and never hash anything yourself —
+   the server is the only implementation. The stamp is how the console later detects a read
+   baked against a registry that has since changed.
 
 2. Register it in [`server/queries/index.ts`](../server/queries/index.ts) so the read route
    and the **Read** tab pick it up.

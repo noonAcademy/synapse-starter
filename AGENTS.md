@@ -90,6 +90,9 @@ Precedence is most-specific-wins (`client/app/pages/synapse.tsx` beats `client/a
 2. **Bake the final SELECT** into `server/queries/<name>.sql.ts`, exporting
    `{ name, title, description, sql, registryVersion, skillVersion }` (no params — reads are
    app-wide). Register it in [`server/queries/index.ts`](server/queries/index.ts).
+   `registryVersion` is the **registry stamp**: copy the `stamp` field from
+   `/__synapse/registry/status` verbatim — never invent or compute one (the contract lives in
+   [`server/registry.ts`](server/registry.ts); the skill's "Bake the read" section has the exact step).
 3. The read route (`GET /__synapse/reads/:name`) runs it through `synapse.athenaQuery`, caches
    the rows (~1h), and the **Views** tab renders them. Worked example:
    [`server/queries/courses-by-type.sql.ts`](server/queries/courses-by-type.sql.ts).
