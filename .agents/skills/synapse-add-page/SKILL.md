@@ -1,10 +1,8 @@
 ---
 name: synapse-add-page
 description: >-
-  Add a page to the shipped Synapse app end-to-end: bake an app-wide read as
-  server/queries/<name>.sql.ts, register it, consume it client-side with useView or
-  <ViewBlock>, and register the page in client/app/pages. Use whenever a builder asks to
-  "add a page", "add a dashboard", "add a screen", "add a view", or "add a chart" to this app.
+  Add a page to the shipped app end-to-end: the read, its registration, useView/ViewBlock, and
+  the page in the nav. Use for "add a page/dashboard/screen/view".
 ---
 
 > A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-add-page/SKILL.md

@@ -1,11 +1,9 @@
 ---
 name: synapse-verify-numbers
 description: >-
-  Prove a baked read's number is right before it ships: run the read, cross-check it a second
-  independent way with probes, look for fan-out, cliffs and empty periods, then report the
-  result to the builder in plain language. Use immediately after writing or changing any read
-  in server/queries/, before wiring it to a page — and whenever a builder asks "is this number
-  right?", "does this look correct?", "why does this look off?", or doubts a displayed figure.
+  Prove a read's number is right before a page ships on it: cross-check it a second independent
+  way, hunt double-counting joins and broken date filters, report it in plain language. Use after
+  writing or changing any read, and whenever someone doubts a figure ("is this right?", "too high").
 ---
 
 > A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-verify-numbers/SKILL.md
@@ -25,8 +23,9 @@ when it returns rows; it is done when you have tried to prove it wrong and faile
 
 ## Hard rules
 
-- **Never wire a read to a page before verifying it.** Bake → verify → then `useView`/`ViewBlock`.
-  A number reaches a human only after it has survived this.
+- **An unverified read is not ready for a page.** This is a dependency, not a running order —
+  Replit's Agent may build the page in a parallel sub-agent while you're still checking, and that
+  is fine. What is never fine is the page *shipping* on a read nobody cross-checked.
 - **A cross-check must be genuinely independent.** Re-running the same SQL, or the same SQL with
   cosmetic edits, proves nothing. Take a different route to the same truth — a different table,
   a different grain, a count that must reconcile.

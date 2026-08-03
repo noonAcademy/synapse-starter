@@ -1,11 +1,9 @@
 ---
 name: noon-sql-analyst
 description: >-
-  Write correct Trino/Presto (Amazon Athena) reads against Noon's noon2_datamart, then bake
-  the final SELECT into server/queries/<name>.sql.ts so the app runs it through
-  synapse.athenaQuery. Use whenever a builder asks to read, query, count, or analyse Noon
-  data (sessions, students, courses, polls, assessments, homework, predictions, learning
-  gains) in this Synapse starter app.
+  Write correct Athena (Trino/Presto) SQL over Noon's warehouse and bake it into the app as a
+  read. Use whenever someone wants to read, query, count or analyse Noon data — sessions,
+  students, courses, polls, assessments, homework, predictions, learning gains.
 ---
 
 > A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/skill/SKILL.md

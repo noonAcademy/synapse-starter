@@ -1,10 +1,14 @@
 // Drive the shipped app in a real browser, assert the things a builder notices but can't
 // articulate, and leave screenshots behind for an agent to look at.
 //
-// The division of labour is deliberate (and is what makes this trustworthy): the ASSERTIONS below
-// are the decider — deterministic, cheap, no model involved. The SCREENSHOTS are for the agent's
-// eyes, to explain and to judge taste. An agent never grades its own homework by declaring a page
-// "looks fine"; it either passes these checks or it doesn't. See the synapse-visual-check skill.
+// OPTIONAL, and NOT part of the Replit path. Replit's Agent already tests the app it builds in a
+// real browser, and its Design Canvas previews across phone/tablet/desktop — doing the same work
+// here would just burn the builder's credits. This script exists for the consumers Replit doesn't
+// cover: local `npm run dev`, and existing apps that adopted the SDK via INTEGRATE.md. There is
+// deliberately no skill pointing at it, so no agent is nudged into running it on Replit.
+//
+// The division of labour, when you do run it: the ASSERTIONS below are the decider —
+// deterministic, cheap, no model involved. The SCREENSHOTS are for a human's eyes.
 //
 // Playwright is NOT a dependency of this template. Its browser download is ~300MB, which every
 // clone would pay on install for a check most sessions never run. It is imported on demand and

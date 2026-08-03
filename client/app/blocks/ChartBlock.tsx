@@ -44,7 +44,13 @@ const SERIES_TOKENS = [
 
 // Fallbacks used only until the CSS variables resolve (and in jsdom, where they don't). They
 // match the shipped "calm" preset so a test render isn't visually meaningless.
-const FALLBACK_SERIES = ['#4f46e5', '#d97706', '#0d9488', '#be185d', '#0369a1', '#65a30d'];
+//
+// These are the ONE place in client/app that may hold raw color values, because Recharts writes
+// colors into SVG attributes and cannot accept a class — so there has to be something to fall
+// back to when getComputedStyle has nothing yet. Each line carries `theme-tokens-ignore` so
+// scripts/check-theme-tokens.ts allows it and the exception stays visible in review. Do NOT copy
+// this pattern into a page: pages use token utilities.
+const FALLBACK_SERIES = ['#4f46e5', '#d97706', '#0d9488', '#be185d', '#0369a1', '#65a30d']; // theme-tokens-ignore
 
 interface Palette {
   series: string[];
@@ -56,10 +62,10 @@ interface Palette {
 
 const FALLBACK_PALETTE: Palette = {
   series: FALLBACK_SERIES,
-  ink: '#0f172a',
-  inkMuted: '#64748b',
-  line: '#e2e8f0',
-  card: '#ffffff',
+  ink: '#0f172a', // theme-tokens-ignore
+  inkMuted: '#64748b', // theme-tokens-ignore
+  line: '#e2e8f0', // theme-tokens-ignore
+  card: '#ffffff', // theme-tokens-ignore
 };
 
 // Recharts needs real color VALUES (it writes them into SVG fill/stroke), not Tailwind classes.
@@ -73,7 +79,7 @@ function readPalette(): Palette {
     return value === '' ? fallback : value;
   };
   return {
-    series: SERIES_TOKENS.map((token, i) => read(token, FALLBACK_SERIES[i] ?? '#4f46e5')),
+    series: SERIES_TOKENS.map((token, i) => read(token, FALLBACK_SERIES[i] ?? '#4f46e5')), // theme-tokens-ignore
     ink: read('--color-ink', FALLBACK_PALETTE.ink),
     inkMuted: read('--color-ink-muted', FALLBACK_PALETTE.inkMuted),
     line: read('--color-line', FALLBACK_PALETTE.line),
@@ -240,7 +246,8 @@ function ChartBlockBody({
       width={48}
     />
   );
-  const legend = series.length > 1 ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null;
+  // Recharts' Legend exposes no className, so wrapperStyle is the only way to size it.
+  const legend = series.length > 1 ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null; // theme-tokens-ignore
   const color = (i: number) => palette.series[i % palette.series.length] ?? FALLBACK_SERIES[0];
 
   return (
@@ -301,7 +308,7 @@ function ChartBlockBody({
                   <Cell key={String(row[x])} fill={color(i)} />
                 ))}
               </Pie>
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 12 }} /> {/* theme-tokens-ignore */}
             </PieChart>
           ) : (
             <BarChart data={data}>

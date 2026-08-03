@@ -1,11 +1,8 @@
 ---
 name: synapse-plan-first
 description: >-
-  Interview the builder to fill SPEC.md before any building starts: what the app is, who
-  uses it, where every displayed number comes from, what records the app owns, what events
-  it publishes. Use whenever a
-  build starts fresh ("build me...", "I want an app/dashboard that..."), whenever SPEC.md
-  still says "status: not yet filled in", and before any first feature of a new app.
+  Interview the builder and fill SPEC.md before any code is written. Use at the start of any
+  new build ("build me…", "I want an app that…") and whenever SPEC.md says "not yet filled in".
 ---
 
 > A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-plan-first/SKILL.md

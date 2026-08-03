@@ -1,11 +1,9 @@
 ---
 name: synapse-scheduled-job
 description: >-
-  Build work that runs on a schedule rather than when someone opens a page — weekly digests,
-  daily alerts, recurring exports, "tell me when X drops". Adds a job in server/jobs/, registers
-  it, and sets it up as a Replit Scheduled Deployment. Use whenever a builder says "every
-  morning", "every Monday", "each week", "remind me when", "alert me if", "send me a summary",
-  or asks for anything recurring or automatic.
+  Work that runs on a schedule instead of on a page load — digests, alerts, exports — as a job
+  plus a Replit Scheduled Deployment. Use for "every Monday", "each morning", "alert me when",
+  "send me a summary".
 ---
 
 > A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-scheduled-job/SKILL.md
