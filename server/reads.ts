@@ -3,6 +3,7 @@
 // result, and a failed read surfaces an error field — neither path 500s.
 
 import { type AthenaQueryClient, type AthenaRows, runAthenaQuery } from './athena.js';
+import { type Metric, metricsFor } from './metrics.js';
 import { getBakedQuery } from './queries/index.js';
 import { createQueryCache, type QueryCache } from './query-cache.js';
 
@@ -13,6 +14,10 @@ export interface ReadResult {
   sql: string;
   registryVersion: string;
   skillVersion: string;
+  // Resolved definitions for whatever this read declared (server/metrics.ts). Travels WITH the
+  // rows so a page can show what its number means without a second request — a number and its
+  // definition arriving separately is how they drift apart.
+  metrics: Metric[];
   columns: string[];
   rows: Record<string, unknown>[];
   truncated: boolean; // rows capped at the framework MAX_ROWS backstop
@@ -50,6 +55,7 @@ export async function runRead(
     sql: query.sql,
     registryVersion: query.registryVersion,
     skillVersion: query.skillVersion,
+    metrics: metricsFor(query.metrics),
   };
 
   if (!client) {

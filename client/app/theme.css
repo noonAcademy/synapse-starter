@@ -37,6 +37,19 @@
   --color-success: #047857; /* positive status */
   --color-warning: #b45309; /* caveats (e.g. truncated data) */
 
+  /* Chart series — the categorical palette <ChartBlock> assigns to series in order.
+     Separate from the semantic colors above ON PURPOSE: --color-danger means "something is
+     wrong", so painting a course type red because it happens to be third in the list tells the
+     reader a lie. These carry no meaning beyond "a different series".
+     Ordered most-distinguishable-first, so the common 2- and 3-series charts stay legible for
+     the ~8% of male readers with red-green color vision deficiency. */
+  --color-chart-1: #4f46e5; /* indigo */
+  --color-chart-2: #d97706; /* amber */
+  --color-chart-3: #0d9488; /* teal */
+  --color-chart-4: #be185d; /* pink */
+  --color-chart-5: #0369a1; /* blue */
+  --color-chart-6: #65a30d; /* lime */
+
   /* Radius */
   --radius-card: 1rem; /* cards and large containers */
   --radius-control: 0.5rem; /* buttons, inputs, pills, table frames */
@@ -75,6 +88,13 @@
   --color-success: #047857;
   --color-warning: #b45309;
 
+  --color-chart-1: #7c3aed;
+  --color-chart-2: #db2777;
+  --color-chart-3: #0891b2;
+  --color-chart-4: #ea580c;
+  --color-chart-5: #2563eb;
+  --color-chart-6: #16a34a;
+
   --radius-card: 0.5rem;
   --radius-control: 0.25rem;
 
@@ -111,6 +131,13 @@
   --color-danger-surface: #fef2f2;
   --color-success: #15803d;
   --color-warning: #a16207;
+
+  --color-chart-1: #b45309;
+  --color-chart-2: #0f766e;
+  --color-chart-3: #9f1239;
+  --color-chart-4: #4d7c0f;
+  --color-chart-5: #7c2d12;
+  --color-chart-6: #1d4ed8;
 
   --radius-card: 1.25rem;
   --radius-control: 0.75rem;

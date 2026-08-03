@@ -50,9 +50,20 @@ things: **publishes events** and **runs reads**. Read this before adding either.
    covers, **YOU (the agent) declare it** with `synapse.declareEvent(...)` and then publish it —
    there's no Noon-side step, and you never hand this off to the user.
 
+**Before a number or a page reaches a human:**
+
+6. **Verify every read before wiring it to a page** (**synapse-verify-numbers**). This pipeline —
+   plain English → SQL → cached read → page — does not fail by crashing. It fails by returning a
+   confident wrong number that typecheck, lint and tests all pass. The builder asked for the
+   number *because* they don't have it, so they cannot catch it. Cross-check it a second
+   independent way, then say so in language they can judge.
+7. **Look at any page you built before calling it done** (**synapse-visual-check**). `npm run
+   verify` cannot see a clipped card, a table running off a phone screen, or a blank page where a
+   read returned zero rows.
+
 **The scaffolding/app split:**
 
-6. **`/synapse` is Synapse's corner of the app; everything else belongs to the builder.** The
+8. **`/synapse` is Synapse's corner of the app; everything else belongs to the builder.** The
    `/synapse` page (`client/app/pages/synapse.tsx`, reached only from the shell's footer link)
    holds the starter's example views and status — frozen scaffolding, never extended. New pages,
    views, and features live in the builder's app: `client/app/pages/` and the app nav.
@@ -122,7 +133,7 @@ from the workspace-only console. Add a page by creating `client/app/pages/<name>
 `{ path, title, nav, Page }` and registering it in
 [`client/app/pages/index.ts`](client/app/pages/index.ts) — the same file-plus-registry shape as a
 read. Style it with the theme tokens (Conventions below), and put it in the app's nav — never on
-the `/synapse` scaffolding page (rule 6).
+the `/synapse` scaffolding page (rule 8).
 
 An app page is built from two client primitives — data in, events out — with any React you like
 in between (a dashboard, a chart, a game):
@@ -195,7 +206,13 @@ source of truth is the template's `main`.
 |---|---|
 | [`.agents/skills/synapse-plan-first/SKILL.md`](.agents/skills/synapse-plan-first/SKILL.md) (**synapse-plan-first**) | Starting any new build ("build me…"), or `SPEC.md` still says "not yet filled in" — interviews the builder one question at a time, verifies the data exists, and writes SPEC.md for approval before any code. |
 | [`skill/SKILL.md`](skill/SKILL.md) (**noon-sql-analyst**) | Writing any SQL against Noon data — reads, counts, analyses. Knows the registry, business rules, and Athena gotchas; bakes the final SELECT as a read. |
+| [`.agents/skills/synapse-verify-numbers/SKILL.md`](.agents/skills/synapse-verify-numbers/SKILL.md) (**synapse-verify-numbers**) | **Immediately after writing or changing any read, before wiring it to a page** — cross-checks the number a second independent way with probes (`POST /__synapse/probe`), hunts join fan-out and trend cliffs, and reports it in language the builder can judge. Also when anyone doubts a displayed figure. |
 | [`.agents/skills/synapse-add-page/SKILL.md`](.agents/skills/synapse-add-page/SKILL.md) (**synapse-add-page**) | Adding a page, dashboard, screen, or chart to the shipped app — the end-to-end read → `useView`/`ViewBlock` → page recipe. |
+| [`.agents/skills/synapse-chart/SKILL.md`](.agents/skills/synapse-chart/SKILL.md) (**synapse-chart**) | Any chart, graph, trend or visual breakdown — `<ChartBlock>`, choosing the form from the data's shape, the theme's chart palette, and keeping the figures reachable. |
+| [`.agents/skills/synapse-visual-check/SKILL.md`](.agents/skills/synapse-visual-check/SKILL.md) (**synapse-visual-check**) | Before calling any page done, after a theme change, before a deploy — `npm run visual` drives a real browser at phone and desktop widths, asserts layout, and leaves screenshots to actually look at. |
+| [`.agents/skills/synapse-scheduled-job/SKILL.md`](.agents/skills/synapse-scheduled-job/SKILL.md) (**synapse-scheduled-job**) | Anything recurring — "every Monday", "each morning", "alert me when" — a job in `server/jobs/` run by a Replit Scheduled Deployment. |
+| [`.agents/skills/synapse-access-control/SKILL.md`](.agents/skills/synapse-access-control/SKILL.md) (**synapse-access-control**) | "Only X should see this", managers-only, anything confidential — roles by email/domain in `server/access.ts`, enforced server-side on the view routes. |
+| [`.agents/skills/synapse-arabic-rtl/SKILL.md`](.agents/skills/synapse-arabic-rtl/SKILL.md) (**synapse-arabic-rtl**) | Arabic-first or RTL apps — `dir`/`lang`, Arabic font stack, logical properties, bidi-safe Latin runs, Arabic number/date formatting, mirrored charts. |
 | [`.agents/skills/synapse-workflow/SKILL.md`](.agents/skills/synapse-workflow/SKILL.md) (**synapse-workflow**) | Any form → workflow feature — "submit a request", "log an incident", "approve", "track status", "let people report/log X" — the three-stores rule, per-app Postgres storage, and the row-first-event-second recipe. |
 | [`.agents/skills/synapse-event-design/SKILL.md`](.agents/skills/synapse-event-design/SKILL.md) (**synapse-event-design**) | Tracking or instrumenting anything — which moments deserve events, `publishEvent` vs `sendEvent`, `declareEvent`, payload and naming rules, verifying delivery. |
 | [`.agents/skills/synapse-error-report/SKILL.md`](.agents/skills/synapse-error-report/SKILL.md) (**synapse-error-report**) | Something broke and needs escalating — produces a structured, paste-ready report for the Synapse Slack channel (never includes secret values). |
@@ -210,6 +227,13 @@ source of truth is the template's `main`.
 | [`server/citadel-schema.ts`](server/citadel-schema.ts) | **The data registry snapshot** — Athena tables (columns, types, enums, grain, example queries) + `BUSINESS_RULES`. Browse it in the **Get data** tab. The **source of truth is Citadel's live `GET /api/registry`** (HMAC-authed, ETag'd — contract in [INTEGRATE.md §5](INTEGRATE.md)); this snapshot stands in until that endpoint is deployed on the staging Citadel this app targets, after which it will be deleted and fetched live at build time. In the workspace, `GET /__synapse/registry` serves the live text when Citadel answers (else this snapshot, labeled), and the **Get data** tab shows which source you're browsing. |
 | [`skill/SKILL.md`](skill/SKILL.md) | The SQL-analyst skill. Use it to write reads. |
 | [`server/queries/`](server/queries/) | Baked reads (`<name>.sql.ts`) + their registry. |
+| [`server/probe.ts`](server/probe.ts) | The **cross-check primitive** behind synapse-verify-numbers: `POST /__synapse/probe` runs one throwaway, read-only, uncached SELECT so a number can be proved a second way without baking a temp read. Workspace-only. |
+| [`server/metrics.ts`](server/metrics.ts) | **What the app's words mean.** Named metric definitions ("active student") that reads declare and carry to the page with their rows, so two pages can't quietly disagree about the same word. The machine-checkable half of SPEC.md's number table. |
+| [`server/query-cost.ts`](server/query-cost.ts) | Boot-time warnings for reads that will scan more than they need — a partitioned table with no `dt` filter, `SELECT *` over a fact table, a row read with no `LIMIT`. Warnings only; never blocks. |
+| [`server/access.ts`](server/access.ts) | **Who may see what** in a deployment: roles by email/domain, and which views they gate. Enforced in `/api/views/:name`, never in the browser. Empty in a fresh clone = every signed-in staff member sees everything. |
+| [`server/jobs/`](server/jobs/) | Scheduled work (`<name>.job.ts`) + its registry, run by `npm run job -- <name>` from a Replit Scheduled Deployment — a separate process with its own secrets and no read cache. |
+| [`client/app/blocks/ChartBlock.tsx`](client/app/blocks/ChartBlock.tsx) | `ViewBlock`'s sibling: the same read drawn as a chart, bound to the theme's `--color-chart-*` palette, RTL-aware, with the figures kept reachable as a table. |
+| [`scripts/visual-check.ts`](scripts/visual-check.ts) | `npm run visual` — drives the shipped app in a real browser at phone and desktop widths, asserts layout, writes screenshots to `.synapse-visual/`. Playwright is installed on demand, not a template dependency. |
 | [`server/synapse.ts`](server/synapse.ts) | Constructs the SDK client from secrets; exports `null` (not a throw) when secrets are missing. |
 | [`server/reads.ts`](server/reads.ts), [`server/athena.ts`](server/athena.ts), [`server/query-cache.ts`](server/query-cache.ts) | Read orchestration, the `athenaQuery` wrapper + result normaliser, and the in-memory cache. |
 | [`server/index.ts`](server/index.ts) | Express server. Mounts the workspace-only `/__synapse/*` endpoints (the builder console's data) **only when `REPLIT_DEPLOYMENT` is unset**; the public `/api/views*` (data in) and `/api/events` (events out) endpoints — the shipped app's surface — are mounted in every mode. |

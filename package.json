@@ -17,6 +17,8 @@
     "lint:fix": "biome check --write .",
     "test": "vitest run",
     "secrets": "tsx scripts/scan-secrets.ts",
+    "visual": "tsx scripts/visual-check.ts",
+    "job": "tsx server/jobs/run.ts",
     "sync:registry": "tsx scripts/sync-registry.ts",
     "verify": "npm run secrets && npm run typecheck && npm run lint && npm run test && npm run check:urls",
     "check:urls": "tsx scripts/check-live-urls.ts",
@@ -33,6 +35,7 @@
     "express-rate-limit": "^7.5.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "recharts": "^3.10.1",
     "tailwindcss": "^4.0.0",
     "tsx": "^4.19.2",
     "vite": "^6.0.7"
