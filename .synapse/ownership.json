@@ -37,6 +37,8 @@
     "client/vite-env.d.ts",
     "client/app/pages/synapse.tsx",
     "client/app/blocks/ViewBlock.tsx",
+    "client/app/blocks/ChartBlock.tsx",
+    "client/app/blocks/ChartBlock.test.tsx",
     "server/**",
     "biome.json",
     "tsconfig.json",

@@ -4,3 +4,5 @@ dist/
 *.local
 .DS_Store
 npm-debug.log*
+# Screenshots from `npm run visual` — regenerated on every run, never reviewed in a diff.
+.synapse-visual/

@@ -419,7 +419,14 @@ describe('GET /api/me', () => {
       headers: { cookie: `${SESSION_COOKIE_NAME}=${cookie}` },
     });
     expect(res.status).toBe(200);
-    expect(JSON.parse(res.body)).toEqual({ email: 'dana@noonacademy.com', name: 'Dana' });
+    // `roles` is empty in a fresh clone (server/access.ts declares none), but present — the app
+    // shell reads it to decide which links to draw, and an absent field would read as "no roles"
+    // identically to "roles not implemented".
+    expect(JSON.parse(res.body)).toEqual({
+      email: 'dana@noonacademy.com',
+      name: 'Dana',
+      roles: [],
+    });
     await close();
   });
 

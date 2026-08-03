@@ -25,6 +25,107 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.08.02.5 — six new skills, and the plumbing that makes them real
+
+### What changed
+
+The kit could get a number onto a screen. It had nothing that checked the number was right, that
+the screen looked right, or that either stayed right. This entry closes that gap — and follows
+the template's own rule that a skill without plumbing under it is just a prompt, so every skill
+here ships with the code it drives.
+
+**New skills** (`.agents/skills/`):
+
+- **synapse-verify-numbers** — the one that matters most. Runs immediately after any read is
+  written or changed, *before* it reaches a page: recount the headline figure a second
+  independent way, check for join fan-out, look for a cliff in the trend, spot-check one real
+  entity, then sanity-check the magnitude with the builder in plain language. A failed check
+  blocks the read.
+- **synapse-visual-check** — `npm run visual` drives the shipped app in a real browser at phone
+  and desktop widths and asserts what a builder notices but can't articulate.
+- **synapse-chart** — `<ChartBlock>`, choosing the chart form from the data's shape, and the
+  rules that keep charts consistent and readable.
+- **synapse-scheduled-job** — recurring work as a Replit Scheduled Deployment.
+- **synapse-access-control** — who may see which view, once deployed.
+- **synapse-arabic-rtl** — genuinely Arabic-first apps, not an English app pushed right.
+
+**New plumbing** (all synapse-owned):
+
+- **`server/probe.ts` + `POST /__synapse/probe`** — run one throwaway, read-only, uncached
+  SELECT. Workspace-only, SELECT/WITH/SHOW/DESCRIBE/EXPLAIN only, single statement, 1000-row cap,
+  labelled `probe: cross-check` in Citadel's read ledger. This is what makes verification
+  something an agent will actually do instead of skip.
+- **`server/query-cost.ts`** — boot-time warnings for reads that scan more than they need: a
+  partitioned table with no `dt` filter, `SELECT *` over a fact table, a row read with no
+  `LIMIT`. Athena bills by bytes scanned and the builder never sees the bill, so this is a check,
+  not advice. Warnings only — a regex over SQL must never block a deploy.
+- **`server/access.ts`** — roles by email/domain and which views they gate, enforced in
+  `/api/views/:name` **before** the query runs. Empty in a fresh clone, so existing behaviour is
+  unchanged: every signed-in staff member sees everything. Domain matching is whole-domain, never
+  suffix. `/api/me` now also returns `roles` for hiding links (presentation only).
+- **`server/metrics.ts`** — named metric definitions that reads declare (`export const metrics`)
+  and that travel to the page with the rows, so two pages can't quietly disagree about what
+  "active student" means. The machine-checkable half of SPEC.md's number table.
+- **`server/jobs/`** — job registry + `npm run job -- <name>` runner, failing loudly when a
+  scheduled deployment lacks its own secrets.
+- **`client/app/blocks/ChartBlock.tsx`** — Recharts bound to `--color-chart-*` theme tokens,
+  RTL-aware, with the figures kept reachable as a table.
+- **`scripts/visual-check.ts`** — `npm run visual`. Playwright is imported on demand and is
+  deliberately **not** a dependency; its ~300MB browser download would tax every clone's install
+  for a check most sessions never run.
+- **`ViewBlock` empty states split** — "not connected", "couldn't load", and "no data yet" are
+  now three different messages rather than one "Nothing to show here yet". Collapsing them is how
+  a broken app gets mistaken for a quiet week.
+
+### Why a clone should care
+
+Your app stops being able to show a confidently wrong number without anyone noticing, and stops
+being able to ship a page nobody looked at. Charts, schedules and access rules become one-line
+recipes instead of things each agent reinvents. Nothing here changes existing behaviour: the new
+registries are empty, access enforces nothing, and the cost checks only warn.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `AGENTS.md .agents/skills .synapse/ownership.json
+   scripts/visual-check.ts server/probe.ts server/probe.test.ts server/query-cost.ts
+   server/query-cost.test.ts server/access.ts server/access.test.ts server/metrics.ts
+   server/jobs client/app/blocks/ChartBlock.tsx client/app/blocks/ChartBlock.test.tsx
+   server/reads.ts server/auth-routes.ts`
+2. **Guided edit — `package.json`** (shared; skip any part already true): add
+   `"visual": "tsx scripts/visual-check.ts"` and `"job": "tsx server/jobs/run.ts"` under
+   `scripts`, and `recharts` (`^3.10.1`) under `dependencies`. Then `npm install`. Leave
+   builder-added scripts and dependencies untouched.
+3. **Guided edit — `server/index.ts`** (shared; skip any part already true): import
+   `canAccessView`, `runProbe`, `formatCostWarnings` and `formatMetricProblems`; mount
+   `POST /__synapse/probe` inside the workspace-only block; gate `/api/views` and
+   `/api/views/:name` with `canAccessView(...)` using `enforceAccess = opts.isReplitDeployment`;
+   and call `warnAboutCostlyReads()` + `warnAboutMetricRefs()` from the listen callback.
+   Preserve every builder-added route.
+4. **Guided edit — `server/queries/index.ts`** (shared): add the optional
+   `metrics?: readonly string[]` field to `BakedQuery` and `QueryModule`, and carry it through
+   `toBakedQuery`. Leave the builder's registered reads untouched.
+5. **Guided edit — `client/app/theme.css`** (shared): add the six `--color-chart-*` tokens to
+   the active `@theme` block (and to the commented presets if they're still present). If the
+   builder has customised their palette, pick six distinguishable colors that suit it rather
+   than pasting the template's.
+6. **Create if missing** (builder-owned, never overwrite): nothing — this entry adds no
+   builder-owned files.
+
+### Verify
+
+- `npm run verify` green.
+- The probe endpoint answers in the workspace:
+  `curl -s localhost:3000/__synapse/probe -H 'content-type: application/json' -d '{"sql":"SELECT 1 AS n"}'`
+  returns JSON, and the same call with `{"sql":"DELETE FROM t"}` comes back with a read-only
+  refusal in `error`.
+- The boot log is quiet about cost for a clean app, and names the read when one is missing a
+  `dt` filter.
+- `grep -l "A newer version of this skill may exist" .agents/skills/*/SKILL.md` lists all
+  twelve skills.
+- `npm run visual` either runs, or prints the one-time Playwright setup command.
+
+---
+
 ## 2026.08.02.4 — knowledge goes fetch-live: rulebook and skills follow the template's main
 
 ### What changed

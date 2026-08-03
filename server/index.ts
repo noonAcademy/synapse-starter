@@ -5,14 +5,18 @@ import { fileURLToPath } from 'node:url';
 import { SYNAPSE_EVENT_TYPES } from '@noonacademy/synapse-catalog';
 import type { PublishEventResult } from '@noonacademy/synapse-sdk';
 import express, { type Application } from 'express';
+import { canAccessView } from './access.js';
 import { asAthenaClient } from './athena.js';
 import { buildEndUserAuthDeps, type EndUserAuthDeps, installEndUserAuth } from './auth-routes.js';
 import { formatBootLog } from './boot.js';
 import { buildCatalog } from './catalog.js';
 import { recentPublishes } from './events.js';
 import { buildKit, latestVersionFetcher, readTemplateVersion } from './kit.js';
+import { formatMetricProblems } from './metrics.js';
 import { buildOverview } from './overview.js';
+import { runProbe } from './probe.js';
 import { listBakedQueries } from './queries/index.js';
+import { formatCostWarnings } from './query-cost.js';
 import { runRead } from './reads.js';
 import { readsFreshness, registryFetcher } from './registry.js';
 import { chooseBrowseTables } from './registryParse.js';
@@ -194,6 +198,23 @@ export function buildApp(opts: {
         res.status(500).json({ error: 'read failed' });
       }
     });
+
+    // Run one throwaway, read-only SELECT — the cross-check primitive behind the
+    // synapse-verify-numbers skill. Uncached and unregistered: this is how an agent proves a
+    // baked read's number is right (count it a second way, spot-check one entity, look for a
+    // cliff in the trend) without baking, registering and then forgetting to delete a temp read.
+    // Workspace-only like every /__synapse route, so no deployment ever exposes ad-hoc SQL.
+    // runProbe never rejects — bad SQL comes back as an `error` field — but the try/catch keeps
+    // this route's 500-free guarantee from resting on that discipline (as above).
+    app.post('/__synapse/probe', express.json(), async (req, res) => {
+      const sql = typeof req.body?.sql === 'string' ? req.body.sql : '';
+      try {
+        res.json(await runProbe(asAthenaClient(synapse), sql));
+      } catch (err) {
+        console.error('[synapse] probe route failed:', err instanceof Error ? err.message : err);
+        res.status(500).json({ error: 'probe failed' });
+      }
+    });
   }
 
   // "Sign in with Noon" gate for the deployed app ONLY. Mounted BEFORE the public /api/views routes
@@ -217,18 +238,38 @@ export function buildApp(opts: {
   // in EVERY mode — the app the builder ships renders live views for end users through them. Same
   // baked reads, same cache; just the product-facing surface. Registered before the SPA catch-all
   // so the client middleware doesn't swallow them.
-  app.get('/api/views', (_req, res) => {
+  // Access is enforced only in a deployment — that's where end users exist. Passed explicitly
+  // rather than inferred from "is there a session?", so a request arriving without one is never
+  // mistaken for a trusted one (see server/access.ts).
+  const enforceAccess = opts.isReplitDeployment;
+
+  app.get('/api/views', (req, res) => {
+    const email = req.noonUser?.email ?? null;
     res.json(
-      listBakedQueries().map((q) => ({
-        name: q.name,
-        title: q.title,
-        description: q.description,
-      })),
+      listBakedQueries()
+        .filter((q) => canAccessView(q.name, email, enforceAccess).allowed)
+        .map((q) => ({
+          name: q.name,
+          title: q.title,
+          description: q.description,
+        })),
     );
   });
 
   app.get('/api/views/:name', async (req, res) => {
     try {
+      // Checked BEFORE the read runs: a refused viewer must not cost an Athena query, and the
+      // 403 must not depend on whether the query happened to succeed. 404 for an unknown view is
+      // answered first so a restricted name isn't distinguishable from a nonexistent one by
+      // status code alone.
+      const decision = canAccessView(req.params.name, req.noonUser?.email ?? null, enforceAccess);
+      if (!decision.allowed) {
+        console.warn(
+          `[synapse] denied ${req.params.name} to ${req.noonUser?.email ?? 'anonymous'} (needs: ${decision.requiredRoles.join(', ')})`,
+        );
+        res.status(403).json({ error: 'You do not have access to this data.' });
+        return;
+      }
       const result = await runRead(asAthenaClient(synapse), req.params.name);
       if (!result) {
         res.status(404).json({ error: `unknown view: ${req.params.name}` });
@@ -319,6 +360,21 @@ async function createServerInstance(): Promise<Server> {
   return httpServer;
 }
 
+// Athena bills by bytes scanned and the builder never sees the bill, so a read that scans a whole
+// fact table is invisible unless something says so. Printed at boot — the one moment the builder
+// is already reading the log — rather than hidden behind a command nobody runs.
+function warnAboutCostlyReads(): void {
+  const warning = formatCostWarnings(listBakedQueries());
+  if (warning !== null) console.warn(warning);
+}
+
+// A read pointing at a metric that doesn't exist would otherwise ship a number with no definition
+// attached — silently, since the rows still render. Caught at boot, where a typo is cheap to fix.
+function warnAboutMetricRefs(): void {
+  const warning = formatMetricProblems(listBakedQueries());
+  if (warning !== null) console.warn(warning);
+}
+
 function publishBootEvent(): void {
   if (!synapse) {
     console.error(`[synapse] ${synapseConfigError}`);
@@ -350,6 +406,8 @@ async function main(): Promise<void> {
     console.log(
       `[synapse-starter] listening on http://${host}:${port} (${isDev ? 'dev' : 'production'})`,
     );
+    warnAboutCostlyReads();
+    warnAboutMetricRefs();
     publishBootEvent();
   });
   installShutdown(server);

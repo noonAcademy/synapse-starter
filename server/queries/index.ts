@@ -15,6 +15,10 @@ export interface BakedQuery {
   // (server/athena.ts MAX_ROWS). A read that returns rows and wants more than the SDK's default
   // 1000 must set this AND carry a matching explicit top-level `LIMIT` in its SQL.
   maxRows?: number;
+  // Names of the metric definitions this read implements (server/metrics.ts). Optional, and
+  // absent on most reads — declare one the moment a word like "active" means something specific
+  // that another read must agree with. Resolved definitions travel to the page with the rows.
+  metrics?: readonly string[];
 }
 
 // Structural shape of a query module — `maxRows` is optional so most modules can omit it.
@@ -26,6 +30,7 @@ interface QueryModule {
   registryVersion: string;
   skillVersion: string;
   maxRows?: number;
+  metrics?: readonly string[];
 }
 
 function toBakedQuery(m: QueryModule): BakedQuery {
@@ -37,6 +42,7 @@ function toBakedQuery(m: QueryModule): BakedQuery {
     registryVersion: m.registryVersion,
     skillVersion: m.skillVersion,
     maxRows: m.maxRows,
+    metrics: m.metrics,
   };
 }
 

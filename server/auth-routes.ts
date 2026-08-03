@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import express, { type Application, type Request, type RequestHandler, type Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
+import { rolesFor } from './access.js';
 import {
   type EndUserSession,
   readCookie,
@@ -214,7 +215,9 @@ export function createAuthRouter(deps: EndUserAuthDeps): Router {
       res.status(401).json({ error: 'Session expired' });
       return;
     }
-    res.json({ email: session.email, name: session.name });
+    // Roles ride along so the app shell can hide links the viewer can't use. Presentation only —
+    // every actual data load is re-checked server-side in /api/views/:name (see server/access.ts).
+    res.json({ email: session.email, name: session.name, roles: rolesFor(session.email) });
   });
 
   // Citadel sends the browser back here with ?code=&state=. This is a top-level GET navigation,
