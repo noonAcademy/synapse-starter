@@ -1,11 +1,9 @@
 ---
 name: synapse-access-control
 description: >-
-  Restrict who can see which data once the app is deployed — declare roles by email or domain in
-  server/access.ts, gate individual views, and hide what a viewer can't use. Use whenever a
-  builder says "only X should see this", "managers only", "don't let teachers see", "this is
-  confidential", "restrict access", or asks who can view a page — and before shipping any page
-  holding salary, performance, personal or disciplinary data.
+  Restrict who can see which data once deployed: roles by email or domain, enforced server-side.
+  Use for "only X should see this", "managers only", "confidential" — and before shipping any
+  page holding salary, performance or personal data.
 ---
 
 > A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-access-control/SKILL.md

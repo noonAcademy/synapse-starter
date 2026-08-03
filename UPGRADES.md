@@ -25,6 +25,68 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.08.02.6 — defer to Replit where it already does the job; enforce the theme tokens it can bypass
+
+### What changed
+
+A correction to `2026.08.02.5`, made after checking what the Replit platform actually ships.
+Two of that entry's assumptions were wrong.
+
+- **`synapse-visual-check` is removed as a skill.** Replit's Agent browser-tests the app it
+  builds — buttons, forms, links, APIs — with a purpose-built system cheaper than computer-use
+  models, and Agent 4's Design Canvas previews across phone/tablet/desktop with responsive
+  overrides. The skill duplicated that, and on Replit duplicated agent work spends the builder's
+  credits. `scripts/visual-check.ts` and `npm run visual` **stay**, as an optional layout pass for
+  the consumers Replit doesn't cover (local `npm run dev`, apps that adopted the SDK via
+  INTEGRATE.md). No skill points at it, so no agent is nudged into running it on Replit.
+- **New: `scripts/check-theme-tokens.ts`, wired into `verify` as `check:theme`.** Agent 4's
+  Design Canvas applies visual edits **straight to the codebase without running a full agent
+  loop** — nothing reads `AGENTS.md` on that path and no skill can fire. So the convention that
+  keeps this app rethemeable ("restyling means editing theme.css, nothing else") had no
+  enforcement against the most likely thing to break it. The check fails the build on a raw hex,
+  a Tailwind palette class (`bg-slate-700`), an arbitrary value (`bg-[#fff]`), or an inline style
+  anywhere in `client/app/**`. Mark a genuine exception `theme-tokens-ignore` on the line so it
+  stays visible in review.
+- **`AGENTS.md` rules 6–7 reworded as data dependencies, not a running order.** Agent 4 splits
+  work across parallel sub-agents, so "verify the read *before* wiring it to a page" described a
+  sequence that no longer holds. What holds: a page must not **ship** on an unverified read.
+  Rule 7 now states the division of labour — the platform owns functional browser testing; this
+  kit owns whether the number is right and whether the look still comes from tokens.
+- **Every skill description cut to two lines.** Replit loads the name and description of every
+  installed skill on **every chat**, so a verbose description is a context tax on every message
+  the builder sends. Behaviour is unchanged; the triggers are the same, just sharper.
+
+### Why a clone should care
+
+You stop paying twice for browser testing, and every message costs less context. More
+importantly: if anyone restyles your app on the Design Canvas, a hardcoded color can no longer
+slip in silently and quietly break retheming — `verify` catches it, whoever or whatever wrote it.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `AGENTS.md .agents/skills skill/SKILL.md
+   scripts/check-theme-tokens.ts scripts/check-theme-tokens.test.ts scripts/check-live-urls.test.ts
+   scripts/visual-check.ts`
+2. **Delete if present** (synapse-owned): `.agents/skills/synapse-visual-check/` — the whole
+   directory. It is no longer part of the kit.
+3. **Guided edit — `package.json`** (shared; skip any part already true): add
+   `"check:theme": "tsx scripts/check-theme-tokens.ts"` under `scripts`, and make `verify` end
+   with `&& npm run check:theme`. Leave builder-added scripts untouched.
+4. **Run `npm run check:theme` and fix what it finds.** A clone that has been restyled by hand or
+   on the Design Canvas may hold hardcoded values. Move each into a token in
+   `client/app/theme.css` and point the component at the token. Only mark a line
+   `theme-tokens-ignore` when the value genuinely cannot be a token (a chart library needing a
+   literal color, for instance). **This is the one step here that can require real work** — budget
+   for it on a clone with a customised look.
+
+### Verify
+
+- `npm run verify` green — it now ends with `[check-theme-tokens] client/app is token-clean — OK.`
+- `.agents/skills/synapse-visual-check/` no longer exists; `npm run visual` still works.
+- `grep -l "A newer version of this skill may exist" .agents/skills/*/SKILL.md` lists eleven skills.
+
+---
+
 ## 2026.08.02.5 — six new skills, and the plumbing that makes them real
 
 ### What changed

@@ -1,11 +1,9 @@
 ---
 name: synapse-workflow
 description: >-
-  Build a form → workflow feature on the right stores: Citadel stays read-only, the app's
-  own records (submissions, requests, statuses) go in the app's own Postgres, and events
-  announce state changes to Noon. Use whenever a builder asks for a form, to "submit" or
-  "approve" something, to "track status", to build a workflow, or to "let people
-  report/log X" in this app.
+  Build a form or approval flow on the right stores: Noon's data read-only, the app's own records
+  in its own Postgres, events to announce changes. Use for "submit", "approve", "track status",
+  "log an incident", "let people report X".
 ---
 
 > A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-workflow/SKILL.md

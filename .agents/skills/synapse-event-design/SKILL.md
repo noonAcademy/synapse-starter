@@ -1,10 +1,8 @@
 ---
 name: synapse-event-design
 description: >-
-  Design, declare, and publish Synapse events from this app: pick domain-meaningful moments,
-  choose server publishEvent vs client sendEvent, declare new types with declareEvent, and
-  verify delivery on the Events tab. Use whenever a builder asks to "track" something,
-  "publish an event", "instrument" a feature, or asks "what events should this emit".
+  Choose which moments to report to Noon, declare new event types, publish them, and verify
+  delivery. Use for "track this", "publish an event", "instrument X", "what should this emit".
 ---
 
 > A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-event-design/SKILL.md

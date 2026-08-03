@@ -61,8 +61,8 @@ describe('knowledgeFiles', () => {
     expect(files).toContain('replit.md');
     expect(files).toContain('AGENTS.md');
     expect(files).toContain('skill/SKILL.md');
-    // The template ships twelve skills under .agents/skills (plus skill/SKILL.md, asserted
+    // The template ships eleven skills under .agents/skills (plus skill/SKILL.md, asserted
     // above); a working tree may add untracked local ones on top, so this is a floor.
-    expect(files.filter((f) => f.startsWith('.agents/skills/')).length).toBeGreaterThanOrEqual(12);
+    expect(files.filter((f) => f.startsWith('.agents/skills/')).length).toBeGreaterThanOrEqual(11);
   });
 });

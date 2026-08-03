@@ -1,11 +1,9 @@
 ---
 name: synapse-upgrade
 description: >-
-  Upgrade this app's Synapse kit to the current template version by applying the per-version
-  recipes in UPGRADES.md, following UPGRADE.md exactly. Use whenever a builder asks to
-  "upgrade the synapse kit", "update synapse", says there's a "new template version", or
-  pastes the console's "Kit update available" notice. Never a git merge; never touches
-  builder-owned paths.
+  Apply the template's per-version upgrade recipes to this clone, following UPGRADE.md exactly —
+  never a git merge, never touching builder-owned paths. Use for "upgrade the synapse kit",
+  "update synapse", or the console's "Kit update available" notice.
 ---
 
 > A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-upgrade/SKILL.md

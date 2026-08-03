@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Synapse starter template — clone into Replit, paste secrets, hit Run: the app connects to Citadel, reads Noon data, and publishes events.",
+  "description": "Synapse starter template \u2014 clone into Replit, paste secrets, hit Run: the app connects to Citadel, reads Noon data, and publishes events.",
   "engines": {
     "node": ">=20"
   },
@@ -20,8 +20,9 @@
     "visual": "tsx scripts/visual-check.ts",
     "job": "tsx server/jobs/run.ts",
     "sync:registry": "tsx scripts/sync-registry.ts",
-    "verify": "npm run secrets && npm run typecheck && npm run lint && npm run test && npm run check:urls",
+    "verify": "npm run secrets && npm run typecheck && npm run lint && npm run test && npm run check:urls && npm run check:theme",
     "check:urls": "tsx scripts/check-live-urls.ts",
+    "check:theme": "tsx scripts/check-theme-tokens.ts",
     "check:release": "tsx scripts/check-template-version.ts",
     "prepare": "node scripts/setup-hooks.mjs"
   },

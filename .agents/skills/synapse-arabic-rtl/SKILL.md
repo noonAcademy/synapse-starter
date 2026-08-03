@@ -1,11 +1,9 @@
 ---
 name: synapse-arabic-rtl
 description: >-
-  Make the app genuinely Arabic-first rather than an English app with the text pushed right —
-  dir/lang, an Arabic-capable font stack, logical properties, bidi-safe mixing of Arabic prose
-  with Latin IDs and numbers, mirrored charts and icons, and Arabic date/number formatting. Use
-  whenever the builder or SPEC.md says the app is Arabic, RTL, bilingual, or for Saudi/Egypt/
-  Iraq/Yemen users, and whenever text needs translating or a layout looks wrong in RTL.
+  Make the app genuinely Arabic-first, not English pushed right: direction, Arabic fonts, mirrored
+  layout and charts, Arabic dates and numbers, Latin codes inside Arabic text. Use when the app is
+  Arabic, RTL or bilingual, or when an RTL layout looks wrong.
 ---
 
 > A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-arabic-rtl/SKILL.md
@@ -126,8 +124,9 @@ can't decide for you:
 
 ## Check it
 
-`npm run visual` (**synapse-visual-check**) catches sideways scroll and clipped text in RTL
-exactly as in LTR. But the mirroring itself needs your eyes on the screenshot:
+Replit's Agent browser-tests the app functionally, and the Design Canvas previews across screen
+sizes — neither judges whether the layout actually *mirrored*. That needs your eyes on the running
+app (or `npm run visual` outside Replit):
 
 - Nav, headings and the "back" affordance on the **right**.
 - Numbers still adjacent to the labels they belong to.

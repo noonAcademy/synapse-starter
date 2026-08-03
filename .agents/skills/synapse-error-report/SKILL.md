@@ -1,11 +1,8 @@
 ---
 name: synapse-error-report
 description: >-
-  Produce a structured, paste-ready error report for the Synapse Slack channel when this app
-  misbehaves: symptom, boot log, secret presence (names only), SDK versions, Events-tab
-  outcomes, failing path, and what was already tried. Use whenever the builder says
-  "something broke", "report this error", "it's not working", or wants help escalating a
-  Synapse/Citadel failure.
+  Produce a paste-ready report for the Synapse Slack channel — symptom, boot log, secret names
+  (never values), versions, what was tried. Use for "something broke", "it's not working".
 ---
 
 > A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-error-report/SKILL.md

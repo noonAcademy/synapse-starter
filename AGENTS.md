@@ -50,16 +50,21 @@ things: **publishes events** and **runs reads**. Read this before adding either.
    covers, **YOU (the agent) declare it** with `synapse.declareEvent(...)` and then publish it —
    there's no Noon-side step, and you never hand this off to the user.
 
-**Before a number or a page reaches a human:**
+**Before a number reaches a human:**
 
-6. **Verify every read before wiring it to a page** (**synapse-verify-numbers**). This pipeline —
-   plain English → SQL → cached read → page — does not fail by crashing. It fails by returning a
-   confident wrong number that typecheck, lint and tests all pass. The builder asked for the
-   number *because* they don't have it, so they cannot catch it. Cross-check it a second
-   independent way, then say so in language they can judge.
-7. **Look at any page you built before calling it done** (**synapse-visual-check**). `npm run
-   verify` cannot see a clipped card, a table running off a phone screen, or a blank page where a
-   read returned zero rows.
+6. **An unverified read is not ready for a page** (**synapse-verify-numbers**). This is a
+   dependency, not a running order — with parallel sub-agents a page may well be built while its
+   read is still being checked, and that's fine. What is never fine is a page *shipping* on a read
+   nobody cross-checked. This pipeline — plain English → SQL → cached read → page — does not fail
+   by crashing. It fails by returning a confident wrong number that typecheck, lint and tests all
+   pass, and the builder asked for the number *because* they don't have it, so they cannot catch
+   it. Cross-check it a second independent way, then say so in language they can judge.
+7. **The platform owns functional browser testing; you own the data and the tokens.** Replit's
+   Agent tests the app it builds in a real browser — buttons, forms, links, APIs — and does it
+   more cheaply than you can. Don't re-drive the app clicking things. Spend your attention on what
+   it cannot judge: whether the number is right (rule 6), and whether the look still comes from
+   tokens (Conventions below). Outside Replit — local `npm run dev`, or an app following
+   [INTEGRATE.md](INTEGRATE.md) — `npm run visual` is available as a layout pass.
 
 **The scaffolding/app split:**
 
@@ -209,7 +214,6 @@ source of truth is the template's `main`.
 | [`.agents/skills/synapse-verify-numbers/SKILL.md`](.agents/skills/synapse-verify-numbers/SKILL.md) (**synapse-verify-numbers**) | **Immediately after writing or changing any read, before wiring it to a page** — cross-checks the number a second independent way with probes (`POST /__synapse/probe`), hunts join fan-out and trend cliffs, and reports it in language the builder can judge. Also when anyone doubts a displayed figure. |
 | [`.agents/skills/synapse-add-page/SKILL.md`](.agents/skills/synapse-add-page/SKILL.md) (**synapse-add-page**) | Adding a page, dashboard, screen, or chart to the shipped app — the end-to-end read → `useView`/`ViewBlock` → page recipe. |
 | [`.agents/skills/synapse-chart/SKILL.md`](.agents/skills/synapse-chart/SKILL.md) (**synapse-chart**) | Any chart, graph, trend or visual breakdown — `<ChartBlock>`, choosing the form from the data's shape, the theme's chart palette, and keeping the figures reachable. |
-| [`.agents/skills/synapse-visual-check/SKILL.md`](.agents/skills/synapse-visual-check/SKILL.md) (**synapse-visual-check**) | Before calling any page done, after a theme change, before a deploy — `npm run visual` drives a real browser at phone and desktop widths, asserts layout, and leaves screenshots to actually look at. |
 | [`.agents/skills/synapse-scheduled-job/SKILL.md`](.agents/skills/synapse-scheduled-job/SKILL.md) (**synapse-scheduled-job**) | Anything recurring — "every Monday", "each morning", "alert me when" — a job in `server/jobs/` run by a Replit Scheduled Deployment. |
 | [`.agents/skills/synapse-access-control/SKILL.md`](.agents/skills/synapse-access-control/SKILL.md) (**synapse-access-control**) | "Only X should see this", managers-only, anything confidential — roles by email/domain in `server/access.ts`, enforced server-side on the view routes. |
 | [`.agents/skills/synapse-arabic-rtl/SKILL.md`](.agents/skills/synapse-arabic-rtl/SKILL.md) (**synapse-arabic-rtl**) | Arabic-first or RTL apps — `dir`/`lang`, Arabic font stack, logical properties, bidi-safe Latin runs, Arabic number/date formatting, mirrored charts. |
@@ -233,7 +237,8 @@ source of truth is the template's `main`.
 | [`server/access.ts`](server/access.ts) | **Who may see what** in a deployment: roles by email/domain, and which views they gate. Enforced in `/api/views/:name`, never in the browser. Empty in a fresh clone = every signed-in staff member sees everything. |
 | [`server/jobs/`](server/jobs/) | Scheduled work (`<name>.job.ts`) + its registry, run by `npm run job -- <name>` from a Replit Scheduled Deployment — a separate process with its own secrets and no read cache. |
 | [`client/app/blocks/ChartBlock.tsx`](client/app/blocks/ChartBlock.tsx) | `ViewBlock`'s sibling: the same read drawn as a chart, bound to the theme's `--color-chart-*` palette, RTL-aware, with the figures kept reachable as a table. |
-| [`scripts/visual-check.ts`](scripts/visual-check.ts) | `npm run visual` — drives the shipped app in a real browser at phone and desktop widths, asserts layout, writes screenshots to `.synapse-visual/`. Playwright is installed on demand, not a template dependency. |
+| [`scripts/visual-check.ts`](scripts/visual-check.ts) | `npm run visual` — an **optional** layout pass for non-Replit use (local `npm run dev`, INTEGRATE.md apps): drives the app at phone and desktop widths, asserts layout, writes screenshots to `.synapse-visual/`. On Replit the Agent's own browser testing covers this; there is no skill for it. Playwright is installed on demand, not a template dependency. |
+| [`scripts/check-theme-tokens.ts`](scripts/check-theme-tokens.ts) | `npm run check:theme` (in `verify`) — fails when `client/app/**` holds a raw hex, a Tailwind palette class, an arbitrary value, or an inline style. **A check, not a rule**: Replit's Design Canvas writes visual edits straight to the codebase without running an agent loop, so no skill can defend the token convention. Mark a genuine exception with a `theme-tokens-ignore` comment. |
 | [`server/synapse.ts`](server/synapse.ts) | Constructs the SDK client from secrets; exports `null` (not a throw) when secrets are missing. |
 | [`server/reads.ts`](server/reads.ts), [`server/athena.ts`](server/athena.ts), [`server/query-cache.ts`](server/query-cache.ts) | Read orchestration, the `athenaQuery` wrapper + result normaliser, and the in-memory cache. |
 | [`server/index.ts`](server/index.ts) | Express server. Mounts the workspace-only `/__synapse/*` endpoints (the builder console's data) **only when `REPLIT_DEPLOYMENT` is unset**; the public `/api/views*` (data in) and `/api/events` (events out) endpoints — the shipped app's surface — are mounted in every mode. |
@@ -263,9 +268,19 @@ source of truth is the template's `main`.
   The console (`client/console/`, `client/ui.tsx`) keeps its own fixed styling and is never
   themed. Direction is not a token: an RTL app sets `dir`/`lang` on `<html>` in
   `client/index.html`.
+  **This one is enforced, not just stated:** `npm run check:theme` (inside `verify`) fails the
+  build on a raw hex, a Tailwind palette class (`bg-slate-700`), an arbitrary value (`bg-[#fff]`),
+  or an inline style anywhere in `client/app/**`. It is a check rather than a rule because
+  Replit's Design Canvas applies visual edits **straight to the codebase without running an agent
+  loop** — nothing reads this file on that path, so prose alone can't hold the line. If a value
+  genuinely can't be a token (Recharts needs literal colors, for instance), mark the line
+  `theme-tokens-ignore` so the exception is visible in review. If a canvas edit trips the check,
+  don't add the marker — move the value into a token in `theme.css` and point the component back
+  at it.
 - TypeScript, ESM (`type: module`). Server uses NodeNext resolution — **relative imports need a
   `.js` extension** (e.g. `import { runRead } from './reads.js'`).
-- Verify with **`npm run verify`** (secret scan → typecheck → lint → tests, fail-fast) before
+- Verify with **`npm run verify`** (secret scan → typecheck → lint → tests → link check → theme
+  tokens, fail-fast) before
   you're done. The
   same gate runs before every deployment, so a red check here is a blocked deploy there.
 - Don't commit a `package-lock.json` (the template ships without one — see the README) or `.env`.

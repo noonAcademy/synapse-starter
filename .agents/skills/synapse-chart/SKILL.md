@@ -1,11 +1,9 @@
 ---
 name: synapse-chart
 description: >-
-  Put a chart on a page with <ChartBlock> — pick the chart form from the data's shape, use the
-  theme's chart palette so it matches the app, label freshness, and keep the numbers reachable
-  for people a chart excludes. Use whenever a builder asks for a chart, graph, trend, breakdown,
-  "show this visually", "make this a dashboard", or wants a number rendered as anything other
-  than a table.
+  Put a chart on a page with ChartBlock — the right chart form for the data, the theme's palette,
+  freshness labelled, figures still reachable. Use for "chart", "graph", "trend", "breakdown",
+  "show this visually", "make this a dashboard".
 ---
 
 > A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-chart/SKILL.md
@@ -124,12 +122,18 @@ Layout uses theme spacing tokens (`space-y-stack`), never fixed pixel gaps.
 
 ## Before you call it done
 
-1. **`npm run visual`** (**synapse-visual-check**) — charts are the most common source of
-   sideways scroll on a phone, and a legend with many series is the usual culprit.
+1. **Look at it on a phone width.** Charts are the most common source of sideways scroll, and a
+   legend with many series is the usual culprit. On Replit the Agent's own browser testing and
+   the Design Canvas's responsive previews cover this; elsewhere, `npm run visual`.
 2. **Look at the empty state**, not just the happy path.
 3. **Check the axis at 390px** — long category labels (campus names, Arabic strings) collide.
    Shorten them in the SQL rather than rotating the labels.
 4. Record the chart's read in [`SPEC.md`](../../../SPEC.md)'s data table if it isn't there yet.
+
+> **If you restyle a chart on Replit's Design Canvas**, the edit lands in the file without an
+> agent loop — so it may write a literal color instead of a token. `npm run check:theme` (inside
+> `verify`) will fail the build if it does. Fix it by moving the color into a `--color-chart-*`
+> token in `theme.css`, not by silencing the check.
 
 ## Custom charts
 
