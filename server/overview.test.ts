@@ -38,6 +38,36 @@ describe('buildOverview', () => {
     expect(o.connection.detail).toContain('eventId=99');
   });
 
+  // The regression this guards: the detail used to say "staging Citadel is reachable" no matter
+  // what SYNAPSE_BASE_URL was set to, so an app pointed at production read as a sandbox.
+  it('names the Citadel it actually reached, not a hardcoded environment', () => {
+    const prod = buildOverview({
+      ...base,
+      baseUrl: 'https://citadel.studyatnoon.com',
+      configError: null,
+      recentPublishes: [publish({ status: 'accepted', eventId: 2263 })],
+    });
+    expect(prod.connection.detail).toContain('citadel.studyatnoon.com');
+    expect(prod.connection.detail).not.toMatch(/staging/i);
+
+    const staging = buildOverview({
+      ...base,
+      configError: null,
+      recentPublishes: [publish({ status: 'accepted', eventId: 7 })],
+    });
+    expect(staging.connection.detail).toContain('citadel.staging.noonedu.io');
+  });
+
+  it('falls back to the raw baseUrl rather than throwing on an unparseable one', () => {
+    const o = buildOverview({
+      ...base,
+      baseUrl: 'not-a-url',
+      configError: null,
+      recentPublishes: [publish({ status: 'accepted', eventId: 1 })],
+    });
+    expect(o.connection.detail).toContain('not-a-url');
+  });
+
   it('configured but not-yet-connected when no publish has settled', () => {
     const o = buildOverview({ ...base, configError: null, recentPublishes: [] });
     expect(o.configured).toBe(true);

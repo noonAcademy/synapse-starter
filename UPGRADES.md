@@ -25,6 +25,69 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.08.24 — the console says which Citadel, and stops calling a missing toolchain a failure
+
+### What changed
+
+Two defects in the same class: the console reported state that wasn't true. The console is the
+surface a builder checks *before* trusting a number, so a wrong word here is worse than a wrong
+word anywhere else in the app.
+
+- **The connection check named the wrong environment.** `server/overview.ts` hardcoded the word
+  "staging" in `connection.detail`, so an app pointed at production via `SYNAPSE_BASE_URL` still
+  read *"Last publish accepted — staging Citadel is reachable"* — in the same payload that
+  correctly reported `baseUrl: https://citadel.studyatnoon.com`. One response, two contradictory
+  facts. It now names the host it actually reached, taken from the `baseUrl` that was already in
+  scope on that line (falling back to the raw value if it isn't a parseable URL, so the projection
+  still can't throw on bad config).
+- **A missing dev toolchain reported as failing code.** Replit's workspace Run is
+  `npm install --omit=dev`, which skips `typescript`, `@biomejs/biome` and `vitest`. So
+  `server/verify.ts` shelled `npm run typecheck`, `tsc` wasn't there, and check 4 on the Home tab
+  showed **"Needs you: typecheck failing"** on a clone whose code is perfectly clean. Every clone
+  saw it. A verify step now has a **`status`** of `pass` | `fail` | `unavailable` instead of a
+  boolean `ok`; exit 127 (the shell's "command not found") and a failed spawn both classify as
+  `unavailable`, which renders neutral — *"typecheck, lint, test couldn't run in this workspace"* —
+  not red. An unavailable step also doesn't stop the chain the way a failure does: the whole
+  toolchain goes missing together, and listing every affected step is what makes the cause legible.
+  The deployment build runs a full `npm install`, so real failures are still caught before shipping.
+- **`check:theme` added to the console's run.** `2026.08.02.6` added `check:urls` and `check:theme`
+  to the `verify` script but not to `VERIFY_COMMANDS`, so the chip could say "All checks pass"
+  while a hardcoded color was waiting to fail the deployment build — the same misreport class.
+  `check:theme` (0.4s, and it runs fine without dev deps) is now in the chip's chain. `check:urls`
+  is deliberately left out and the reason is recorded in the code: it fetches every knowledge URL
+  sequentially with a 3s timeout, costing ~4s online and up to ~45s offline, which is too slow for
+  something that runs on every console load. `npm run verify` still runs both.
+
+### Why a clone should care
+
+If you have ever pointed an app at production, your console has been telling you it was on
+staging — which is exactly how someone comes to treat live figures as a safe sandbox, or waves off
+a real production problem as a staging artifact. And every builder who opened the Home tab in a
+Replit workspace was shown a red "typecheck failing" for a bug that did not exist.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (all synapse-owned): `server/overview.ts server/overview.test.ts
+   server/verify.ts server/verify.test.ts client/console/useVerify.ts client/console/VerifyChip.tsx
+   client/console/VerifyChip.test.tsx client/console/HomeTab.tsx client/console/HomeTab.test.tsx`
+2. **No shared or builder-owned edits.** Nothing in `package.json`, `.replit`, or your app changes.
+3. **If you read `/__synapse/verify` from your own code** (unusual — it's the console's endpoint),
+   note the wire change: each step now carries `status: 'pass' | 'fail' | 'unavailable'` where it
+   used to carry `ok: boolean`. `result.ok` is unchanged and still means "every step ran and
+   passed". Replace `step.ok` with `step.status === 'pass'`.
+
+### Verify
+
+- `npm run verify` green.
+- Home tab, check 2: the detail names your host (`citadel.staging.noonedu.io`, or your
+  `SYNAPSE_BASE_URL`'s host) — the word "staging" no longer appears unless you are on staging.
+- In a Replit **workspace**, Home tab check 4 reads **"Not run here"** with
+  *"typecheck, lint, test couldn't run in this workspace"* — grey, not red — and the header chip
+  reads "3 not run here". A **Deploy** build still runs all of them for real.
+- `grep -rn "staging Citadel is reachable" server client` returns nothing.
+
+---
+
 ## 2026.08.02.6 — defer to Replit where it already does the job; enforce the theme tokens it can bypass
 
 ### What changed

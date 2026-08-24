@@ -14,7 +14,7 @@ const READY_OVERVIEW = {
   baseUrl: 'https://citadel.example',
   configured: true,
   configError: null,
-  connection: { ok: true, detail: 'Last publish accepted — staging Citadel is reachable.' },
+  connection: { ok: true, detail: 'Last publish accepted — citadel.example is reachable.' },
 };
 
 const ALL_SET_SETUP = {
@@ -28,7 +28,7 @@ const ALL_SET_SETUP = {
 
 const GREEN_VERIFY: VerifyState = {
   status: 'ready',
-  data: { ok: true, steps: [{ name: 'typecheck', ok: true, durationMs: 900, output: '' }] },
+  data: { ok: true, steps: [{ name: 'typecheck', status: 'pass', durationMs: 900, output: '' }] },
 };
 
 // Up to date is the default — the kit notice only appears when a test opts in via overrides.
@@ -77,7 +77,9 @@ describe('<HomeTab />', () => {
   it('shows four Done checks when everything is green', async () => {
     render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
     await waitFor(() => expect(screen.getAllByText('Done')).toHaveLength(4));
-    expect(screen.getByText('Secret scan, typecheck, lint, and tests are all green.')).toBeTruthy();
+    expect(
+      screen.getByText('Secret scan, typecheck, lint, tests, and theme tokens are all green.'),
+    ).toBeTruthy();
   });
 
   it('goes red on a missing required secret, by NAME only, with the Secrets-pane fix', async () => {
@@ -135,8 +137,8 @@ describe('<HomeTab />', () => {
           data: {
             ok: false,
             steps: [
-              { name: 'typecheck', ok: true, durationMs: 900, output: '' },
-              { name: 'lint', ok: false, durationMs: 100, output: 'boom' },
+              { name: 'typecheck', status: 'pass', durationMs: 900, output: '' },
+              { name: 'lint', status: 'fail', durationMs: 100, output: 'boom' },
             ],
           },
         }}
@@ -145,9 +147,40 @@ describe('<HomeTab />', () => {
     expect(await screen.findByText('lint failing.')).toBeTruthy();
   });
 
+  // The regression this guards: a Replit workspace installs with `--omit=dev`, so the verify
+  // tools aren't there. Check 4 used to read "Needs you: typecheck failing" on a clean clone.
+  it('shows a missing toolchain as not-run rather than as a failing check', async () => {
+    render(
+      <HomeTab
+        onNavigate={vi.fn()}
+        verify={{
+          status: 'ready',
+          data: {
+            ok: false,
+            steps: [
+              { name: 'secrets', status: 'pass', durationMs: 40, output: '' },
+              { name: 'typecheck', status: 'unavailable', durationMs: 120, output: 'exit 127' },
+              { name: 'lint', status: 'unavailable', durationMs: 90, output: 'exit 127' },
+            ],
+          },
+        }}
+      />,
+    );
+    expect(
+      await screen.findByText(
+        /typecheck, lint couldn't run in this workspace — the tools they need aren't installed here\./,
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText('Not run here')).toBeTruthy();
+    expect(screen.queryByText(/failing/)).toBeNull();
+    expect(screen.getByText(/Nothing to fix/)).toBeTruthy();
+  });
+
   it('shows pending states while checks are loading or running', async () => {
     render(<HomeTab onNavigate={vi.fn()} verify={{ status: 'running' }} />);
-    expect(screen.getByText('Running the secret scan, typecheck, lint, and tests…')).toBeTruthy();
+    expect(
+      screen.getByText('Running the secret scan, typecheck, lint, tests, and theme check…'),
+    ).toBeTruthy();
     expect(screen.getAllByText('Checking…').length).toBeGreaterThan(0);
   });
 });

@@ -30,7 +30,7 @@ describe('<VerifyChip /> + useVerify', () => {
   it('runs on load and shows green when everything passes', async () => {
     const fetchMock = stubVerify({
       ok: true,
-      steps: [{ name: 'typecheck', ok: true, durationMs: 1200, output: '' }],
+      steps: [{ name: 'typecheck', status: 'pass', durationMs: 1200, output: '' }],
     });
     render(<Harness />);
     expect(await screen.findByText('All checks pass')).toBeTruthy();
@@ -41,8 +41,8 @@ describe('<VerifyChip /> + useVerify', () => {
     stubVerify({
       ok: false,
       steps: [
-        { name: 'typecheck', ok: true, durationMs: 900, output: '' },
-        { name: 'lint', ok: false, durationMs: 300, output: 'ui.tsx:12 lint error here' },
+        { name: 'typecheck', status: 'pass', durationMs: 900, output: '' },
+        { name: 'lint', status: 'fail', durationMs: 300, output: 'ui.tsx:12 lint error here' },
       ],
     });
     render(<Harness />);
@@ -61,6 +61,30 @@ describe('<VerifyChip /> + useVerify', () => {
     fireEvent.click(screen.getByLabelText('Re-run checks'));
     expect(await screen.findByText('All checks pass')).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('calls a missing toolchain "not run here", not failing', async () => {
+    stubVerify({
+      ok: false,
+      steps: [
+        { name: 'secrets', status: 'pass', durationMs: 40, output: '' },
+        {
+          name: 'typecheck',
+          status: 'unavailable',
+          durationMs: 200,
+          output: 'exited 127 — the tool this step runs is not installed in this environment.',
+        },
+      ],
+    });
+    render(<Harness />);
+
+    const chip = await screen.findByText('1 not run here');
+    expect(screen.queryByText(/failing/)).toBeNull();
+
+    fireEvent.click(chip);
+    expect(screen.getByText('not run')).toBeTruthy();
+    expect(screen.getByText(/not installed in this environment/)).toBeTruthy();
+    expect(screen.getByText(/deployment build/)).toBeTruthy();
   });
 
   it('degrades to a warning when the endpoint is unreachable', async () => {
