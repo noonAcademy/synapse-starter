@@ -6,10 +6,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 // useJson (that loader is one-shot per URL and this needs manual re-runs), but it keeps the
 // same status-shape and content-type guard.
 
-// Mirrors server/verify.ts VerifyResult (served by /__synapse/verify).
+// Mirrors server/verify.ts VerifyResult (served by /__synapse/verify). 'unavailable' is a step
+// whose tool isn't installed here (Replit's workspace Run omits the dev deps) — neutral, not red.
+export type VerifyStepStatus = 'pass' | 'fail' | 'unavailable';
 export interface VerifyStep {
   name: string;
-  ok: boolean;
+  status: VerifyStepStatus;
   durationMs: number;
   output: string;
 }

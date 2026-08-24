@@ -16,6 +16,7 @@ describe('verify runner', () => {
     const result = await runner.run();
     expect(result.ok).toBe(true);
     expect(result.steps.map((s) => s.name)).toEqual(['typecheck', 'lint']);
+    expect(result.steps.map((s) => s.status)).toEqual(['pass', 'pass']);
     expect(result.steps[0]?.output).toContain('clean');
     expect(result.steps[0]?.durationMs).toBeGreaterThanOrEqual(0);
   });
@@ -28,17 +29,37 @@ describe('verify runner', () => {
     const result = await runner.run();
     expect(result.ok).toBe(false);
     expect(result.steps).toHaveLength(1);
-    expect(result.steps[0]).toMatchObject({ name: 'typecheck', ok: false });
+    expect(result.steps[0]).toMatchObject({ name: 'typecheck', status: 'fail' });
     expect(result.steps[0]?.output).toContain('TS2304');
   });
 
-  it('resolves (not rejects) when a step command cannot be spawned', async () => {
+  it('resolves (not rejects) when a step command cannot be spawned, and calls it unavailable', async () => {
     const runner = createVerifyRunner([
       { name: 'typecheck', command: '/definitely/not/a/binary', args: [] },
     ]);
     const result = await runner.run();
     expect(result.ok).toBe(false);
+    expect(result.steps[0]?.status).toBe('unavailable');
     expect(result.steps[0]?.output).toContain('could not run');
+  });
+
+  // The regression this guards: on Replit, the workspace Run installs with `--omit=dev`, so
+  // `npm run typecheck` exits 127 ("tsc: command not found") on code that is perfectly clean.
+  // Reporting that as a failing check points every builder at a bug that isn't there.
+  it('reports a missing tool (exit 127) as unavailable, not as a failing check', async () => {
+    const runner = createVerifyRunner([
+      step('typecheck', 'process.exit(127)'),
+      step('lint', 'process.exit(0)'),
+    ]);
+    const result = await runner.run();
+    expect(result.steps[0]).toMatchObject({ name: 'typecheck', status: 'unavailable' });
+    expect(result.steps[0]?.output).toMatch(/not installed in this environment/);
+    // Not a pass either — ok stays false, so nothing claims the checks are green.
+    expect(result.ok).toBe(false);
+    // And unlike a failure, it doesn't stop the chain: the whole toolchain is missing together,
+    // so listing every affected step is what makes the cause legible.
+    expect(result.steps.map((s) => s.name)).toEqual(['typecheck', 'lint']);
+    expect(result.steps[1]?.status).toBe('pass');
   });
 
   it('keeps only the tail of a long output', async () => {

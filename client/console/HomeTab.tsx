@@ -140,12 +140,14 @@ export function HomeTab({
 // First-run checklist
 // ---------------------------------------------------------------------------
 
-type CheckStatus = 'pending' | 'good' | 'bad';
+// 'skipped' is neither done nor broken: the check couldn't run in this environment. Keeping it
+// distinct from 'bad' is the point — a red row sends the builder after a bug that isn't there.
+type CheckStatus = 'pending' | 'good' | 'bad' | 'skipped';
 interface Check {
   title: string;
   status: CheckStatus;
   summary: string;
-  /** ONE plain-language instruction, shown only when red. */
+  /** ONE plain-language instruction, shown when red or skipped. */
   fix?: ReactNode;
   /** Optional extra detail (e.g. per-secret pills), shown in any state once loaded. */
   extra?: ReactNode;
@@ -291,18 +293,36 @@ function verifyCheck(verify: VerifyState): Check {
       return {
         title: 'All checks pass',
         status: 'good',
-        summary: 'Secret scan, typecheck, lint, and tests are all green.',
+        summary: 'Secret scan, typecheck, lint, tests, and theme tokens are all green.',
       };
     }
-    const failing = verify.data.steps.filter((s) => !s.ok);
+    const failing = verify.data.steps.filter((s) => s.status === 'fail');
+    if (failing.length > 0) {
+      return {
+        title: 'All checks pass',
+        status: 'bad',
+        summary: `${failing.map((s) => s.name).join(', ')} failing.`,
+        fix: (
+          <>
+            Ask your agent to fix the failing check — the chip in the header shows exactly what
+            failed.
+          </>
+        ),
+      };
+    }
+    // Nothing failed; something just couldn't run. Replit's workspace Run installs with
+    // `--omit=dev`, so tsc/biome/vitest aren't here — which is a fact about the environment, not
+    // a verdict on the code. Saying "failing" would send the builder after a bug that isn't there.
+    const skipped = verify.data.steps.filter((s) => s.status === 'unavailable');
     return {
       title: 'All checks pass',
-      status: 'bad',
-      summary: `${failing.map((s) => s.name).join(', ')} failing.`,
+      status: 'skipped',
+      summary: `${skipped.map((s) => s.name).join(', ')} couldn't run in this workspace — the tools they need aren't installed here.`,
       fix: (
         <>
-          Ask your agent to fix the failing check — the chip in the header shows exactly what
-          failed.
+          Nothing to fix: your <strong>Deploy</strong> build installs the full toolchain and runs
+          these checks before shipping. To run them here now, type{' '}
+          <code className="font-mono text-xs">npm run verify</code> in the Shell.
         </>
       ),
     };
@@ -313,13 +333,14 @@ function verifyCheck(verify: VerifyState): Check {
     summary:
       verify.status === 'error'
         ? `Couldn't check: ${verify.message}`
-        : 'Running the secret scan, typecheck, lint, and tests…',
+        : 'Running the secret scan, typecheck, lint, tests, and theme check…',
   };
 }
 
 const CHECK_PILL: Record<CheckStatus, { tone: 'good' | 'error' | 'neutral'; label: string }> = {
   good: { tone: 'good', label: 'Done' },
   bad: { tone: 'error', label: 'Needs you' },
+  skipped: { tone: 'neutral', label: 'Not run here' },
   pending: { tone: 'neutral', label: 'Checking…' },
 };
 
@@ -346,8 +367,15 @@ function ChecklistRow({ n, check }: { n: number; check: Check }) {
         </p>
         <p className="text-sm text-slate-600">{check.summary}</p>
         {check.extra}
-        {check.status === 'bad' && check.fix && (
-          <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+        {check.fix && (check.status === 'bad' || check.status === 'skipped') && (
+          // Rose only when something is actually wrong — a skipped check reads as information.
+          <p
+            className={
+              check.status === 'bad'
+                ? 'rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800'
+                : 'rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600'
+            }
+          >
             {check.fix}
           </p>
         )}
