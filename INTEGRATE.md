@@ -2,7 +2,7 @@
 
 This guide is for an **AI coding agent** integrating Synapse (Noon's Citadel proxy) into an app that **already works and already has users**. The greenfield path — cloning this repo, the [`synapse-starter` scaffold](./README.md) — is not this. Here you are a **guest in someone else's working app, not an owner**.
 
-This file is self-contained: everything you need is inlined below. For this **existing-app** path you need exactly four secrets from the operator (`SYNAPSE_APP_ID`, `SYNAPSE_APP_SECRET`, `SYNAPSE_BASE_URL`, `GITHUB_TOKEN` — section 7). `GITHUB_TOKEN` is an install-time credential this path alone needs, because an existing app installs `@noonacademy/*` from GitHub Packages; the `synapse-starter` template itself is **tokenless** — it vendors those packages as committed tarballs under `vendor/` (see section 7). Everything else (including the data schema registry) is fetched live from Citadel.
+This file is self-contained: everything you need is inlined below. For this **existing-app** path you need exactly three secrets from the operator (`SYNAPSE_APP_ID`, `SYNAPSE_APP_SECRET`, `SYNAPSE_BASE_URL` — section 7), all runtime-only. **The install itself needs no credential:** you vendor the `@noonacademy/*` tarballs the same way the `synapse-starter` template does (Gate 4). Everything else (including the data schema registry) is fetched live from Citadel.
 
 You have exactly three jobs, in this order:
 
@@ -26,7 +26,7 @@ If Job 0 finds an Athena→Postgres sync (guide-shaped or hand-rolled), the tran
 
 ## 1. Pre-flight gates — check in order, STOP if one fails
 
-Do not write integration code until every gate passes. (Job 0 writes no code, so it may run before the gates — it needs only the four secrets, and only for its registry fetch.)
+Do not write integration code until every gate passes. (Job 0 writes no code, so it may run before the gates — it needs only the three `SYNAPSE_*` secrets, and only for its registry fetch.)
 
 - [ ] **Gate 1 — Version control.** Create a branch (or at minimum a full snapshot). Reversibility before anything else. If the app has no git, `git init` + commit the current state first.
 
@@ -62,18 +62,63 @@ Do not write integration code until every gate passes. (Job 0 writes no code, so
 
   The signed string is `` `${timestamp}.${pathAndSearch}.${rawBody}` `` — path **including query string**, and an empty string `""` as body for GET.
 
-- [ ] **Gate 4 — Private install path.** `@noonacademy/synapse-sdk` is published to **GitHub Packages**, not the public npm registry. Add exactly this `.npmrc` at the app root, plus a GitHub token with `read:packages` scope in `GITHUB_TOKEN`:
+- [ ] **Gate 4 — Install path (tokenless by default).** The three `@noonacademy/*` packages ship as committed tarballs in the `synapse-starter` repo under [`vendor/`](./vendor/). Copy them into this app and depend on them by path — **no `.npmrc`, no registry, no `GITHUB_TOKEN`**:
+
+  ```bash
+  mkdir -p vendor
+  cp /path/to/synapse-starter/vendor/noonacademy-*.tgz vendor/
+  ```
+
+  Then add all three to `package.json` — as direct `dependencies` **and** as overrides, with byte-identical specs. The overrides are not optional: `@noonacademy/synapse-sdk` declares its two siblings as semver ranges (`^0.3.0`, `^0.1.0`), and without an override those ranges resolve from the registry — which is exactly the 401 this avoids.
+
+  ```jsonc
+  "dependencies": {
+    "@noonacademy/synapse-sdk":        "file:vendor/noonacademy-synapse-sdk-0.4.0.tgz",
+    "@noonacademy/citadel-transport":  "file:vendor/noonacademy-citadel-transport-0.3.0.tgz",
+    "@noonacademy/synapse-catalog":    "file:vendor/noonacademy-synapse-catalog-0.1.1.tgz"
+  },
+  "overrides": {                       // pnpm: use "pnpm": { "overrides": { … } } — same three specs
+    "@noonacademy/synapse-sdk":        "file:vendor/noonacademy-synapse-sdk-0.4.0.tgz",
+    "@noonacademy/citadel-transport":  "file:vendor/noonacademy-citadel-transport-0.3.0.tgz",
+    "@noonacademy/synapse-catalog":    "file:vendor/noonacademy-synapse-catalog-0.1.1.tgz"
+  }
+  ```
+
+  Prove it needs no credential — this must succeed with the token unset:
+
+  ```bash
+  env -u GITHUB_TOKEN npm install
+  grep npm.pkg.github.com package-lock.json   # must print nothing
+  ```
+
+  Install **runtime deps only** — Replit's package firewall blocks CVE-flagged dev dependencies, so don't drag in dev tooling.
+
+  **Trade-off, state it to the operator:** vendored tarballs pin the SDK version and never self-update. When Citadel's contract moves past a pinned version the failure surfaces at whatever call hits the changed surface, and *nothing announces it* — re-copy from the template to refresh.
+
+  <details><summary>Opt-in alternative: install from GitHub Packages (live SDK updates, needs a token)</summary>
+
+  Only if the operator wants the SDK to track releases without a re-copy. Add at the app root:
 
   ```ini
   @noonacademy:registry=https://npm.pkg.github.com
   //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
   ```
 
-  (npm expands `${GITHUB_TOKEN}` from the environment at install time, so the token lives only in secrets, never in the repo.) Install **runtime deps only** — Replit's package firewall blocks CVE-flagged dev dependencies, so don't drag in dev tooling.
+  and set `GITHUB_TOKEN` (scope `read:packages`), then `npm i @noonacademy/synapse-sdk`. Note `${VAR}` expansion is an **npm** behaviour — confirm your installer does it (some environments hand the packager a shell without Replit Secrets, in which case the literal string `${GITHUB_TOKEN}` is sent and GitHub returns 401).
 
-  Note: the starter template itself no longer needs `GITHUB_TOKEN` — it vendors the SDK as committed tarballs under `vendor/`. This token flow applies only to this existing-app integration path.
+  If install fails, read the status code before changing anything — `401` and `403` have different causes:
 
-- [ ] **Gate 5 — Secrets present & server-only.** Confirm `SYNAPSE_APP_ID`, `SYNAPSE_APP_SECRET`, `SYNAPSE_BASE_URL` are set (Replit Secrets, not committed files), plus `GITHUB_TOKEN` for the install. Then **grep the client bundle** (e.g. `dist/`, `build/`, `.vite/`) and confirm the secret is never referenced client-side:
+  ```bash
+  curl -s -o /dev/null -w '%{http_code}\n' \
+    -H "Authorization: Bearer $GITHUB_TOKEN" \
+    https://npm.pkg.github.com/@noonacademy%2fsynapse-sdk
+  ```
+
+  `401` = the credential was rejected at authentication, *before* scope is evaluated — the token is absent, unexpanded, expired, or not SSO-authorized for the org. An enabled `read:packages` scope does not rule this out. `403` = authenticated fine, scope or org policy denied it. `200` = the token is good and the fault is in the `.npmrc` wiring. **Don't debug a 401 by re-checking scopes** — fall back to the vendored path above and move on.
+
+  </details>
+
+- [ ] **Gate 5 — Secrets present & server-only.** Confirm `SYNAPSE_APP_ID`, `SYNAPSE_APP_SECRET`, `SYNAPSE_BASE_URL` are set (Replit Secrets, not committed files). Then **grep the client bundle** (e.g. `dist/`, `build/`, `.vite/`) and confirm the secret is never referenced client-side:
 
   ```bash
   grep -rn "SYNAPSE_APP_SECRET" client/ dist/ build/ 2>/dev/null   # must be empty
@@ -105,7 +150,7 @@ Several existing apps already consume Noon data the pre-Citadel way: raw shared 
 
 ### 3.1 Inventory the app (local only, no network)
 
-- [ ] **Secrets / env.** Which of these exist (report *presence only*, never values): `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, any `ATHENA_*` (e.g. `ATHENA_OUTPUT_LOCATION`, `ATHENA_WORKGROUP`)? **Any raw AWS credential is a ⚠️ security finding** — it is a shared credential with no per-app revocation and no audit trail. Also note `DATABASE_URL` (the app's own Postgres) and whether the four `SYNAPSE_*`/`GITHUB_TOKEN` secrets are already present.
+- [ ] **Secrets / env.** Which of these exist (report *presence only*, never values): `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, any `ATHENA_*` (e.g. `ATHENA_OUTPUT_LOCATION`, `ATHENA_WORKGROUP`)? **Any raw AWS credential is a ⚠️ security finding** — it is a shared credential with no per-app revocation and no audit trail. Also note `DATABASE_URL` (the app's own Postgres) and whether the three `SYNAPSE_*` secrets are already present.
 - [ ] **Sync pattern.** Classify as exactly one of:
   - `guide-shaped sync` — the old internal guide's canonical layout exists: `server/athena.ts` (exports `runQuery(sql)`), `server/athena-sync.ts` (query builders + per-table sync fns + `syncAllFromAthena()`), `server/scheduler.ts`, and a `sync_logs` table (doubling as the slot lock) in `shared/schema.ts`.
   - `hand-rolled Athena` — Noon data reached some other way: grep for `@aws-sdk/client-athena`, `StartQueryExecution`, `noon2_replit`.
@@ -117,7 +162,7 @@ Several existing apps already consume Noon data the pre-Citadel way: raw shared 
 
 ### 3.2 Join against the live registry (the one network step)
 
-Fetch `GET /api/registry` (section 6 — HMAC-signed like every `/api/*` call; the four secrets must be in the environment). For each view the app uses, record whether it appears in the registry. The registry describes the same `noon2_replit` lake the old syncs read, so coverage should be near-total — a **miss is a finding to route to the data team**, not a blocker you improvise around. If the endpoint 404s (not yet deployed on this Citadel environment), record coverage as `unknown — registry endpoint not deployed` and flag it; do not guess.
+Fetch `GET /api/registry` (section 6 — HMAC-signed like every `/api/*` call; the three `SYNAPSE_*` secrets must be in the environment). For each view the app uses, record whether it appears in the registry. The registry describes the same `noon2_replit` lake the old syncs read, so coverage should be near-total — a **miss is a finding to route to the data team**, not a blocker you improvise around. If the endpoint 404s (not yet deployed on this Citadel environment), record coverage as `unknown — registry endpoint not deployed` and flag it; do not guess.
 
 ### 3.3 Emit the Migration Report, then STOP
 
@@ -129,7 +174,7 @@ Fill this template and stop — **no code changes in Job 0**. The human decides 
 - **Stack / deployment:** <Node/Express/…, Replit workspace vs deployed URL>
 - **Credentials found (presence only):**
   - ⚠️ `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `ATHENA_*`: <yes/no — any yes is a security line item: shared raw creds, no revocation, no audit>
-  - `DATABASE_URL`: <yes/no>  ·  `SYNAPSE_*` + `GITHUB_TOKEN`: <yes/no>
+  - `DATABASE_URL`: <yes/no>  ·  `SYNAPSE_*` (all three): <yes/no>
 - **Pattern:** guide-shaped sync | hand-rolled Athena | no Noon data
 - **Sync health:** <last N sync_logs rows: status · cadence · row counts>
 
@@ -173,8 +218,9 @@ The SDK surface (from `@noonacademy/synapse-sdk`; maintainer reference: noon-cit
 
 ### 4.1 Install (runtime deps only)
 
-- [ ] Add the two-line `.npmrc` from Gate 4 at the app root; make sure `GITHUB_TOKEN` (scope `read:packages`) is set in the environment.
-- [ ] `npm i @noonacademy/synapse-sdk` — its own deps (`@noonacademy/citadel-transport`, `@noonacademy/synapse-catalog`) come from the same scoped registry.
+- [ ] Copy the three tarballs from the template's `vendor/` into this app's `vendor/`, per Gate 4.
+- [ ] Add all three to `dependencies` **and** `overrides` with identical `file:` specs (pnpm: `pnpm.overrides`) — the overrides are what keep the SDK's internal `@noonacademy/*` ranges off the registry.
+- [ ] `env -u GITHUB_TOKEN npm install`, then confirm `grep npm.pkg.github.com package-lock.json` prints nothing.
 
 ### 4.2 One server-side module, constructed nullable
 
@@ -348,7 +394,7 @@ Use it at **build time**: fetch, read, author named queries from it, bake those 
 | `SYNAPSE_APP_ID` | runtime, server-only | issued once via `/build-app` (Slack DM) or the portal *Replit Apps* page |
 | `SYNAPSE_APP_SECRET` | runtime, server-only | shown **once** at creation; never log it, never reference it client-side |
 | `SYNAPSE_BASE_URL` | runtime, server-only | the Citadel origin, e.g. `https://<CITADEL_DOMAIN>` — the operator tells you this |
-| `GITHUB_TOKEN` | **install only** | `read:packages` scope for GitHub Packages via the two `.npmrc` lines in Gate 4 |
+| `GITHUB_TOKEN` | **not required** | Only for the opt-in GitHub Packages install in Gate 4. The default vendored path needs no token — if you are debugging a `401` here, you are on the wrong path. |
 
 Set them as Replit Secrets (or the host's equivalent). Nothing else is needed — there is no shared bearer token, and no files are handed to you: the secrets are the only hand-off.
 

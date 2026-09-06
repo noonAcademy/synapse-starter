@@ -25,6 +25,73 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.09.07 — the existing-app path stops needing a GitHub token
+
+### What changed
+
+The template went tokenless in `2026.08.02` — the three `@noonacademy/*` packages became
+committed tarballs under `vendor/`, wired through `dependencies` + `overrides`. But
+[`INTEGRATE.md`](INTEGRATE.md) and [`MIGRATE-SYNC.md`](MIGRATE-SYNC.md) were never brought
+along: both still sent **existing apps** through `npm.pkg.github.com` with a `GITHUB_TOKEN`,
+and both opened by telling the agent it needed "exactly four secrets".
+
+So every integration walked into a credential the template itself had already deleted — and
+when GitHub answered `401`, the guides offered nothing to diagnose with. The observed failure
+mode is an agent stalling mid-integration re-checking `read:packages` scopes, which a `401`
+does not test: `401` is rejection *at authentication*, before scope is evaluated (insufficient
+scope is `403`). The token was never the shortest path to a working install.
+
+- **Gate 4 is now the vendored recipe**, matching what the starter does: copy the three
+  tarballs, declare them as `file:` specs in `dependencies` **and** `overrides`, verify with
+  `env -u GITHUB_TOKEN npm install`. The overrides are called out as load-bearing —
+  `@noonacademy/synapse-sdk` declares its two siblings as semver ranges (`^0.3.0`, `^0.1.0`),
+  so without an override those resolve from the registry and reintroduce the exact 401.
+- **pnpm is named.** `overrides` is npm syntax; pnpm needs `pnpm.overrides`. The old text said
+  only "npm expands `${GITHUB_TOKEN}`", which is also npm-specific and silently untrue elsewhere.
+- **GitHub Packages survives as an opt-in**, folded into a `<details>` block for teams that want
+  the SDK to track releases without a re-copy — now carrying a `401` vs `403` vs `200` triage
+  and an explicit "fall back to vendoring rather than debug a 401".
+- **The vendoring trade-off is stated**, not hidden: pinned tarballs never self-update, and a
+  stale SDK against a moved Citadel contract fails without announcing itself
+  (the known gap in [`scripts/sync-sdk.md`](scripts/sync-sdk.md), now inherited by integrated
+  apps too — so the guide tells the agent to say so to the operator).
+- **Secret counts corrected** throughout both guides: three runtime `SYNAPSE_*` secrets, not
+  four. Includes the Job 0 inventory checklist, the Migration Report template, the registry-fetch
+  note, and the §7 environment table — where `GITHUB_TOKEN` is now marked **not required**, with
+  a pointer that a `401` there means you are on the wrong path.
+
+### Why a clone should care
+
+If your clone never runs `INTEGRATE.md` or `MIGRATE-SYNC.md`, this is documentation-only — your
+install was already tokenless and nothing about it changes. Adopt it if you hand these guides to
+an agent for another app, or if you keep `GITHUB_TOKEN` around as an install credential you no
+longer need.
+
+### Recipe
+
+1. **Copy** (synapse-owned, safe to overwrite):
+
+   ```bash
+   cp <template>/INTEGRATE.md INTEGRATE.md
+   cp <template>/MIGRATE-SYNC.md MIGRATE-SYNC.md
+   ```
+
+2. **Verify your own install is tokenless** (should already be true — this is a guard, not a
+   change). If it fails, you have drifted onto the registry path and this entry's Gate 4 is
+   the fix:
+
+   ```bash
+   grep npm.pkg.github.com package-lock.json   # must print nothing
+   ls .npmrc 2>/dev/null                       # must not exist
+   env -u GITHUB_TOKEN npm install             # must succeed
+   ```
+
+3. **Secrets cleanup (tell the operator; agents don't hold secrets):** if `GITHUB_TOKEN` is set
+   in this app's secrets and step 2 passed, it is unused — it can be deleted. Leave it alone if
+   anything else in the app (CI, a deploy hook) still reads it.
+
+---
+
 ## 2026.08.24 — the console says which Citadel, and stops calling a missing toolchain a failure
 
 ### What changed

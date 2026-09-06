@@ -2,7 +2,7 @@
 
 This guide is for an **AI coding agent** migrating the **transport** of an existing "Athena → Postgres sync" app (the old internal guide's pattern) onto Citadel's sanctioned read path. You should already have a **Migration Report** from Job 0 of [`INTEGRATE.md`](./INTEGRATE.md) telling you which views the app reads, their filter shapes, and their per-run row counts. If you don't, run Job 0 first.
 
-This file is self-contained: everything you need is inlined below. For this **existing-app** path you need exactly four secrets from the operator (`SYNAPSE_APP_ID`, `SYNAPSE_APP_SECRET`, `SYNAPSE_BASE_URL`, `GITHUB_TOKEN`); they may already be set if Job 1 of `INTEGRATE.md` was done. `GITHUB_TOKEN` is needed here only because an existing app installs `@noonacademy/*` from GitHub Packages — the `synapse-starter` template itself is tokenless (it vendors the packages under `vendor/`). Never print a secret value.
+This file is self-contained: everything you need is inlined below. For this **existing-app** path you need exactly three secrets from the operator (`SYNAPSE_APP_ID`, `SYNAPSE_APP_SECRET`, `SYNAPSE_BASE_URL`); they may already be set if Job 1 of `INTEGRATE.md` was done. The install needs no credential — you vendor the `@noonacademy/*` tarballs exactly as the `synapse-starter` template does (Gate 4 of [`INTEGRATE.md`](./INTEGRATE.md)). Never print a secret value.
 
 ## The prime directive
 
@@ -18,14 +18,9 @@ The old guide's canonical layout puts all Athena transport in **`server/athena.t
 
 ### 1.1 Install the SDK (runtime deps only)
 
-Add exactly this `.npmrc` at the app root (npm expands `${GITHUB_TOKEN}` from the environment at install time, so the token never enters the repo):
+Copy the three `@noonacademy/*` tarballs from the `synapse-starter` repo's `vendor/` into this app's `vendor/`, then add each one to **both** `dependencies` and `overrides` with identical `file:` specs (pnpm: `pnpm.overrides`). Full recipe and rationale: **Gate 4** of [`INTEGRATE.md`](./INTEGRATE.md). Requires Node ≥ 20.
 
-```ini
-@noonacademy:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
-```
-
-Then `npm i @noonacademy/synapse-sdk` (requires Node ≥ 20). Install **runtime deps only** — Replit's package firewall blocks CVE-flagged dev dependencies.
+No `.npmrc`, no registry, no `GITHUB_TOKEN` — `env -u GITHUB_TOKEN npm install` must succeed, and `grep npm.pkg.github.com package-lock.json` must print nothing. Install **runtime deps only** — Replit's package firewall blocks CVE-flagged dev dependencies.
 
 ### 1.2 The new `server/athena.ts`
 
@@ -142,7 +137,7 @@ One statement per call (`;`-separated batches are rejected), and it must be `SEL
 
 ## 3. Secrets swap
 
-1. **Add** (may already exist from Job 1): `SYNAPSE_APP_ID`, `SYNAPSE_APP_SECRET`, `SYNAPSE_BASE_URL` (runtime, server-only) and `GITHUB_TOKEN` (install only, `read:packages`). Replit Secrets, never committed files, never printed.
+1. **Add** (may already exist from Job 1): `SYNAPSE_APP_ID`, `SYNAPSE_APP_SECRET`, `SYNAPSE_BASE_URL` (runtime, server-only). Replit Secrets, never committed files, never printed. No install-time credential is needed — see §1.1.
 2. **Only after Verification passes**: **delete `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and every `ATHENA_*` secret** from Replit Secrets. That deletion is the point of this whole migration — an app that keeps both transports' creds has migrated nothing.
 
 ---
