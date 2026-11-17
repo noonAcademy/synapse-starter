@@ -13,10 +13,13 @@ interface Overview {
   connection: { ok: boolean; detail: string };
 }
 // Mirrors server/setup.ts SetupProjection (served by /__synapse/setup). Secret PRESENCE only —
-// the server never sends values.
+// the server never sends values. `scope` and `deploy` are optional so a clone running an older
+// server (whose payload has neither) still renders the checklist instead of breaking on it:
+// a secret with no scope is treated as 'run', and a missing `deploy` renders no notice.
 interface Setup {
-  secrets: Array<{ name: string; set: boolean; required: boolean }>;
+  secrets: Array<{ name: string; set: boolean; required: boolean; scope?: 'run' | 'deploy' }>;
   spec: { exists: boolean; filled: boolean };
+  deploy?: { ready: boolean; missing: string[] };
 }
 // Mirrors server/kit.ts KitProjection (served by /__synapse/kit). updateAvailable is already
 // fail-silent server-side: any fetch/parse problem arrives here as false.
@@ -91,6 +94,8 @@ export function HomeTab({
       <SetupChecklist overview={overview} setup={setup} verify={verify} />
 
       <KitUpdateNotice kit={kit} />
+
+      <DeployReadinessNotice setup={setup} overview={overview} />
 
       <StaleReadsNotice registry={registry} />
 
@@ -194,7 +199,9 @@ function secretsCheck(setup: LoadState<Setup>, portalBase: string): Check {
     };
   }
 
-  const secrets = setup.data.secrets;
+  // Run-scope only. The deploy-only pair ('Sign in with Noon') has its own notice below: it is
+  // not missing until the builder deploys, and a red row here would say otherwise.
+  const secrets = setup.data.secrets.filter((s) => (s.scope ?? 'run') === 'run');
   const missing = secrets.filter((s) => s.required && !s.set);
   const extra = (
     <span className="flex flex-wrap gap-1">
@@ -381,6 +388,94 @@ function ChecklistRow({ n, check }: { n: number; check: Check }) {
         )}
       </div>
     </li>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Deploy readiness (Sign in with Noon)
+// ---------------------------------------------------------------------------
+
+// The command that mints APP_SESSION_SECRET. Shown rather than generated: the console must not
+// hand out a secret it has seen, and the builder pastes this into the Shell themselves.
+export const SESSION_SECRET_COMMAND = 'openssl rand -hex 32';
+
+// The redirect URI's required shape. The deployment's real hostname isn't knowable from the
+// workspace, so this is a template the builder fills in — the path is what matters, and it must
+// match server/auth-routes.ts' /oauth/callback route and the portal registration exactly.
+export const REDIRECT_URI_SHAPE = 'https://<your-app>.replit.app/oauth/callback';
+
+// A QUIET notice in the KitUpdateNotice pattern, and deliberately NOT a fifth checklist row:
+// nothing is wrong with a workspace that hasn't been deployed, so this never turns anything red.
+// It renders only while the published app's login gate would be misconfigured — which is worth
+// saying out loud, because that gate fails CLOSED: a deployment missing any of these serves a 503
+// to every request instead of a login screen, and the only trace is a line in the deployment log.
+// Disappears once all four values are set.
+function DeployReadinessNotice({
+  setup,
+  overview,
+}: {
+  setup: LoadState<Setup>;
+  overview: LoadState<Overview>;
+}) {
+  if (setup.status !== 'ready' || !setup.data.deploy || setup.data.deploy.ready) return null;
+  const portalBase = overview.status === 'ready' ? overview.data.baseUrl : DEFAULT_PORTAL_BASE;
+
+  // The gate needs four values, but two of them (the SYNAPSE_* pair, which signs its Citadel
+  // calls) are already check #1's job. Pilling them again here would read as a second, separate
+  // problem — so they get a sentence that points back up, and the pills stay deploy-only. The
+  // fallback keeps the card from being pill-less when ONLY a shared key is missing.
+  const deployNames = new Set(
+    setup.data.secrets.filter((s) => s.scope === 'deploy').map((s) => s.name),
+  );
+  const missingDeployOnly = setup.data.deploy.missing.filter((n) => deployNames.has(n));
+  const missingShared = setup.data.deploy.missing.filter((n) => !deployNames.has(n));
+  const missing = missingDeployOnly.length > 0 ? missingDeployOnly : missingShared;
+
+  return (
+    <Card className="border-slate-200 bg-slate-50/60">
+      <h3 className="text-sm font-semibold text-slate-700">
+        Before you deploy: sign-in isn't configured yet
+      </h3>
+      <p className="mt-1 text-sm text-slate-600">
+        Your workspace is fine — this is only about the published app. Replit deployments put your
+        app behind <strong>Sign in with Noon</strong>, and that gate needs{' '}
+        {missing.length === 1 ? 'one more value' : `${missing.length} more values`}. Until{' '}
+        {missing.length === 1 ? 'it is' : 'they are'} set, a deployment answers every request with{' '}
+        <strong>503</strong> rather than showing anyone Noon data — your workspace keeps working
+        either way.
+      </p>
+      <p className="mt-2 flex flex-wrap gap-1">
+        {missing.map((name) => (
+          <Pill key={name} tone="warn">
+            {name} — not set
+          </Pill>
+        ))}
+      </p>
+      {missingDeployOnly.length > 0 && missingShared.length > 0 && (
+        <p className="mt-2 text-sm text-slate-600">
+          Sign-in also needs {missingShared.join(' and ')} from check 1 above — the login flow signs
+          its Citadel calls with the same keys.
+        </p>
+      )}
+      <ol className="mt-3 space-y-2 text-sm text-slate-600">
+        <li>
+          <strong>1.</strong> In Replit's <strong>Secrets</strong> pane (the 🔒 icon), set{' '}
+          <code className="font-mono text-xs">APP_OAUTH_REDIRECT_URI</code> to your deployment's
+          callback URL — <code className="font-mono text-xs">{REDIRECT_URI_SHAPE}</code> — and{' '}
+          <code className="font-mono text-xs">APP_SESSION_SECRET</code> to a random value you mint
+          yourself in the Shell:
+          <span className="mt-1 block">
+            <CopyBox text={SESSION_SECRET_COMMAND} />
+          </span>
+        </li>
+        <li>
+          <strong>2.</strong> Register that same callback URL in the Citadel portal:{' '}
+          <code className="font-mono text-xs">{portalBase}/portal/replit-apps</code> → your app →
+          redirect URI. The match is exact and <code className="font-mono text-xs">https://</code>{' '}
+          is required — sign-in fails while the two differ by even a trailing slash.
+        </li>
+      </ol>
+    </Card>
   );
 }
 

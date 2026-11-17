@@ -73,6 +73,26 @@ things: **publishes events** and **runs reads**. Read this before adding either.
    holds the starter's example views and status — frozen scaffolding, never extended. New pages,
    views, and features live in the builder's app: `client/app/pages/` and the app nav.
 
+9. **Two things about the workspace the builder will ask you, so answer them without hedging:**
+   - **Where their app is.** The workspace webview at `/` always renders the *console*, however
+     finished the app is — `useSynapseMode` resolves to `workspace` wherever the `/__synapse/*`
+     routes are mounted, and nothing about building flips it. Their app is behind **Preview your
+     app ↗** in the console header (`?surface=app`); point at that button rather than letting
+     them conclude the page you just built isn't there. (The button ships in kit `2026.11.17`
+     and later — on an older clone, tell them to add `?surface=app` to the webview URL.)
+   - **Whether it's protected.** A published deployment sits behind "Sign in with Noon", Noon
+     staff only. It is mounted **only** when `REPLIT_DEPLOYMENT` is set — so there is no login in
+     the workspace, in `npm run dev`, or in the preview, and every view is open there. It also
+     needs `APP_OAUTH_REDIRECT_URI` + `APP_SESSION_SECRET` set. **Two different failures, so
+     don't conflate them:** a missing value (either of those, or the `SYNAPSE_*` pair the OAuth
+     calls are signed with) **fails closed** — a 503 on every request, which the console predicts
+     (Home notice + Settings → Deployment sign-in). A callback URL that isn't registered in the
+     Citadel portal, or doesn't match `APP_OAUTH_REDIRECT_URI` exactly, mounts a working gate
+     that then fails at Citadel *during* sign-in — presence is all the console can check, so it
+     will report ready. Send the builder to the console for the first, and to the portal for the
+     second. Never say the app "has auth" without saying it arrives at deploy time. **You never
+     hold or mint these secrets; the builder sets them.**
+
 ## Who owns what — the upgrade contract
 
 This app was cloned from the `synapse-starter` template, and the template keeps improving.

@@ -19,11 +19,21 @@ const READY_OVERVIEW = {
 
 const ALL_SET_SETUP = {
   secrets: [
-    { name: 'SYNAPSE_APP_ID', set: true, required: true },
-    { name: 'SYNAPSE_APP_SECRET', set: true, required: true },
-    { name: 'SYNAPSE_BASE_URL', set: false, required: false },
+    { name: 'SYNAPSE_APP_ID', set: true, required: true, scope: 'run' },
+    { name: 'SYNAPSE_APP_SECRET', set: true, required: true, scope: 'run' },
+    { name: 'SYNAPSE_BASE_URL', set: false, required: false, scope: 'run' },
+    { name: 'APP_OAUTH_REDIRECT_URI', set: true, required: true, scope: 'deploy' },
+    { name: 'APP_SESSION_SECRET', set: true, required: true, scope: 'deploy' },
   ],
   spec: { exists: true, filled: true },
+  deploy: { ready: true, missing: [] },
+};
+
+// The common real-world state: connected and building, nothing deployed yet.
+const DEPLOY_NOT_READY_SETUP = {
+  ...ALL_SET_SETUP,
+  secrets: ALL_SET_SETUP.secrets.map((s) => (s.scope === 'deploy' ? { ...s, set: false } : s)),
+  deploy: { ready: false, missing: ['APP_OAUTH_REDIRECT_URI', 'APP_SESSION_SECRET'] },
 };
 
 const GREEN_VERIFY: VerifyState = {
@@ -103,6 +113,81 @@ describe('<HomeTab />', () => {
     render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
     expect(await screen.findByText('SYNAPSE_BASE_URL — default')).toBeTruthy();
     expect(screen.queryByText('SYNAPSE_BASE_URL — missing')).toBeNull();
+  });
+
+  it('names the deploy-only values, and does NOT turn the run checklist red', async () => {
+    stubFetch({ setup: DEPLOY_NOT_READY_SETUP });
+    render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+
+    // The notice says what's missing, by name, and what happens if you deploy without it.
+    expect(await screen.findByText("Before you deploy: sign-in isn't configured yet")).toBeTruthy();
+    expect(screen.getByText('APP_OAUTH_REDIRECT_URI — not set')).toBeTruthy();
+    expect(screen.getByText('APP_SESSION_SECRET — not set')).toBeTruthy();
+    expect(screen.getByText('openssl rand -hex 32')).toBeTruthy();
+    expect(screen.getByText('https://<your-app>.replit.app/oauth/callback')).toBeTruthy();
+    // The portal step, pointed at the Citadel this app is actually connected to.
+    expect(screen.getByText('https://citadel.example/portal/replit-apps')).toBeTruthy();
+
+    // ...and the four checks stay green: a workspace that hasn't deployed isn't broken.
+    await waitFor(() => expect(screen.getAllByText('Done')).toHaveLength(4));
+    expect(screen.queryByText('APP_SESSION_SECRET — missing')).toBeNull();
+  });
+
+  it('points at check 1 for the shared keys instead of pilling them twice', async () => {
+    stubFetch({
+      setup: {
+        ...DEPLOY_NOT_READY_SETUP,
+        secrets: DEPLOY_NOT_READY_SETUP.secrets.map((s) =>
+          s.name === 'SYNAPSE_APP_SECRET' ? { ...s, set: false } : s,
+        ),
+        deploy: {
+          ready: false,
+          missing: ['SYNAPSE_APP_SECRET', 'APP_OAUTH_REDIRECT_URI', 'APP_SESSION_SECRET'],
+        },
+      },
+    });
+    render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+
+    // Check 1 owns the SYNAPSE_* pair, so the notice mentions it in prose and pills only its own.
+    expect(await screen.findByText(/signs its Citadel calls with the same keys/)).toBeTruthy();
+    expect(screen.queryByText('SYNAPSE_APP_SECRET — not set')).toBeNull();
+    expect(screen.getByText('APP_SESSION_SECRET — not set')).toBeTruthy();
+    // ...and check 1 is red on its own account.
+    expect(screen.getByText('SYNAPSE_APP_SECRET — missing')).toBeTruthy();
+  });
+
+  it('drops the deploy notice once sign-in is configured', async () => {
+    render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+    await waitFor(() => expect(screen.getAllByText('Done')).toHaveLength(4));
+    expect(screen.queryByText("Before you deploy: sign-in isn't configured yet")).toBeNull();
+  });
+
+  it('renders no deploy notice for an older server that reports no deploy state', async () => {
+    const { deploy: _omitted, ...withoutDeploy } = ALL_SET_SETUP;
+    stubFetch({ setup: withoutDeploy });
+    render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+    await waitFor(() => expect(screen.getAllByText('Done')).toHaveLength(4));
+    expect(screen.queryByText("Before you deploy: sign-in isn't configured yet")).toBeNull();
+  });
+
+  it('treats a scope-less secret (older server) as a run secret, not an unknown one', async () => {
+    stubFetch({
+      setup: {
+        spec: { exists: true, filled: true },
+        secrets: [
+          { name: 'SYNAPSE_APP_ID', set: true, required: true },
+          { name: 'SYNAPSE_APP_SECRET', set: false, required: true },
+          { name: 'SYNAPSE_BASE_URL', set: false, required: false },
+        ],
+      },
+    });
+    render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+
+    // Check 1 still pills every secret and still goes red — a payload predating `scope` must not
+    // quietly empty the checklist row it feeds.
+    expect(await screen.findByText('SYNAPSE_APP_SECRET — missing')).toBeTruthy();
+    expect(screen.getByText('SYNAPSE_BASE_URL — default')).toBeTruthy();
+    expect(screen.getByText('1 key missing.')).toBeTruthy();
   });
 
   it('goes red when not connected, with the press-Run / error-report fix', async () => {
