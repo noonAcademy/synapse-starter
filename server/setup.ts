@@ -5,17 +5,41 @@ import { readFileSync } from 'node:fs';
 // connection and verify checks reuse /__synapse/overview and /__synapse/verify; this module
 // only covers what no existing endpoint reports.
 
+// Which failure a missing secret causes. 'run' secrets stop the workspace from reaching Noon at
+// all; 'deploy' secrets are needed only by the published app's "Sign in with Noon" gate, so a
+// fresh clone with none of them set is a perfectly healthy workspace. Keeping them in separate
+// scopes is the whole point: a deploy-only gap must never turn a run check red (it would send the
+// builder after a problem they don't have yet), and it must never be invisible either (it fails
+// the deployment closed, with a 503 on every request — see server/index.ts).
+export type SecretScope = 'run' | 'deploy';
+
 export interface SetupProjection {
-  secrets: Array<{ name: string; set: boolean; required: boolean }>;
+  // `required` means required WITHIN its scope — a required 'deploy' secret is not required to run.
+  secrets: Array<{ name: string; set: boolean; required: boolean; scope: SecretScope }>;
   spec: { exists: boolean; filled: boolean };
+  // Whether a published deployment would have a working login gate, and what's missing if not.
+  deploy: { ready: boolean; missing: string[] };
 }
 
 // SYNAPSE_BASE_URL is not required: server/synapse.ts falls back to the staging URL when
 // it's unset, so "missing" is a normal, working state for it.
-const SECRET_NAMES: Array<{ name: string; required: boolean }> = [
-  { name: 'SYNAPSE_APP_ID', required: true },
-  { name: 'SYNAPSE_APP_SECRET', required: true },
-  { name: 'SYNAPSE_BASE_URL', required: false },
+const SECRET_NAMES: Array<{ name: string; required: boolean; scope: SecretScope }> = [
+  { name: 'SYNAPSE_APP_ID', required: true, scope: 'run' },
+  { name: 'SYNAPSE_APP_SECRET', required: true, scope: 'run' },
+  { name: 'SYNAPSE_BASE_URL', required: false, scope: 'run' },
+  { name: 'APP_OAUTH_REDIRECT_URI', required: true, scope: 'deploy' },
+  { name: 'APP_SESSION_SECRET', required: true, scope: 'deploy' },
+];
+
+// Everything the deployed login gate needs — deliberately the same four names (and therefore the
+// same verdict) as authConfigError in server/synapse.ts. The two SYNAPSE_* keys appear here as
+// well as in the run scope because the OAuth token/refresh calls are HMAC-signed with them: an app
+// can reach Noon's data and still have no way to sign anyone in.
+const AUTH_SECRET_NAMES = [
+  'SYNAPSE_APP_ID',
+  'SYNAPSE_APP_SECRET',
+  'APP_OAUTH_REDIRECT_URI',
+  'APP_SESSION_SECRET',
 ];
 
 // SPEC.md's template guarantees the marker is the top status line, so only the first line is
@@ -29,12 +53,15 @@ export function buildSetup(input: {
 }): SetupProjection {
   const { env, specText } = input;
   const firstLine = specText?.split('\n', 1)[0] ?? '';
+  const missingForAuth = AUTH_SECRET_NAMES.filter((name) => !env[name]);
   return {
-    secrets: SECRET_NAMES.map(({ name, required }) => ({
+    secrets: SECRET_NAMES.map(({ name, required, scope }) => ({
       name,
       set: Boolean(env[name]),
       required,
+      scope,
     })),
+    deploy: { ready: missingForAuth.length === 0, missing: missingForAuth },
     spec: {
       exists: specText !== null,
       filled: specText !== null && !firstLine.includes(SPEC_UNFILLED_MARKER),

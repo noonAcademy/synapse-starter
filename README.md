@@ -61,8 +61,13 @@ running:
   [Deploying](#deploying-your-app)). This is the part you and your coding agent build out
   with pages.
 
-To preview your app in the workspace without deploying, add `?surface=app` to the webview
-URL (`?surface=console` forces the console back).
+To see your app in the workspace without deploying, press **Preview your app ↗** in the
+console header — it opens the shipped app in a new tab. (It's the `?surface=app` query
+param underneath, so you can also add that to the webview URL by hand; the app's
+`/synapse` page carries a **Open the builder console** link back, and `?surface=console`
+forces the console too.) The preview shows the app exactly as a deployment serves it with
+one exception: the **Sign in with Noon** gate is never mounted in a workspace, so you
+won't be asked to log in.
 
 ## The console tabs
 
@@ -75,7 +80,7 @@ URL (`?surface=console` forces the console back).
 - **Events** — what your app has sent to Noon since it last started (accepted / failed,
   with event IDs), plus the catalog of event types it can send.
 - **Settings** — how your app connects to Noon: app ID, Citadel base URL, connection
-  health.
+  health, and whether the two deployment sign-in values below are set.
 
 ## How data works
 
@@ -139,6 +144,12 @@ sign-in fails until the registered URI and `APP_OAUTH_REDIRECT_URI` are identica
 rather than serving Noon data to anyone unauthenticated, and the missing value is named in
 the deployment log. Your workspace is unaffected either way — the builder console never
 needs these and stays open.
+
+You don't have to remember any of this from a README: while those values are unset the
+console's **Home** tab carries a quiet *"Before you deploy: sign-in isn't configured yet"*
+notice naming exactly what's missing, and **Settings → Deployment sign-in** always shows
+their set/not-set state. Neither turns a check red — a workspace you haven't deployed
+isn't broken — and neither ever shows a value.
 
 **Broken code cannot deploy.** The deployment build runs `npm run build:deploy`, which
 chains the full check suite (`npm run verify`: secret scan → typecheck → lint → tests,

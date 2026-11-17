@@ -28,9 +28,11 @@ describe('buildSetup', () => {
     const setup = buildSetup({ env, specText: null });
 
     expect(setup.secrets).toEqual([
-      { name: 'SYNAPSE_APP_ID', set: true, required: true },
-      { name: 'SYNAPSE_APP_SECRET', set: true, required: true },
-      { name: 'SYNAPSE_BASE_URL', set: false, required: false },
+      { name: 'SYNAPSE_APP_ID', set: true, required: true, scope: 'run' },
+      { name: 'SYNAPSE_APP_SECRET', set: true, required: true, scope: 'run' },
+      { name: 'SYNAPSE_BASE_URL', set: false, required: false, scope: 'run' },
+      { name: 'APP_OAUTH_REDIRECT_URI', set: false, required: true, scope: 'deploy' },
+      { name: 'APP_SESSION_SECRET', set: false, required: true, scope: 'deploy' },
     ]);
 
     // The projection must never carry a secret value, however it's serialized.
@@ -42,6 +44,38 @@ describe('buildSetup', () => {
   it('treats an empty-string env var as not set', () => {
     const setup = buildSetup({ env: { SYNAPSE_APP_ID: '' }, specText: null });
     expect(setup.secrets.find((s) => s.name === 'SYNAPSE_APP_ID')?.set).toBe(false);
+  });
+
+  it('scopes the two login-gate secrets to deploy, so a bare workspace stays green', () => {
+    const setup = buildSetup({
+      env: { SYNAPSE_APP_ID: 'a', SYNAPSE_APP_SECRET: 'b' },
+      specText: null,
+    });
+    // Nothing required to RUN is missing...
+    expect(setup.secrets.filter((s) => s.scope === 'run' && s.required && !s.set)).toEqual([]);
+    // ...but the deployed login gate is not ready, and says exactly which values it wants.
+    expect(setup.deploy).toEqual({
+      ready: false,
+      missing: ['APP_OAUTH_REDIRECT_URI', 'APP_SESSION_SECRET'],
+    });
+  });
+
+  it('reports the login gate as ready only when all four values are set', () => {
+    const env = {
+      SYNAPSE_APP_ID: 'a',
+      SYNAPSE_APP_SECRET: 'b',
+      APP_OAUTH_REDIRECT_URI: 'https://app.replit.app/oauth/callback',
+      APP_SESSION_SECRET: 'c',
+    };
+    expect(buildSetup({ env, specText: null }).deploy).toEqual({ ready: true, missing: [] });
+
+    // The OAuth calls are signed with the app secret, so losing it breaks sign-in too — the
+    // deploy verdict must not quietly ignore the two SYNAPSE_* keys it shares with the run scope.
+    const withoutAppSecret = { ...env, SYNAPSE_APP_SECRET: '' };
+    expect(buildSetup({ env: withoutAppSecret, specText: null }).deploy).toEqual({
+      ready: false,
+      missing: ['SYNAPSE_APP_SECRET'],
+    });
   });
 
   it('reports a missing SPEC.md as not existing and not filled', () => {
@@ -70,6 +104,8 @@ describe('GET /__synapse/setup', () => {
 
   it('serves presence-only JSON in the workspace — the value never appears in the body', async () => {
     vi.stubEnv('SYNAPSE_APP_ID', 'canary-value-that-must-not-leak');
+    // Pinned empty so the deploy verdict below is about the projection, not the dev machine's env.
+    vi.stubEnv('APP_SESSION_SECRET', '');
     const app = buildApp({ isReplitDeployment: false });
     const server = app.listen(0);
     await new Promise<void>((resolve) => server.once('listening', () => resolve()));
@@ -79,8 +115,14 @@ describe('GET /__synapse/setup', () => {
       expect(res.status).toBe(200);
       const body = await res.text();
       expect(body).not.toContain('canary-value-that-must-not-leak');
-      const parsed = JSON.parse(body) as { secrets: Array<{ name: string; set: boolean }> };
+      const parsed = JSON.parse(body) as {
+        secrets: Array<{ name: string; set: boolean; scope: string }>;
+        deploy: { ready: boolean; missing: string[] };
+      };
       expect(parsed.secrets.find((s) => s.name === 'SYNAPSE_APP_ID')?.set).toBe(true);
+      // The deploy-only pair ships in the same payload, by name, so the console can surface it.
+      expect(parsed.secrets.find((s) => s.name === 'APP_SESSION_SECRET')?.scope).toBe('deploy');
+      expect(parsed.deploy.missing).toContain('APP_SESSION_SECRET');
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }

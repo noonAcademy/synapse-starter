@@ -25,6 +25,93 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.11.17 — the console shows the app, and says when sign-in isn't configured
+
+### What changed
+
+Two things the starter already supported were reachable only by reading the README, so in
+practice builders hit both as surprises. Both are now visible in the console itself.
+
+- **"Preview your app ↗" in the console header.** The workspace webview at `/` always renders
+  the console — `useSynapseMode` resolves to `workspace` wherever the `/__synapse/*` routes are
+  mounted, and nothing about finishing the app flips it. The way through was the `?surface=app`
+  query param, documented in [`README.md`](README.md) and in a code comment and nowhere a
+  builder was looking, so a freshly built app looked absent until it was deployed. The link
+  opens the shipped app in a new tab (the console survives the click; the app's `/synapse` page
+  already carried the `?surface=console` link back).
+- **Deploy readiness is reported, not just documented.** `APP_OAUTH_REDIRECT_URI` and
+  `APP_SESSION_SECRET` gate the deployed "Sign in with Noon" flow, and a deployment missing
+  either **fails closed** — a 503 on every request, with the cause only in the deployment log.
+  Nothing in the console mentioned them (Settings named `SYNAPSE_APP_ID` / `SYNAPSE_APP_SECRET`
+  only), so the first publish of a clone could be a 503 wall. Now `/__synapse/setup` carries the
+  pair, and the console surfaces it two ways:
+  - **Home** grows a quiet notice — *"Before you deploy: sign-in isn't configured yet"* — naming
+    what's missing, the `openssl rand -hex 32` command, the callback-URL shape, and the portal
+    registration step (pointed at the Citadel the app is actually connected to). It disappears
+    once all four values are set.
+  - **Settings → Deployment sign-in** always shows their set/not-set state.
+- **Secrets now carry a `scope`** (`'run' | 'deploy'`) in the `/__synapse/setup` projection, plus
+  a `deploy: { ready, missing }` verdict that deliberately mirrors `authConfigError` in
+  [`server/synapse.ts`](server/synapse.ts) — all four names, since the OAuth calls are HMAC-signed
+  with the `SYNAPSE_*` pair. The Home checklist's "Secrets present" row filters to `run` scope, so
+  **a deploy-only gap never turns a check red**: a workspace nobody has deployed is not broken, and
+  a red row there would send the builder after a problem they don't have yet. A secret with no
+  `scope` (an older server) is read as `run`, and a payload with no `deploy` renders no notice.
+- **[`AGENTS.md`](AGENTS.md) gains rule 9** — the two questions builders ask ("where is my app?",
+  "is it protected?"), with the answers stated so an agent stops implying a workspace app has a
+  login, or that a deployment is protected before those secrets exist.
+
+Presence only, as before: no endpoint, notice or pill ever carries a secret's value, and the
+agent neither holds nor mints one.
+
+### Why a clone should care
+
+Nothing is broken without this — it changes no runtime behaviour, no auth boundary, and no
+builder-owned file. Adopt it if the builder has ever asked where their app is in the workspace,
+or if the clone is heading for its first deployment: it turns the 503-on-first-publish surprise
+into a notice in the console they already have open.
+
+### Recipe
+
+1. **Copy** (all synapse-owned, safe to overwrite):
+
+   ```bash
+   cp <template>/server/setup.ts server/setup.ts
+   cp <template>/server/setup.test.ts server/setup.test.ts
+   cp <template>/client/console/ConsoleApp.tsx client/console/ConsoleApp.tsx
+   cp <template>/client/console/ConsoleApp.test.tsx client/console/ConsoleApp.test.tsx
+   cp <template>/client/console/HomeTab.tsx client/console/HomeTab.tsx
+   cp <template>/client/console/HomeTab.test.tsx client/console/HomeTab.test.tsx
+   cp <template>/client/console/SettingsTab.tsx client/console/SettingsTab.tsx
+   cp <template>/README.md README.md
+   cp <template>/AGENTS.md AGENTS.md
+   ```
+
+   If the clone's `server/index.ts` was modified by the builder, leave it alone — this entry
+   needs no change there (`/__synapse/setup` already passes `process.env` to `buildSetup`).
+
+2. **Ensure `.env.example` documents the pair** (it has since `2026.07.16`; guard, not a change).
+   If the `# --- Sign in with Noon` block is absent, copy the template's `.env.example` — unless
+   the builder has added their own entries, in which case append the block by hand.
+
+3. **No secrets to set as part of this upgrade.** The notice appearing on Home is the *correct*
+   state for a clone that hasn't configured deployment sign-in; it is information, not a failure.
+   Tell the operator what it asks for (they hold the values, you don't) and leave it at that.
+
+### Verify
+
+- `npm run verify` green.
+- The console header shows **Preview your app ↗**, and it opens the shipped app (not the console)
+  in a new tab.
+- With `APP_SESSION_SECRET` unset, Home shows *"Before you deploy: sign-in isn't configured yet"*
+  naming `APP_SESSION_SECRET`, **and the four numbered checks stay green**. Settings →
+  Deployment sign-in shows it as `not set`.
+- `curl -s localhost:5000/__synapse/setup` includes `"scope":"deploy"` and a `deploy` verdict —
+  and no secret values.
+- `TEMPLATE_VERSION` reads `2026.11.17`.
+
+---
+
 ## 2026.09.07 — the existing-app path stops needing a GitHub token
 
 ### What changed

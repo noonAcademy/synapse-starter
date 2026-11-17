@@ -11,16 +11,109 @@ interface Overview {
   connection: { ok: boolean; detail: string };
 }
 
+// Mirrors the slice of server/setup.ts SetupProjection this tab needs (served by
+// /__synapse/setup). Presence only — the server never sends values. Optional fields so an older
+// server's payload renders as "unknown" rather than breaking the tab.
+interface Setup {
+  secrets?: Array<{ name: string; set: boolean; required: boolean; scope?: 'run' | 'deploy' }>;
+  deploy?: { ready: boolean; missing: string[] };
+}
+
 // How your app connects to Noon — the connection details that used to be a disclosure on Home, now
 // a first-class section. Read-only: the secrets themselves live in Replit's Secrets pane.
 export function SettingsTab() {
   const overview = useJson<Overview>('/__synapse/overview');
+  const setup = useJson<Setup>('/__synapse/setup');
 
   return (
-    <section className="space-y-4">
-      <SectionHeading title="Settings">How your app connects to Noon.</SectionHeading>
-      <ConnectionSettings overview={overview} />
+    <section className="space-y-6">
+      <div className="space-y-4">
+        <SectionHeading title="Settings">How your app connects to Noon.</SectionHeading>
+        <ConnectionSettings overview={overview} />
+      </div>
+      <div className="space-y-4">
+        <SectionHeading title="Deployment sign-in">
+          How people sign in to the app you publish. Not used in this workspace.
+        </SectionHeading>
+        <DeploymentSettings setup={setup} overview={overview} />
+      </div>
     </section>
+  );
+}
+
+// The permanent home for the deploy-only half of the config. Home's notice disappears once this
+// is ready; this section stays, so "is sign-in set up?" always has an answer. Presence only —
+// a value that reached the server never comes back out of it.
+function DeploymentSettings({
+  setup,
+  overview,
+}: {
+  setup: LoadState<Setup>;
+  overview: LoadState<Overview>;
+}) {
+  if (setup.status === 'loading') {
+    return <p className="text-sm text-slate-500">Loading your deployment config…</p>;
+  }
+  if (setup.status === 'error') {
+    return (
+      <p className="text-sm text-rose-600">Couldn't load your deployment config: {setup.message}</p>
+    );
+  }
+
+  const deploy = setup.data.deploy;
+  const secrets = (setup.data.secrets ?? []).filter((s) => s.scope === 'deploy');
+  const portalBase =
+    overview.status === 'ready' ? overview.data.baseUrl : 'https://citadel.staging.noonedu.io';
+
+  // An older server sends neither field — say so rather than implying sign-in is unconfigured.
+  if (!deploy && secrets.length === 0) {
+    return (
+      <Card>
+        <Pill tone="neutral">Unknown</Pill>
+        <p className="mt-2 text-sm text-slate-600">
+          This app's server doesn't report deployment config yet. Upgrade the kit, or check{' '}
+          <code className="font-mono text-xs">APP_OAUTH_REDIRECT_URI</code> and{' '}
+          <code className="font-mono text-xs">APP_SESSION_SECRET</code> in Replit's{' '}
+          <strong>Secrets</strong> pane by hand.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        {deploy?.ready ? (
+          <Pill tone="good">Sign in with Noon is configured</Pill>
+        ) : (
+          <Pill tone="warn">Needed before you deploy</Pill>
+        )}
+        <p className="mt-2 text-sm text-slate-600">
+          {deploy?.ready ? (
+            <>
+              A deployment will put your app behind Noon's own login, for Noon staff only. This
+              workspace stays open either way — the login gate is never mounted here.
+            </>
+          ) : (
+            <>
+              A deployment <strong>fails closed</strong> while these are unset: every request gets a
+              503 instead of your app. Add them in Replit's <strong>Secrets</strong> pane, then
+              register the same callback URL in the Citadel portal (
+              <code className="font-mono text-xs">{portalBase}/portal/replit-apps</code> → your app
+              → redirect URI).
+            </>
+          )}
+        </p>
+      </Card>
+
+      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {secrets.map((s) => (
+          <Field key={s.name} label={s.name}>
+            {s.set ? <Pill tone="good">set</Pill> : <Pill tone="warn">not set</Pill>}
+          </Field>
+        ))}
+      </dl>
+    </div>
   );
 }
 

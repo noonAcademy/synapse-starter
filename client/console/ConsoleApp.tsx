@@ -36,8 +36,25 @@ export function ConsoleApp() {
             <h1 className="text-lg font-semibold">Synapse</h1>
             <p className="text-sm text-slate-500">Manage your app's connection to Noon data</p>
           </div>
-          {/* Lives in the header so verify state stays visible from every tab. */}
-          <VerifyChip state={verify.state} onRerun={verify.run} />
+          <div className="flex shrink-0 items-center gap-3">
+            {/* The way out to the builder's OWN app. The workspace always serves the console at
+                `/` (the /__synapse routes exist here, so useSynapseMode resolves to 'workspace'),
+                which means without this link the app being built is unreachable until it is
+                deployed — the `?surface=app` escape hatch was documented only in a code comment.
+                New tab, so the console stays where it is; the app's /synapse page carries the
+                matching `?surface=console` link back. */}
+            <a
+              href="/?surface=app"
+              target="_blank"
+              rel="noreferrer"
+              title="Opens your app (not the console) in a new tab, exactly as a deployment serves it — minus the Sign in with Noon gate, which only a deployment mounts."
+              className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
+            >
+              Preview your app <span aria-hidden>↗</span>
+            </a>
+            {/* Lives in the header so verify state stays visible from every tab. */}
+            <VerifyChip state={verify.state} onRerun={verify.run} />
+          </div>
         </div>
       </header>
 
