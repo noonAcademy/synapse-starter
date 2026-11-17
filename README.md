@@ -140,16 +140,20 @@ Then one portal click: in the Citadel portal go to **Replit Apps → your app �
 URI** and register the callback URL. The match is exact and `https://` is required —
 sign-in fails until the registered URI and `APP_OAUTH_REDIRECT_URI` are identical.
 
-**If any of this is missing, the deployment fails closed:** every request gets a 503
+**If either secret is missing, the deployment fails closed:** every request gets a 503
 rather than serving Noon data to anyone unauthenticated, and the missing value is named in
 the deployment log. Your workspace is unaffected either way — the builder console never
-needs these and stays open.
+needs these and stays open. The portal registration fails differently, and later: the app
+serves a login screen as usual, and sign-in then fails at Citadel. Nothing can check that
+for you — only the portal knows what's registered.
 
 You don't have to remember any of this from a README: while those values are unset the
 console's **Home** tab carries a quiet *"Before you deploy: sign-in isn't configured yet"*
 notice naming exactly what's missing, and **Settings → Deployment sign-in** always shows
 their set/not-set state. Neither turns a check red — a workspace you haven't deployed
-isn't broken — and neither ever shows a value.
+isn't broken — and neither ever shows a value. Both read the **workspace** environment,
+which is the only one a running workspace has: a deployment carries its own copy of the
+secrets, so confirm they're set there too before you publish.
 
 **Broken code cannot deploy.** The deployment build runs `npm run build:deploy`, which
 chains the full check suite (`npm run verify`: secret scan → typecheck → lint → tests,

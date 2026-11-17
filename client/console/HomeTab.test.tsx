@@ -170,6 +170,26 @@ describe('<HomeTab />', () => {
     expect(screen.queryByText("Before you deploy: sign-in isn't configured yet")).toBeNull();
   });
 
+  it('treats a scope-less secret (older server) as a run secret, not an unknown one', async () => {
+    stubFetch({
+      setup: {
+        spec: { exists: true, filled: true },
+        secrets: [
+          { name: 'SYNAPSE_APP_ID', set: true, required: true },
+          { name: 'SYNAPSE_APP_SECRET', set: false, required: true },
+          { name: 'SYNAPSE_BASE_URL', set: false, required: false },
+        ],
+      },
+    });
+    render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+
+    // Check 1 still pills every secret and still goes red — a payload predating `scope` must not
+    // quietly empty the checklist row it feeds.
+    expect(await screen.findByText('SYNAPSE_APP_SECRET — missing')).toBeTruthy();
+    expect(screen.getByText('SYNAPSE_BASE_URL — default')).toBeTruthy();
+    expect(screen.getByText('1 key missing.')).toBeTruthy();
+  });
+
   it('goes red when not connected, with the press-Run / error-report fix', async () => {
     stubFetch({
       overview: {

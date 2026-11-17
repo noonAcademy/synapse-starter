@@ -49,7 +49,9 @@ practice builders hit both as surprises. Both are now visible in the console its
     what's missing, the `openssl rand -hex 32` command, the callback-URL shape, and the portal
     registration step (pointed at the Citadel the app is actually connected to). It disappears
     once all four values are set.
-  - **Settings → Deployment sign-in** always shows their set/not-set state.
+  - **Settings → Deployment sign-in** always shows their set/not-set state, including a missing
+    `SYNAPSE_*` key that this section doesn't itself list (the gate needs it, so the card names
+    it rather than showing "needed before you deploy" above two green pills).
 - **Secrets now carry a `scope`** (`'run' | 'deploy'`) in the `/__synapse/setup` projection, plus
   a `deploy: { ready, missing }` verdict that deliberately mirrors `authConfigError` in
   [`server/synapse.ts`](server/synapse.ts) — all four names, since the OAuth calls are HMAC-signed
@@ -68,8 +70,14 @@ agent neither holds nor mints one.
 
 Nothing is broken without this — it changes no runtime behaviour, no auth boundary, and no
 builder-owned file. Adopt it if the builder has ever asked where their app is in the workspace,
-or if the clone is heading for its first deployment: it turns the 503-on-first-publish surprise
-into a notice in the console they already have open.
+or if the clone is heading for its first deployment.
+
+**What it does not catch**, so nobody reads the green state as a guarantee: the check is
+*presence in the workspace environment*. A deployment carries its own copy of the secrets, so a
+value set here and absent there still 503s with no notice — confirm them at publish time. And a
+callback URL that isn't registered in the Citadel portal, or doesn't match
+`APP_OAUTH_REDIRECT_URI` exactly, fails *differently*: the gate mounts, the login screen appears,
+and sign-in then fails at Citadel. Nothing local can see that.
 
 ### Recipe
 
@@ -108,6 +116,8 @@ into a notice in the console they already have open.
   Deployment sign-in shows it as `not set`.
 - `curl -s localhost:5000/__synapse/setup` includes `"scope":"deploy"` and a `deploy` verdict —
   and no secret values.
+- With only `SYNAPSE_APP_SECRET` unset, **Settings → Deployment sign-in** names it, rather than
+  showing "Needed before you deploy" above two `set` pills.
 - `TEMPLATE_VERSION` reads `2026.11.17`.
 
 ---

@@ -62,6 +62,11 @@ function DeploymentSettings({
 
   const deploy = setup.data.deploy;
   const secrets = (setup.data.secrets ?? []).filter((s) => s.scope === 'deploy');
+  // The gate also needs the SYNAPSE_* pair (it signs the OAuth calls with them), so deploy.missing
+  // can name a secret this section doesn't list. Without this, an app whose only gap is an empty
+  // SYNAPSE_APP_SECRET shows "Needed before you deploy" above two "set" pills and names nothing.
+  const deployNames = new Set(secrets.map((s) => s.name));
+  const missingShared = (deploy?.missing ?? []).filter((n) => !deployNames.has(n));
   const portalBase =
     overview.status === 'ready' ? overview.data.baseUrl : 'https://citadel.staging.noonedu.io';
 
@@ -92,7 +97,9 @@ function DeploymentSettings({
           {deploy?.ready ? (
             <>
               A deployment will put your app behind Noon's own login, for Noon staff only. This
-              workspace stays open either way — the login gate is never mounted here.
+              workspace stays open either way — the login gate is never mounted here. This reads the{' '}
+              <strong>workspace</strong> environment; a deployment carries its own copy of the
+              secrets, so confirm they're set there too before you publish.
             </>
           ) : (
             <>
@@ -105,6 +112,13 @@ function DeploymentSettings({
           )}
         </p>
       </Card>
+
+      {missingShared.length > 0 && (
+        <p className="text-sm text-slate-600">
+          Sign-in also needs {missingShared.join(' and ')}, which the login flow signs its Citadel
+          calls with — see the connection details above, and Home's first check.
+        </p>
+      )}
 
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {secrets.map((s) => (
