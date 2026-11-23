@@ -1,6 +1,6 @@
-// Enforce the one convention that keeps this app rethemeable: the shipped app's look lives in
-// client/app/theme.css tokens, and app components consume the utilities those tokens generate —
-// never a raw color, radius, or font.
+// Enforce the convention that keeps every app on the Noon design system: the shipped app's look
+// lives in design tokens (client/brand/noon.css, plus the one `--app-face` in client/app/theme.css),
+// and app components consume the utilities those tokens generate — never a raw color, radius, or font.
 //
 // WHY THIS IS A CHECK AND NOT A RULE IN A SKILL. A rule in AGENTS.md only binds whoever reads
 // AGENTS.md. Replit's Agent 4 Design Canvas applies visual edits straight to the codebase
@@ -15,7 +15,11 @@
 //
 // Scope: client/app/** only — the SHIPPED app. The builder console (client/console/,
 // client/ui.tsx) keeps its own fixed styling on purpose and is never themed, so it is exempt.
-// theme.css itself is exempt for the obvious reason: it is where the raw values belong.
+//
+// theme.css gets its own, stricter check (checkThemeFile). The Noon design system lives in the
+// synapse-owned client/brand/noon.css, which upgrades keep in sync; theme.css may only import it
+// and set the app's one choice, its logo face colour (`--app-face`). Any other value there would
+// fork the app away from the shared Noon look, so it fails here.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
@@ -109,26 +113,124 @@ export function findViolations(files: string[], read = readFileSync): TokenViola
   return violations;
 }
 
+const THEME_FILE = join(APP_DIR, 'theme.css');
+const BRAND_IMPORT = /^@import\s+(["'])\.\.\/brand\/noon\.css\1\s*;$/;
+// A hex colour only: the favicon is drawn from it (scripts/brand-icons.ts).
+const FACE_DECLARATION = /^--app-face\s*:\s*#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?\s*;?$/;
+const ALLOWED_SELECTORS = new Set([':root']);
+
+// Checks client/app/theme.css: only the brand import and `--app-face` blocks are allowed.
+export function checkThemeFile(css: string, file = THEME_FILE): TokenViolation[] {
+  const violations: TokenViolation[] = [];
+  // Blank out comments but keep their newlines, so reported line numbers stay right.
+  const source = css.replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, ' '));
+  const fail = (index: number, text: string, reason: string) => {
+    const line = source.slice(0, index).split('\n').length;
+    violations.push({ file, line, text: text.trim().slice(0, 100), reason });
+  };
+
+  let hasImport = false;
+  let seenRule = false;
+  let index = 0;
+  const statement = /\s*([^{};]+;|[^{};]+\{[^{}]*\})/y;
+  while (index < source.length) {
+    if (source.slice(index).trim() === '') break;
+    statement.lastIndex = index;
+    const match = statement.exec(source);
+    if (!match?.[1]) {
+      fail(index, source.slice(index, index + 100), 'cannot read this part of theme.css');
+      break;
+    }
+    const text = match[1].trim();
+    const start = match.index + match[0].indexOf(match[1]);
+    index = statement.lastIndex;
+    if (text.startsWith('@import')) {
+      if (!BRAND_IMPORT.test(text))
+        fail(start, text, 'theme.css may import only "../brand/noon.css"');
+      // CSS ignores an @import that comes after a rule, which would drop the whole design system.
+      else if (seenRule) fail(start, text, 'the @import must come first in theme.css');
+      else hasImport = true;
+      continue;
+    }
+    seenRule = true;
+    const open = text.indexOf('{');
+    if (open === -1) {
+      fail(start, text, 'theme.css may only set --app-face inside :root { }');
+      continue;
+    }
+    const selector = text.slice(0, open).trim().replace(/\s+/g, ' ');
+    if (!ALLOWED_SELECTORS.has(selector)) {
+      fail(
+        start,
+        text,
+        `"${selector}" is not allowed in theme.css — the Noon look lives in client/brand/noon.css; an app sets only --app-face`,
+      );
+      continue;
+    }
+    const body = text.slice(open + 1, -1);
+    for (const declaration of body.split(';')) {
+      const trimmed = declaration.trim();
+      if (trimmed === '') continue;
+      if (!FACE_DECLARATION.test(trimmed)) {
+        fail(
+          start + open + 1 + body.indexOf(trimmed),
+          trimmed,
+          'theme.css may set only --app-face, as a hex colour — every other token comes from client/brand/noon.css',
+        );
+      }
+    }
+  }
+  if (!hasImport) {
+    violations.push({
+      file,
+      line: 1,
+      text: '@import "../brand/noon.css";',
+      reason: 'theme.css must import the Noon design system: @import "../brand/noon.css";',
+    });
+  }
+  return violations;
+}
+
 export function appFiles(): string[] {
   return walk(APP_DIR).map((f) => relative(process.cwd(), f));
 }
 
-function main(): void {
-  const violations = findViolations(appFiles());
-  if (violations.length === 0) {
-    console.log('[check-theme-tokens] client/app is token-clean — OK.');
-    return;
-  }
-
-  console.error(
-    `[check-theme-tokens] ${violations.length} hardcoded style value(s) in the shipped app.\n` +
-      "The app's look must come from client/app/theme.css tokens, so that changing the theme\n" +
-      'changes the app. If a value genuinely cannot be a token, mark the line with a\n' +
-      '`theme-tokens-ignore` comment so the exception is visible in review.\n',
-  );
+function printViolations(violations: TokenViolation[]): void {
   for (const v of violations) {
     console.error(`  ✗ ${v.file}:${v.line} — ${v.reason}`);
     console.error(`      ${v.text}`);
+  }
+}
+
+function main(): void {
+  const themeViolations = checkThemeFile(readFileSync(THEME_FILE, 'utf8'));
+  const violations = findViolations(appFiles());
+  if (violations.length === 0 && themeViolations.length === 0) {
+    console.log(
+      '[check-theme-tokens] client/app is token-clean and theme.css sets only --app-face — OK.',
+    );
+    return;
+  }
+
+  if (themeViolations.length > 0) {
+    console.error(
+      `[check-theme-tokens] client/app/theme.css changes the Noon design system.\n` +
+        'Every Synapse app shares one Noon look (client/brand/noon.css, kept in sync by kit\n' +
+        'upgrades). theme.css may only `@import "../brand/noon.css";` and set `--app-face` (the\n' +
+        "logo's face colour) in `:root { }`. If a visual edit (for example Replit's Design Canvas)\n" +
+        'put a colour, font or size here, remove it and keep only --app-face. The\n' +
+        'synapse-design-system skill says what an app may change.\n',
+    );
+    printViolations(themeViolations);
+  }
+  if (violations.length > 0) {
+    console.error(
+      `[check-theme-tokens] ${violations.length} hardcoded style value(s) in the shipped app.\n` +
+        "The app's look must come from the design tokens (bg-surface, text-ink, …), so that the\n" +
+        'Noon design system styles every page. If a value genuinely cannot be a token, mark the\n' +
+        'line with a `theme-tokens-ignore` comment so the exception is visible in review.\n',
+    );
+    printViolations(violations);
   }
   process.exit(1);
 }

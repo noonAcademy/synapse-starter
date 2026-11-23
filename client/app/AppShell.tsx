@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { NoonLogo } from '../brand/NoonLogo';
 import { APP_NAME } from './config';
 import { LoginScreen } from './LoginScreen';
 import { type AppPage, getPageForPath, listAppPages } from './pages';
@@ -79,6 +80,11 @@ function useAppPath(): [string, (path: string) => void] {
 export function AppShell() {
   const auth = useEndUserAuth();
   const [path, navigate] = useAppPath();
+  const pageTitle = auth === 'unauthenticated' ? 'Sign in' : getPageForPath(path)?.title;
+
+  useEffect(() => {
+    document.title = pageTitle ? `${pageTitle} · ${APP_NAME}` : APP_NAME;
+  }, [pageTitle]);
 
   // Hold on a brand-neutral splash until the probe settles, so end users never glimpse the app
   // chrome before the login screen (or vice versa).
@@ -99,9 +105,10 @@ export function AppShell() {
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="text-lg font-semibold text-ink"
+            className="flex items-center gap-3 text-lg font-semibold text-ink"
           >
-            {APP_NAME}
+            <NoonLogo className="h-6" />
+            <span className="border-s border-line ps-3">{APP_NAME}</span>
           </button>
           {/* One page needs no nav; it appears once the app grows past the home page. */}
           {navPages.length > 1 && <AppNav pages={navPages} current={path} onNavigate={navigate} />}
@@ -146,7 +153,7 @@ function AppNav({
           onClick={() => onNavigate(p.path)}
           aria-current={current === p.path ? 'page' : undefined}
           className={`rounded-control px-3 py-1.5 text-body font-medium transition-colors ${
-            current === p.path ? 'bg-primary/10 text-primary' : 'text-ink-muted hover:text-ink'
+            current === p.path ? 'bg-primary/15 text-primary-ink' : 'text-ink-muted hover:text-ink'
           }`}
         >
           {p.title}

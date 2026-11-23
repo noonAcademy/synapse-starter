@@ -9,7 +9,9 @@ import { formatCell } from '../format';
 // flips cleanly when <html> carries dir="rtl".
 
 export function AppCard({ children }: { children: ReactNode }) {
-  return <div className="rounded-card border border-line bg-card p-card shadow-sm">{children}</div>;
+  return (
+    <div className="rounded-card border border-line bg-card p-card shadow-card">{children}</div>
+  );
 }
 
 export function AppEmptyState({ children }: { children: ReactNode }) {

@@ -69,8 +69,8 @@ const FALLBACK_PALETTE: Palette = {
 };
 
 // Recharts needs real color VALUES (it writes them into SVG fill/stroke), not Tailwind classes.
-// Reading them back off the document keeps client/app/theme.css the single source of truth: change
-// a token there and every chart follows, exactly like every other app component.
+// Reading them back off the document keeps the design tokens (client/brand/noon.css) the single
+// source of truth: change a token there and every chart follows, like every other app component.
 function readPalette(): Palette {
   if (typeof window === 'undefined' || typeof document === 'undefined') return FALLBACK_PALETTE;
   const styles = window.getComputedStyle(document.documentElement);
@@ -87,10 +87,29 @@ function readPalette(): Palette {
   };
 }
 
+// Re-reads when the theme changes (<html data-theme>, or the system colour scheme), so a chart
+// follows light and dark mode like the rest of the app.
 function usePalette(): Palette {
   const [palette, setPalette] = useState<Palette>(FALLBACK_PALETTE);
-  // After mount, when the stylesheet has actually applied.
-  useEffect(() => setPalette(readPalette()), []);
+  useEffect(() => {
+    // After mount, when the stylesheet has actually applied.
+    setPalette(readPalette());
+    const refresh = () => setPalette(readPalette());
+    const observer = typeof MutationObserver === 'undefined' ? null : new MutationObserver(refresh);
+    observer?.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+    const media =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-color-scheme: dark)')
+        : null;
+    media?.addEventListener('change', refresh);
+    return () => {
+      observer?.disconnect();
+      media?.removeEventListener('change', refresh);
+    };
+  }, []);
   return palette;
 }
 
