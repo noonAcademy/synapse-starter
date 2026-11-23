@@ -75,8 +75,10 @@ per-student live data needs redesigning *in the interview*, not at build time.
 3. **On approval, flip the top line** to `status: approved YYYY-MM-DD`.
 4. **Set the face colour and the name before building any page.** Set `--app-face` in
    [`client/app/theme.css`](../../../client/app/theme.css) (the only value that file may hold)
-   and `APP_NAME` in `client/app/config.ts`. If the app is Arabic-first/RTL, also set
-   `dir="rtl" lang="ar"` on `<html>` in [`client/index.html`](../../../client/index.html).
+   and `APP_NAME` in `client/app/config.ts`. Every app has an English/Arabic switch; if the app is
+   Arabic-first, make Arabic the default with `lang="ar" dir="rtl"` on `<html>` in
+   [`client/index.html`](../../../client/index.html), and if it is one language only, add
+   `data-fixed-lang` there and remove the switch (**synapse-arabic-rtl**).
    Everything else about the look is the Noon design system (**synapse-design-system**); never
    hardcode colors in components.
 5. Only now does building start — usually via the **synapse-add-page** skill, one Data-table

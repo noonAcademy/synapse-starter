@@ -49,6 +49,9 @@
   src: url("./fonts/IBMPlexSansArabic-Bold.woff2") format("woff2");
 }
 
+/* Tailwind's `dark:` variant follows the same switch as the tokens, not only the system setting. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /* Light palette (the default). */
 :root {
   color-scheme: light;

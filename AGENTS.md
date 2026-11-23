@@ -261,8 +261,8 @@ source of truth is the template's `main`.
 | [`.agents/skills/synapse-chart/SKILL.md`](.agents/skills/synapse-chart/SKILL.md) (**synapse-chart**) | Any chart, graph, trend or visual breakdown — `<ChartBlock>`, choosing the form from the data's shape, the theme's chart palette, and keeping the figures reachable. |
 | [`.agents/skills/synapse-scheduled-job/SKILL.md`](.agents/skills/synapse-scheduled-job/SKILL.md) (**synapse-scheduled-job**) | Anything recurring — "every Monday", "each morning", "alert me when" — a job in `server/jobs/` run by a Replit Scheduled Deployment. |
 | [`.agents/skills/synapse-access-control/SKILL.md`](.agents/skills/synapse-access-control/SKILL.md) (**synapse-access-control**) | **Adding any server route**, a public endpoint or webhook, "only X should see this", managers-only, anything confidential — the access gate (no anonymous API in any mode), `server/public-routes.ts`, the workspace key, and roles by email/domain in `server/access.ts`. |
-| [`.agents/skills/synapse-design-system/SKILL.md`](.agents/skills/synapse-design-system/SKILL.md) (**synapse-design-system**) | Any UI work, "change the colour/font/look", a logo, favicon, dark mode — the Noon tokens and utilities, `<NoonLogo />`, the favicon, and the one thing an app may change (its face colour). |
-| [`.agents/skills/synapse-arabic-rtl/SKILL.md`](.agents/skills/synapse-arabic-rtl/SKILL.md) (**synapse-arabic-rtl**) | Arabic-first or RTL apps — `dir`/`lang`, Arabic font stack, logical properties, bidi-safe Latin runs, Arabic number/date formatting, mirrored charts. |
+| [`.agents/skills/synapse-design-system/SKILL.md`](.agents/skills/synapse-design-system/SKILL.md) (**synapse-design-system**) | Any UI work, "change the colour/font/look", a logo, favicon, dark mode, the language switch — the Noon tokens and utilities, `<NoonLogo />`, the favicon, and the one thing an app may change (its face colour). |
+| [`.agents/skills/synapse-arabic-rtl/SKILL.md`](.agents/skills/synapse-arabic-rtl/SKILL.md) (**synapse-arabic-rtl**) | Any UI text, Arabic-first or bilingual apps — `useI18n` / `defineStrings`, the default language, logical properties, bidi-safe Latin runs, Arabic number/date formatting, mirrored charts. |
 | [`.agents/skills/synapse-workflow/SKILL.md`](.agents/skills/synapse-workflow/SKILL.md) (**synapse-workflow**) | Any form → workflow feature — "submit a request", "log an incident", "approve", "track status", "let people report/log X" — the three-stores rule, per-app Postgres storage, and the row-first-event-second recipe. |
 | [`.agents/skills/synapse-event-design/SKILL.md`](.agents/skills/synapse-event-design/SKILL.md) (**synapse-event-design**) | Tracking or instrumenting anything — which moments deserve events, `publishEvent` vs `sendEvent`, `declareEvent`, payload and naming rules, verifying delivery. |
 | [`.agents/skills/synapse-error-report/SKILL.md`](.agents/skills/synapse-error-report/SKILL.md) (**synapse-error-report**) | Something broke and needs escalating — produces a structured, paste-ready report for the Synapse Slack channel (never includes secret values). |
@@ -319,8 +319,9 @@ source of truth is the template's `main`.
   `client/app/config.ts`). The logo is `<NoonLogo />` (`client/brand/NoonLogo.tsx`) and the
   favicon is generated from the face colour at build time. Recipes: **synapse-design-system**.
   The console (`client/console/`, `client/ui.tsx`) keeps its own fixed styling and is never
-  themed. Direction is not a token: an RTL app sets `dir`/`lang` on `<html>` in
-  `client/index.html`.
+  themed. Every app has a light/dark button and an English/Arabic switch; UI strings go through
+  `t()` from `client/brand/i18n.ts` (**synapse-arabic-rtl**), and the default language is the
+  `lang` on `<html>` in `client/index.html`.
   **This one is enforced, not just stated:** `npm run check:theme` (inside `verify`) fails the
   build when `theme.css` holds anything but the brand import and `--app-face`, and on a raw hex,
   a Tailwind palette class (`bg-slate-700`), an arbitrary value (`bg-[#fff]`), or an inline style

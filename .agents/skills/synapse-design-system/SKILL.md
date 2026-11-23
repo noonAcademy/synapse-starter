@@ -4,7 +4,7 @@ description: >-
   The Noon design system every Synapse app shares: colour, type, radius and spacing tokens in
   light and dark, the Noon logo and favicon, and the one thing an app may change (its logo face
   colour). Use for any UI work, and whenever someone asks to change the colours, font, look,
-  logo, favicon or dark mode.
+  logo, favicon, dark mode or the language switch.
 ---
 
 > A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-design-system/SKILL.md
@@ -59,9 +59,20 @@ keeps that true.
 
 ## Light and dark
 
-The tokens have a light and a dark value. The app follows the device's light/dark setting
-automatically; nothing to do in a page as long as it uses the tokens. A page that hardcodes a
-colour stays light in dark mode — one more reason the check exists.
+The tokens have a light and a dark value. The app follows the device's setting until the person
+uses the sun/moon button in the header or on the login screen (`<ThemeToggle />` from
+`client/brand/Toggles.tsx`); the choice is remembered in their browser and applied before the
+first paint, so a dark page never flashes light. Nothing to do in a page as long as it uses the
+tokens. A page that hardcodes a colour stays light in dark mode — one more reason the check exists.
+In code, `useResolvedTheme()` from `client/brand/preferences.ts` says which theme is showing (for
+a canvas or an image that needs it); never read `matchMedia` yourself.
+
+## English and Arabic
+
+Every app is bilingual: `<LanguageSwitch />` sits next to the theme button, and `useI18n()` from
+`client/brand/i18n.ts` gives `t()`, `lang`, `dir`, `formatNumber` and `formatDate`. App copy goes
+in the app's own `defineStrings({ en, ar })` catalogue. Recipes, direction rules and bidi:
+**synapse-arabic-rtl**.
 
 ## The logo
 
@@ -87,4 +98,4 @@ Changing the face colour changes the favicon; nothing else to do. The tab title 
 ## Check it
 
 `npm run verify` (includes `check:theme`). Then look at the login screen and the header in light
-and dark (switch the device's appearance, or the browser's dev tools "prefers-color-scheme").
+and dark, English and Arabic (the two header buttons), at phone width too.

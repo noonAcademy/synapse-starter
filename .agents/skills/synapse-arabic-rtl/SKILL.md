@@ -1,8 +1,9 @@
 ---
 name: synapse-arabic-rtl
 description: >-
-  Make the app genuinely Arabic-first, not English pushed right: direction, Arabic fonts, mirrored
-  layout and charts, Arabic dates and numbers, Latin codes inside Arabic text. Use when the app is
+  Make the app genuinely Arabic-first, not English pushed right: the English/Arabic switch and
+  string catalogue (useI18n, defineStrings), direction, mirrored layout and charts, Arabic dates
+  and numbers, Latin codes inside Arabic text. Use when adding any UI text, when the app is
   Arabic, RTL or bilingual, or when an RTL layout looks wrong.
 ---
 
@@ -20,9 +21,11 @@ Getting this right is mostly a handful of specific decisions, made early.
 
 ## Hard rules
 
-- **Direction is not a theme token.** CSS cannot set it. `dir="rtl" lang="ar"` goes on `<html>` in
-  [`client/index.html`](../../../client/index.html) — that file is *shared*, so edit it in place
-  and preserve what's there.
+- **Every app is bilingual out of the box.** The header and login screen carry an English/Arabic
+  switch, and [`client/brand/preferences.ts`](../../../client/brand/preferences.ts) sets `lang`
+  and `dir` on `<html>` from the person's choice. Never set `dir` per component or by hand in React.
+- **Every UI string goes through `t()`**, with English and Arabic side by side in one catalogue —
+  never a bare English string in a page of a bilingual app.
 - **Never use physical direction properties in app code.** No `ml-*`, `mr-*`, `pl-*`, `pr-*`,
   `left-*`, `right-*`, `text-left`, `text-right`. Use the logical forms: `ms-*`, `me-*`, `ps-*`,
   `pe-*`, `start-*`, `end-*`, `text-start`, `text-end`, `rounded-s-*`, `rounded-e-*`. The
@@ -30,21 +33,52 @@ Getting this right is mostly a handful of specific decisions, made early.
   them.
 - **Never machine-translate UI copy and ship it unreviewed.** Get the builder to read it. An
   awkward Arabic label costs more trust than an English one.
-- **Never hardcode a date or number format.** Use `Intl` with the page's locale, always.
+- **Never hardcode a date or number format.** Use `Intl` with the page's locale, always (`formatNumber` / `formatDate` from `useI18n` do).
 
 ## Set it up
 
-**1. The document.** In `client/index.html`:
+**1. Strings.** Put the app's copy in one catalogue, English and Arabic side by side, and read it
+with `useI18n`:
 
-```html
-<html dir="rtl" lang="ar">
+```tsx
+// client/app/strings.ts
+import { defineStrings } from '../brand/i18n';
+
+export const appStrings = defineStrings({
+  en: { title: 'Attendance', students: 'Students: {count}' },
+  ar: { title: 'الحضور', students: 'عدد الطلاب: {count}' },
+});
+
+// in a page
+const { t, formatNumber } = useI18n(appStrings);
+<h2>{t('title')}</h2>
+<p>{t('students', { count: formatNumber(total) })}</p>
 ```
 
-**2. The font.** Nothing to do: the Noon design system
+TypeScript fails the build when the Arabic catalogue misses a key. A blank Arabic string falls
+back to English, so the page never shows a key name. Arabic plurals have six forms; for a count
+label, write the sentence so one form fits ("عدد الطلاب: {count}") rather than faking plurals.
+
+Page titles in the nav and the browser tab come from each page's exported `title`, which is one
+string. In an Arabic-first app write it in Arabic; in a bilingual app keep it short and neutral.
+(Per-language page titles are not supported yet.)
+
+**2. Default language.** The `lang` on `<html>` in
+[`client/index.html`](../../../client/index.html) (a *shared* file — edit in place, keep the rest)
+is the language a first-time visitor sees. Arabic-first app: `<html lang="ar" dir="rtl">`. After
+that, each person's switch choice wins, remembered in their browser (localStorage), and applied
+before the first paint so the page never flashes the wrong direction.
+
+**One language only?** Set it in `index.html` with `data-fixed-lang` —
+`<html lang="ar" dir="rtl" data-fixed-lang>` — and delete `<LanguageSwitch />` from
+`client/app/AppShell.tsx` and `client/app/LoginScreen.tsx`. `data-fixed-lang` makes the app ignore
+a language someone picked while the switch still existed.
+
+**3. The font.** Nothing to do: the Noon design system
 ([`client/brand/noon.css`](../../../client/brand/noon.css)) ships IBM Plex Sans Arabic, one family
 for Arabic and Latin, so a mixed line never jumps between typefaces. Never set `--font-app`.
 
-**3. Line height.** Arabic needs more vertical room than Latin at the same size — diacritics sit
+**4. Line height.** Arabic needs more vertical room than Latin at the same size — diacritics sit
 above and below. The design system already gives `:lang(ar)` text a taller line; don't change
 font sizes or line heights per page.
 
@@ -128,16 +162,8 @@ app (or `npm run visual` outside Replit):
 
 Then have the builder read one real screen. They will catch translation problems no check can.
 
-## Bilingual apps
+## Record it
 
-If the app serves both languages, decide **per user** or **per app** before building — retrofitting
-per-user language is expensive:
-
-- **Per app** (one language, chosen at build time) — what this recipe covers. Almost always
-  enough for an internal tool.
-- **Per user** — needs a language preference, a string catalogue, and `dir` set from React rather
-  than the HTML file. Only do this if the builder genuinely has both audiences; say plainly that
-  it roughly doubles the UI work.
-
-Record the choice, the digit shape, and the calendar in [`SPEC.md`](../../../SPEC.md)'s
-"Look & feel" section — they are decisions, not details.
+Record the default language, whether the switch stays, the digit shape and the calendar in
+[`SPEC.md`](../../../SPEC.md)'s "Look & feel" section — they are decisions, not details. Have a
+fluent reader check the Arabic catalogue before the app ships.

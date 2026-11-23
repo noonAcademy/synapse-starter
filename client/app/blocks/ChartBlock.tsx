@@ -16,7 +16,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { relativeTime } from '../../format';
+import { localeOf, useI18n } from '../../brand/i18n';
 import { useView, type ViewData } from '../../useView';
 import { AppCard, AppEmptyState, DataTable } from '../ui';
 
@@ -120,15 +120,16 @@ function isRtl(): boolean {
 
 // Axis labels get compacted (12.4k), tooltips get the exact figure. A reader scanning an axis
 // wants magnitude; a reader who hovered wants the number.
-function compactNumber(value: number): string {
-  return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(
+// The locale is the app's chosen language (Western digits in Arabic), not the browser's.
+function compactNumber(value: number, locale: string): string {
+  return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(
     value,
   );
 }
 
-function exactNumber(value: unknown): string {
+function exactNumber(value: unknown, locale: string): string {
   if (typeof value !== 'number' || Number.isNaN(value)) return String(value ?? '—');
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
+  return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value);
 }
 
 function toNumber(value: unknown): number | null {
@@ -162,13 +163,12 @@ export interface ChartBlockProps {
 
 export function ChartBlock(props: ChartBlockProps) {
   const state = useView(props.name);
+  const { t } = useI18n();
 
   return (
     <AppCard>
-      {state.status === 'loading' && <p className="text-body text-ink-muted">Loading…</p>}
-      {state.status === 'error' && (
-        <AppEmptyState>This chart isn't available right now.</AppEmptyState>
-      )}
+      {state.status === 'loading' && <p className="text-body text-ink-muted">{t('loading')}</p>}
+      {state.status === 'error' && <AppEmptyState>{t('chartUnavailable')}</AppEmptyState>}
       {state.status === 'ready' && <ChartBlockBody view={state.data} {...props} />}
     </AppCard>
   );
@@ -184,8 +184,11 @@ function ChartBlockBody({
   showTable = true,
 }: ChartBlockProps & { view: ViewData }) {
   const palette = usePalette();
+  // Subscribing re-renders the chart when the language (and so the direction) changes.
+  const { t, lang } = useI18n();
   const series = Array.isArray(y) ? y : [y];
-  const rtl = isRtl();
+  const rtl = lang === 'ar' || isRtl();
+  const locale = localeOf(lang);
 
   // Coerce once: every series column to a real number, rows missing the category dropped. A row
   // whose measure won't parse becomes 0 rather than breaking the axis scale.
@@ -202,21 +205,21 @@ function ChartBlockBody({
   if (!view.configured) {
     return (
       <ChartFrame view={view} title={title}>
-        <AppEmptyState>This chart isn't connected to Noon data yet.</AppEmptyState>
+        <AppEmptyState>{t('chartNotConnected')}</AppEmptyState>
       </ChartFrame>
     );
   }
   if (view.error !== null) {
     return (
       <ChartFrame view={view} title={title}>
-        <AppEmptyState>This chart couldn't load just now. Try again in a moment.</AppEmptyState>
+        <AppEmptyState>{t('chartLoadFailed')}</AppEmptyState>
       </ChartFrame>
     );
   }
   if (data.length === 0) {
     return (
       <ChartFrame view={view} title={title}>
-        <AppEmptyState>No data for this period yet.</AppEmptyState>
+        <AppEmptyState>{t('noDataYet')}</AppEmptyState>
       </ChartFrame>
     );
   }
@@ -242,7 +245,7 @@ function ChartBlockBody({
       color: palette.ink,
       fontSize: 12,
     },
-    formatter: (value: unknown) => exactNumber(value),
+    formatter: (value: unknown) => exactNumber(value, locale),
   };
   const grid = <CartesianGrid stroke={palette.line} strokeDasharray="3 3" vertical={false} />;
   // RTL charts read right-to-left: the earliest category belongs on the right.
@@ -261,7 +264,7 @@ function ChartBlockBody({
       tick={axis}
       tickLine={false}
       axisLine={false}
-      tickFormatter={compactNumber}
+      tickFormatter={(value: number) => compactNumber(value, locale)}
       width={48}
     />
   );
@@ -352,7 +355,9 @@ function ChartBlockBody({
 
       {showTable && (
         <details className="mt-3">
-          <summary className="cursor-pointer text-caption text-ink-muted">Show the numbers</summary>
+          <summary className="cursor-pointer text-caption text-ink-muted">
+            {t('showNumbers')}
+          </summary>
           <div className="mt-2">
             <DataTable columns={view.columns} rows={view.rows} />
           </div>
@@ -373,12 +378,15 @@ function ChartFrame({
   title?: string;
   children: React.ReactNode;
 }) {
+  const { t, formatRelative } = useI18n();
   return (
     <div className="min-w-0">
       <h3 className="text-body font-semibold text-ink">{title ?? view.title}</h3>
       <p className="text-body text-ink-muted">{view.description}</p>
       {view.configured && view.dataAsOf !== null && (
-        <p className="mt-1 text-caption text-ink-faint">Updated {relativeTime(view.dataAsOf)}</p>
+        <p className="mt-1 text-caption text-ink-faint">
+          {t('updated', { time: formatRelative(view.dataAsOf) })}
+        </p>
       )}
       <div className="mt-4">{children}</div>
     </div>

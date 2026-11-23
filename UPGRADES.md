@@ -25,6 +25,92 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.11.24.3 — dark mode and English/Arabic for every Synapse app
+
+### What changed
+
+- **A light/dark button** (`<ThemeToggle />`) and **an English/Arabic switch**
+  (`<LanguageSwitch />`), both in [`client/brand/Toggles.tsx`](client/brand/Toggles.tsx). The theme
+  follows the device until the person chooses; both choices are remembered in their browser
+  (`localStorage` keys `noon.theme`, `noon.lang`) — per browser, because the choice must work on
+  the login screen too, before anyone is signed in.
+- **No flash on load:** the Vite plugin (`scripts/vite-brand.ts`) puts a small inline script at
+  the top of `<head>` that sets `data-theme`, `lang` and `dir` on `<html>` before any CSS or app
+  code runs. [`client/brand/preferences.ts`](client/brand/preferences.ts) applies the same keys
+  at start-up (`client/main.tsx`) and follows system changes.
+- **A small i18n helper**, [`client/brand/i18n.ts`](client/brand/i18n.ts): `useI18n()` gives
+  `t()`, `lang`, `dir`, `setLang`, `formatNumber` (Western digits in Arabic) and `formatDate`
+  (Gregorian); `defineStrings({ en, ar })` types an app's own catalogue (TypeScript fails on a
+  missing Arabic key; a blank one falls back to English). The starter's own strings — login,
+  header, not-found, the home placeholder — are in [`client/brand/strings.ts`](client/brand/strings.ts)
+  in English and Arabic.
+- **Default language = the `lang` on `<html>`** in `client/index.html`, so a clone that already
+  set `lang="ar" dir="rtl"` stays Arabic-first. `<html data-fixed-lang>` marks a one-language
+  app: a stored choice is then ignored.
+- **The data blocks speak both languages:** `ViewBlock` and `ChartBlock` show their loading,
+  empty and error states, "Updated …" (with `Intl.RelativeTimeFormat`) and "Show the numbers" in
+  the chosen language; `ChartBlock` mirrors when the language changes and formats numbers in the
+  app's language (Western digits in Arabic) rather than the browser's.
+- Preferences keep working where the browser blocks storage (kept in memory until a reload),
+  follow a change made in another tab, and the switches are 44 px touch targets.
+- The console stays English, left-to-right and light whatever the app's choices: it pins `<html>`
+  to `lang="en" dir="ltr" data-theme="light"`, and its tab is titled "Synapse console".
+- Tailwind's `dark:` variant follows the same switch (`@custom-variant dark` on `data-theme`).
+- Template app files (builder-owned in clones): the login screen and header show both buttons
+  and read their copy from `t()`; the not-found state links home; the home placeholder is
+  translated.
+- Skills: **synapse-arabic-rtl** rewritten around the switch and `useI18n` (no more hand-set
+  `dir` in React; one-language apps remove the switch), **synapse-design-system** gains the dark
+  and language sections, **synapse-plan-first** asks for the default language.
+
+### Why a clone should care
+
+Every Noon app gets dark mode and Arabic the same way, and the agent stops hand-rolling RTL per
+app. **Two things change at once, before step 3:** the copied `ViewBlock` / `ChartBlock` speak the
+language on `<html lang>` (a clone with `lang="ar"` gets Arabic block copy and mirrored charts),
+and `dir` now follows `lang` (a clone with `lang="ar"` but no `dir="rtl"` turns right-to-left —
+check its layout).
+
+### Recipe
+
+1. **Copy** (synapse-owned):
+
+   ```bash
+   for f in client/brand/preferences.ts client/brand/preferences.test.tsx client/brand/i18n.ts \
+            client/brand/strings.ts client/brand/Toggles.tsx scripts/vite-brand.ts \
+            scripts/brand-icons.test.ts client/main.tsx client/console/ConsoleApp.tsx \
+            client/console/WorkspaceLock.tsx client/app/blocks/ViewBlock.tsx \
+            client/app/blocks/ChartBlock.tsx .agents/skills/synapse-arabic-rtl/SKILL.md \
+            .agents/skills/synapse-design-system/SKILL.md .agents/skills/synapse-plan-first/SKILL.md \
+            AGENTS.md; do
+     cp "<template>/$f" "$f"
+   done
+   ```
+
+2. **No edit to `client/index.html`** is needed: the head script is injected at build time. Keep
+   its `lang`/`dir` — they are the app's default language now. If the app is meant to stay in one
+   language, ask the builder whether to add `data-fixed-lang` to `<html>` (a shared-file guided
+   edit; keep everything else).
+
+3. **After the upgrade, as app work — not part of this recipe** (law 5 keeps upgrades out of
+   builder-owned files). Offer it, and make each change only if the builder says yes: add
+   `<LanguageSwitch />` and `<ThemeToggle />`
+   to the header in `client/app/AppShell.tsx` and to the top corner of
+   `client/app/LoginScreen.tsx`, and move the login copy to `t()` (the template's versions show
+   the exact code). For a one-language app, add only `<ThemeToggle />`. If the builder's pages
+   have English-only copy and they want Arabic, move it into a `defineStrings` catalogue
+   (**synapse-arabic-rtl**) and have a fluent reader check it.
+
+### Verify
+
+- `npm run verify` green.
+- In the app (`?surface=app`): the moon button turns the page dark, and a reload stays dark with
+  no light flash; `العربية` turns the page Arabic and right-to-left, and a reload stays Arabic.
+- `curl -s localhost:3000/ | head -5` shows the inline `<script>` first in `<head>`.
+- The console (workspace `/`) stays English, left-to-right and light after both switches.
+
+---
+
 ## 2026.11.24.3 — one Noon design system: tokens, font, logo and favicon
 
 ### What changed
