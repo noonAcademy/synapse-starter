@@ -1,6 +1,7 @@
 import { type ReactNode, useMemo, useState } from 'react';
 import { Button, Card, CopyBox, Disclosure, EmptyState, Pill, SectionHeading } from '../ui';
 import { type LoadState, useJson } from '../useJson';
+import { openGatedText } from '../workspaceKey';
 import type { TabId } from './ConsoleApp';
 
 // Mirrors server/tables.ts TableProjection (the JSON shape served by /__synapse/tables).
@@ -148,14 +149,14 @@ function RegistryFreshness({ registry }: { registry: LoadState<RegistryStatus> }
         {registry.data.source === 'live' ? 'live' : 'snapshot'}
       </Pill>
       <span>{label}</span>
-      <a
-        href="/__synapse/registry"
-        target="_blank"
-        rel="noreferrer"
+      {/* A button, not a link: a link cannot carry the workspace key the gate needs. */}
+      <button
+        type="button"
+        onClick={() => void openGatedText('/__synapse/registry')}
         className="font-medium text-indigo-600 hover:text-indigo-800"
       >
         view raw registry →
-      </a>
+      </button>
     </p>
   );
 }

@@ -25,11 +25,29 @@
 // so a typo in an assertion is caught here rather than silently returning nothing at runtime.
 /// <reference lib="dom" />
 
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { HEADERS_FILE } from '../server/workspace-key.js';
 
 const BASE = process.env.VISUAL_BASE_URL ?? 'http://localhost:3000';
 const OUT_DIR = resolve(process.cwd(), '.synapse-visual');
+
+// The workspace gate (server/access-gate.ts) refuses /api and /__synapse without the builder's
+// key. The page stores it the way the unlock link does, so the app's own fetch wrapper
+// (client/workspaceKey.ts) adds it to same-origin /api and /__synapse calls only — a header on
+// every request would hand the key to any third-party image or script the page loads.
+// Absent file (kit older than 2026.11.24): nothing to seed.
+function workspaceKeySeed(): string {
+  try {
+    const line = readFileSync(resolve(process.cwd(), HEADERS_FILE), 'utf8').trim();
+    const key = line.slice(line.indexOf(':') + 1).trim();
+    return key
+      ? `try{window.localStorage.setItem('synapse.workspaceKey',${JSON.stringify(key)})}catch(e){}`
+      : '';
+  } catch {
+    return '';
+  }
+}
 
 // Phone first: Noon's users are overwhelmingly on phones, and a layout that survives 390px
 // almost always survives desktop. The reverse is not true.
@@ -189,7 +207,9 @@ async function main(): Promise<void> {
   const shots: string[] = [];
 
   try {
+    const keySeed = workspaceKeySeed();
     const scout = await browser.newPage();
+    if (keySeed) await scout.addInitScript(keySeed);
     const argRoutes = process.argv.slice(2).filter((a) => a.startsWith('/'));
     const routes = argRoutes.length > 0 ? argRoutes : await discoverRoutes(scout);
     await scout.close();
@@ -200,6 +220,7 @@ async function main(): Promise<void> {
         viewport: { width: viewport.width, height: viewport.height },
         deviceScaleFactor: 2,
       });
+      if (keySeed) await context.addInitScript(keySeed);
 
       for (const route of routes) {
         const page = await context.newPage();

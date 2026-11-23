@@ -24,8 +24,8 @@ any query.** There is nothing to upload — the snapshot is in the repo and brow
 console's **Get data** tab. Its source of truth is Citadel's live `GET /api/registry` (contract in
 [INTEGRATE.md §5](../INTEGRATE.md)); when that endpoint is reachable, trust it over the
 snapshot. In the workspace, read the freshest registry text from the running app —
-`curl -s localhost:3000/__synapse/registry` (it serves live when Citadel answers, else this
-snapshot; the `X-Registry-Source` response header says which you got).
+`curl -s -H @.synapse-workspace.headers.local localhost:3000/__synapse/registry` (it serves live when Citadel answers, else this
+snapshot; the `X-Registry-Source` response header says which you got). The `-H @…` part sends the workspace key (AGENTS.md rule 10); drop it on a kit older than `2026.11.24`.
 
 ## How reads work in this app (the one rule that changes everything)
 
@@ -136,7 +136,7 @@ After you've written and explained the final `SELECT`:
    ```
 
    **`registryVersion` is a transcription, never a computation or a reuse.** Fetch
-   `curl -s localhost:3000/__synapse/registry/status` and copy its `stamp` field **verbatim**
+   `curl -s -H @.synapse-workspace.headers.local localhost:3000/__synapse/registry/status` and copy its `stamp` field **verbatim**
    (it looks like `a1b2c3d4e5f6@2026-01-01`: an app-computed content hash of the registry text
    plus its date — contract in `server/registry.ts`). That endpoint shares the fetch cache with
    `/__synapse/registry`, so the stamp identifies exactly the registry text you just read.

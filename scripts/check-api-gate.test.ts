@@ -1,0 +1,146 @@
+import express from 'express';
+import { describe, expect, it } from 'vitest';
+import { createWorkspaceGate } from '../server/access-gate.js';
+import { buildApp } from '../server/index.js';
+import { checkApp, concretePath, piiFields, sourceProblems } from './check-api-gate.js';
+
+const KEY = 'unit-test-key'.repeat(4);
+const gate = () => createWorkspaceGate({ workspaceKey: KEY, trustLocalCalls: false });
+
+describe('checkApp', () => {
+  it('passes the real app in both modes', async () => {
+    const workspace = buildApp({
+      isReplitDeployment: false,
+      workspaceKey: KEY,
+      trustLocalCalls: false,
+    });
+    expect(await checkApp('workspace', workspace, [])).toEqual([]);
+    const deployment = buildApp({ isReplitDeployment: true, authDeps: null });
+    expect(await checkApp('deployment', deployment, [])).toEqual([]);
+  });
+
+  it('fails a route registered before the gate, and says the anonymous call reached it', async () => {
+    const app = express();
+    app.get('/api/early', (_req, res) => {
+      res.json({ ok: true });
+    });
+    app.use(gate());
+    const problems = (await checkApp('workspace', app, [])).map((p) => p.problem);
+    expect(problems.some((p) => p.includes('not the first middleware'))).toBe(true);
+    expect(problems.some((p) => p.includes('anonymous GET /api/early reached'))).toBe(true);
+  });
+
+  it('fails a data route outside /api/', async () => {
+    const app = express();
+    app.use(gate());
+    app.post('/report', (_req, res) => {
+      res.json({});
+    });
+    const problems = (await checkApp('workspace', app, [])).map((p) => p.problem);
+    expect(problems.some((p) => p.includes('outside /api/'))).toBe(true);
+  });
+
+  it('checks routes inside a mounted router', async () => {
+    const app = express();
+    const router = express.Router();
+    router.get('/people', (_req, res) => {
+      res.json([]);
+    });
+    app.use('/api/v2', router);
+    app.use(gate());
+    const problems = (await checkApp('workspace', app, [])).map((p) => p.problem);
+    expect(problems.some((p) => p.includes('GET /api/v2/people reached'))).toBe(true);
+  });
+
+  it('fails a public route that returns personal data, and one with no reason', async () => {
+    const app = express();
+    app.use(
+      createWorkspaceGate({
+        workspaceKey: KEY,
+        trustLocalCalls: false,
+        publicRoutes: [{ method: 'GET', path: '/api/staff', reason: 'demo' }],
+      }),
+    );
+    app.get('/api/staff', (_req, res) => {
+      res.json({ rows: [{ id: 1, fullName: 'A', contact: { email: 'a@b.c' } }] });
+    });
+    const problems = (
+      await checkApp('workspace', app, [
+        { method: 'GET', path: '/api/staff', reason: 'demo' },
+        { method: 'GET', path: '/api/other', reason: ' ' },
+      ])
+    ).map((p) => p.problem);
+    expect(
+      problems.some((p) => p.includes('rows[].fullName') && p.includes('rows[].contact.email')),
+    ).toBe(true);
+    expect(problems.some((p) => p.includes('/api/other has no reason'))).toBe(true);
+  });
+
+  it('accepts a public route that returns no personal data', async () => {
+    const publicRoutes = [{ method: 'GET' as const, path: '/api/health', reason: 'uptime' }];
+    const app = express();
+    app.use(createWorkspaceGate({ workspaceKey: KEY, trustLocalCalls: false, publicRoutes }));
+    app.get('/api/health', (_req, res) => {
+      res.json({ ok: true, count: 3 });
+    });
+    expect(await checkApp('workspace', app, publicRoutes)).toEqual([]);
+  });
+});
+
+it('checks a handler mounted with app.use at a data path', async () => {
+  const app = express();
+  app.use('/api/raw', (_req, res) => {
+    res.json({});
+  });
+  app.use(gate());
+  const problems = (await checkApp('workspace', app, [])).map((p) => p.problem);
+  expect(problems.some((p) => p.includes('GET /api/raw reached'))).toBe(true);
+});
+
+it('never calls a public non-GET route for real (it could publish or write)', async () => {
+  const publicRoutes = [
+    { method: 'POST' as const, path: '/api/webhook', reason: 'partner webhook' },
+  ];
+  let called = false;
+  const app = express();
+  app.use(createWorkspaceGate({ workspaceKey: KEY, trustLocalCalls: false, publicRoutes }));
+  app.post('/api/webhook', (_req, res) => {
+    called = true;
+    res.json({ email: 'x@y.z' });
+  });
+  expect(await checkApp('workspace', app, publicRoutes)).toEqual([]);
+  expect(called).toBe(false);
+});
+
+describe('piiFields', () => {
+  it('finds snake_case, camelCase and nested names, and ignores ids and counts', () => {
+    expect(
+      piiFields({
+        student_name: 'x',
+        nationalId: '1',
+        phone_number: '2',
+        dob: '3',
+        id: 4,
+        total: 5,
+      }),
+    ).toEqual(['student_name', 'nationalId', 'phone_number', 'dob']);
+    expect(piiFields([{ campus: { address: 'x' } }])).toEqual(['[].campus.address']);
+  });
+});
+
+describe('concretePath', () => {
+  it('fills params and wildcards', () => {
+    expect(concretePath('/api/views/:name')).toBe('/api/views/x');
+  });
+});
+
+describe('sourceProblems', () => {
+  const read = (text: string) => () => text;
+  it('flags a second server outside server/index.ts and any WebSocket upgrade handler', () => {
+    expect(sourceProblems(['server/extra.ts'], read('const app = express();'))).toHaveLength(1);
+    expect(sourceProblems(['server/index.ts'], read('const app = express();'))).toHaveLength(0);
+    expect(sourceProblems(['server/index.ts'], read("server.on('upgrade', h)"))).toHaveLength(1);
+    expect(sourceProblems(['server/extra.ts'], read('// express() in a comment'))).toHaveLength(0);
+    expect(sourceProblems(['server/plans.ts'], read("const status = 'upgrade';"))).toHaveLength(0);
+  });
+});

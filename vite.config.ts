@@ -14,6 +14,11 @@ export default defineConfig({
     // allowedHosts check blocks it by default ("Blocked request... not allowed").
     // Only affects the dev server (vite middleware); prod serves static files.
     allowedHosts: ['.replit.dev'],
+    // Vite's defaults, plus the workspace key (`*.local`, server/workspace-key.ts) and the
+    // screenshots of data pages from `npm run visual`: neither may be served through /@fs/.
+    fs: {
+      deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '**/*.local', '**/.synapse-visual/**'],
+    },
   },
   build: {
     outDir: resolve(here, 'dist/public'),

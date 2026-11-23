@@ -43,10 +43,14 @@ exist so you can interrogate the warehouse without baking a throwaway read and f
 delete it.
 
 ```bash
-curl -s localhost:3000/__synapse/probe \
+curl -s -H @.synapse-workspace.headers.local localhost:3000/__synapse/probe \
   -H 'content-type: application/json' \
   -d '{"sql":"SELECT COUNT(*) AS n FROM noon2_datamart.d_course WHERE is_course_deleted = 0"}'
 ```
+
+`-H @.synapse-workspace.headers.local` sends the builder's workspace key: every `/__synapse` call
+needs it (AGENTS.md rule 10). On a kit older than `2026.11.24` that file does not exist; drop the
+`-H @…` part.
 
 Returns `{ sql, columns, rows, truncated, ranAt, configured, error }`. Notes that will save you:
 
@@ -59,7 +63,7 @@ Returns `{ sql, columns, rows, truncated, ranAt, configured, error }`. Notes tha
   they never masquerade as app traffic.
 - SELECT / WITH / SHOW / DESCRIBE / EXPLAIN only. Anything else is refused with a reason.
 
-Run the read itself the same way: `curl -s localhost:3000/__synapse/reads/<name>`.
+Run the read itself the same way: `curl -s -H @.synapse-workspace.headers.local localhost:3000/__synapse/reads/<name>`.
 
 ## The five checks
 

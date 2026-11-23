@@ -296,19 +296,24 @@ const STATIC_ASSET =
 
 // Requests that must reach through the gate unauthenticated so the login screen can load and sign in.
 function isAllowlisted(req: Request): boolean {
-  if (req.method === 'GET' && req.path === '/login') {
+  // Lower case, because Express routes match without regard to case: `/API/x.json` reaches the
+  // same handler as `/api/x.json` and must not pass as a static asset.
+  const path = req.path.toLowerCase();
+  if (req.method === 'GET' && path === '/login') {
     return true;
   }
-  if (req.path === '/health') {
+  // Kept open for uptime checks that predate PUBLIC_ROUTES; it is not an /api path.
+  if ((req.method === 'GET' || req.method === 'HEAD') && path === '/health') {
     return true;
   }
   // The SPA bundle (login + app share one build) and other static assets. Exclude API paths so a
   // future protected route ending in .json/.txt/.map can't slip through the gate unauthenticated.
   if (
     req.method === 'GET' &&
-    !req.path.startsWith('/api/') &&
-    !req.path.startsWith('/__synapse/') &&
-    STATIC_ASSET.test(req.path)
+    path !== '/api' &&
+    !path.startsWith('/api/') &&
+    !path.startsWith('/__synapse') &&
+    STATIC_ASSET.test(path)
   ) {
     return true;
   }
@@ -332,7 +337,9 @@ export function createRequireEndUser(
       next();
       return;
     }
-    if (req.path.startsWith('/api/') || req.method !== 'GET') {
+    const path = req.path.toLowerCase();
+    if (path === '/api' || path.startsWith('/api/') || req.method !== 'GET') {
+      res.setHeader('x-synapse-gate', 'denied');
       res.status(401).json({ error: 'Authentication required' });
       return;
     }

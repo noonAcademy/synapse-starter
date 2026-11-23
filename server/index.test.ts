@@ -15,16 +15,26 @@ async function serve(app: Application): Promise<{ port: number; close: () => Pro
   };
 }
 
+const KEY = 'test-workspace-key-0123456789abcdef0123456789';
+const WITH_KEY = { 'x-synapse-workspace-key': KEY };
+// What a request through Replit's proxy looks like to the server.
+const PROXIED = { host: 'my-app.replit.dev', 'x-forwarded-for': '203.0.113.7' };
+
 function get(
   port: number,
   path: string,
+  headers: Record<string, string> = {},
+  method = 'GET',
 ): Promise<{ status: number; headers: http.IncomingHttpHeaders }> {
   return new Promise((resolve, reject) => {
     // http.request does not follow redirects, so a 302 comes through verbatim.
-    const req = http.request({ host: '127.0.0.1', port, method: 'GET', path }, (res) => {
-      res.resume();
-      res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers }));
-    });
+    const req = http.request(
+      { host: '127.0.0.1', port, method, path, headers, agent: false },
+      (res) => {
+        res.resume();
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers }));
+      },
+    );
     req.on('error', reject);
     req.end();
   });
@@ -34,6 +44,7 @@ function post(
   port: number,
   path: string,
   body?: unknown,
+  extraHeaders: Record<string, string> = {},
 ): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const data = body === undefined ? '' : JSON.stringify(body);
@@ -41,9 +52,15 @@ function post(
       {
         host: '127.0.0.1',
         port,
+        // A fresh socket per call: a kept-alive one can point at a closed server on a reused port.
+        agent: false,
         method: 'POST',
         path,
-        headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) },
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(data),
+          ...extraHeaders,
+        },
       },
       (res) => {
         let chunks = '';
@@ -57,6 +74,8 @@ function post(
     req.end(data);
   });
 }
+
+const workspace = { isReplitDeployment: false, workspaceKey: KEY, trustLocalCalls: false };
 
 const authDeps = buildEndUserAuthDeps({
   baseUrl: 'https://citadel.example',
@@ -82,14 +101,77 @@ describe('end-user auth gate wiring', () => {
     }
   });
 
-  it('leaves the workspace open: API reachable, no /login redirect', async () => {
-    const { port, close } = await serve(buildApp({ isReplitDeployment: false }));
+  it('locks the workspace API to the builder: no key -> 401, key -> 200, pages stay open', async () => {
+    const { port, close } = await serve(buildApp(workspace));
     try {
-      const views = await get(port, '/api/views');
-      expect(views.status).toBe(200);
+      const locked = await get(port, '/api/views', PROXIED);
+      expect(locked.status).toBe(401);
+      expect(locked.headers['x-synapse-gate']).toBe('denied');
+      expect((await get(port, '/__synapse/overview', PROXIED)).status).toBe(401);
+      expect((await get(port, '/api/views', { ...PROXIED, ...WITH_KEY })).status).toBe(200);
+      expect((await get(port, '/', PROXIED)).status).not.toBe(401);
+    } finally {
+      await close();
+    }
+  });
 
-      const page = await get(port, '/');
-      expect(page.status).not.toBe(302);
+  it('does not trust a local call on Replit or in a production start', async () => {
+    const { port, close } = await serve(buildApp(workspace));
+    try {
+      expect((await get(port, '/api/views', { host: 'localhost:3000' })).status).toBe(401);
+    } finally {
+      await close();
+    }
+  });
+
+  it('lets a direct local call through only for npm run dev off Replit', async () => {
+    const { port, close } = await serve(buildApp({ ...workspace, trustLocalCalls: true }));
+    try {
+      expect((await get(port, '/api/views', { host: 'localhost:3000' })).status).toBe(200);
+      expect(
+        (await get(port, '/api/views', { host: 'localhost', 'x-forwarded-for': '1.2.3.4' })).status,
+      ).toBe(401);
+      expect((await get(port, '/api/views', { host: 'my-app.replit.dev' })).status).toBe(401);
+      expect(
+        (await get(port, '/api/views', { host: 'localhost', 'sec-fetch-site': 'cross-site' }))
+          .status,
+      ).toBe(401);
+      expect(
+        (await get(port, '/api/views', { host: 'localhost', origin: 'https://evil.example' }))
+          .status,
+      ).toBe(401);
+    } finally {
+      await close();
+    }
+  });
+
+  it('matches data paths without regard to letter case, for every method', async () => {
+    const { port, close } = await serve(buildApp(workspace));
+    try {
+      for (const path of [
+        '/API/views',
+        '/Api/Views/x',
+        '/__SYNAPSE/overview',
+        '/__Synapse/probe',
+      ]) {
+        for (const method of ['GET', 'HEAD', 'OPTIONS', 'POST']) {
+          expect((await get(port, path, PROXIED, method)).status, `${method} ${path}`).toBe(401);
+        }
+      }
+      expect((await get(port, '/anything', PROXIED, 'POST')).status).toBe(401);
+    } finally {
+      await close();
+    }
+  });
+
+  it('ignores the workspace key in a deployment: no session -> 401', async () => {
+    const { port, close } = await serve(
+      buildApp({ isReplitDeployment: true, authDeps, workspaceKey: KEY }),
+    );
+    try {
+      expect((await get(port, '/api/views', WITH_KEY)).status).toBe(401);
+      expect((await get(port, '/API/views', WITH_KEY)).status).toBe(401);
+      expect((await get(port, '/API/views/x.json')).status).toBe(401);
     } finally {
       await close();
     }
@@ -133,10 +215,10 @@ describe('app event route (/api/events)', () => {
     }
   });
 
-  it('requires an event type (400) in the open workspace', async () => {
-    const { port, close } = await serve(buildApp({ isReplitDeployment: false }));
+  it('requires an event type (400) in the workspace', async () => {
+    const { port, close } = await serve(buildApp(workspace));
     try {
-      const res = await post(port, '/api/events', { payload: { studentId: 1 } });
+      const res = await post(port, '/api/events', { payload: { studentId: 1 } }, WITH_KEY);
       expect(res.status).toBe(400);
     } finally {
       await close();
@@ -144,9 +226,14 @@ describe('app event route (/api/events)', () => {
   });
 
   it('reports not-connected (503) when the app secrets are missing', async () => {
-    const { port, close } = await serve(buildApp({ isReplitDeployment: false }));
+    const { port, close } = await serve(buildApp(workspace));
     try {
-      const res = await post(port, '/api/events', { type: 'game.round_won', payload: {} });
+      const res = await post(
+        port,
+        '/api/events',
+        { type: 'game.round_won', payload: {} },
+        WITH_KEY,
+      );
       expect(res.status).toBe(503);
     } finally {
       await close();

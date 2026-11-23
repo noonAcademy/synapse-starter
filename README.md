@@ -94,7 +94,7 @@ All Noon data lives in Citadel's warehouse and is read through one SDK call —
   against. One worked example ships:
   [`courses-by-type.sql.ts`](server/queries/courses-by-type.sql.ts).
 - **Where reads show up.** The console's **Views** tab renders them, and your app reads
-  the same data through the public `/api/views/:name` endpoints — as a ready-made table
+  the same data through the `/api/views/:name` endpoints (behind the access gate: a Noon session in a deployment, the builder's workspace key in the workspace) — as a ready-made table
   with `<ViewBlock />` or as raw rows with the `useView` hook. Rows are cached in memory
   for about an hour (the lake itself refreshes roughly every 12h), and the cache resets on
   restart.
