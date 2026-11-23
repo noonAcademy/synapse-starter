@@ -203,6 +203,25 @@ describe('<HomeTab />', () => {
     expect(screen.getByText(/synapse-error-report/)).toBeTruthy();
   });
 
+  it('on rejected keys, points at the portal instead of telling the builder to re-run', async () => {
+    stubFetch({
+      overview: {
+        ...READY_OVERVIEW,
+        connection: {
+          ok: false,
+          detail: "citadel.example didn't accept this app's keys (publishEvent failed: 401).",
+          reason: 'credentials',
+        },
+      },
+    });
+    render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+
+    expect(await screen.findByText(/didn't accept this app's keys/)).toBeTruthy();
+    expect(screen.getByText(/re-running won't change that/)).toBeTruthy();
+    expect(screen.getByText(`${READY_OVERVIEW.baseUrl}/portal/replit-apps`)).toBeTruthy();
+    expect(screen.queryByText(/Run again to retry/)).toBeNull();
+  });
+
   it('goes red on an unfilled SPEC.md and points at the kickoff prompt', async () => {
     stubFetch({ setup: { ...ALL_SET_SETUP, spec: { exists: true, filled: false } } });
     render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);

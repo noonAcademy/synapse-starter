@@ -25,6 +25,61 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.11.23 — a rejected key no longer says "press Run again"
+
+### What changed
+
+When Citadel answered the boot publish with **401**, Home's *Connected to Noon* check read
+*"Last publish failed_permanent: publishEvent failed: 401."* and told the builder to **press Run
+again**. That advice can't work: the SDK never retries a 401, and a re-run signs the same request
+with the same keys. The message also didn't say which Citadel refused the keys, and the usual
+cause is exactly that: keys created on one Citadel (staging or production) while
+`SYNAPSE_BASE_URL` points at the other.
+
+- [`server/overview.ts`](server/overview.ts): `connection` gains an optional `reason`.
+  `'credentials'` is a 401. `'rejected'` is any other permanent failure (400/403/422). It is
+  absent when connected, while nothing has settled yet, and for dropped (transient) failures. On
+  a 401 the detail now names the host: *"citadel.staging.noonedu.io didn't accept this app's
+  keys (publishEvent failed: 401)."*
+- [`client/console/HomeTab.tsx`](client/console/HomeTab.tsx): the fix line follows the reason.
+  - On a 401 it sends the builder to `<baseUrl>/portal/replit-apps` to check that the app is
+    listed there under its App ID, warns that keys from the other Citadel won't work, and asks
+    them to paste the secret again with no spaces or quotes.
+  - Any other permanent failure goes straight to **synapse-error-report**.
+  - Only failures with no reason keep "Press Run again".
+
+  A payload with no `reason` (an older server) still gets the old generic fix.
+
+### Why a clone should care
+
+Adopt it if the builder has ever seen a red *Connected to Noon* with a 401. Without it, the
+console sends them round a loop: re-run, still red, then an error report for a problem they
+could have fixed in the portal. This entry changes no runtime behaviour, no auth, and no
+builder-owned file.
+
+### Recipe
+
+1. **Copy** (all synapse-owned, safe to overwrite):
+
+   ```bash
+   cp <template>/server/overview.ts server/overview.ts
+   cp <template>/server/overview.test.ts server/overview.test.ts
+   cp <template>/client/console/HomeTab.tsx client/console/HomeTab.tsx
+   cp <template>/client/console/HomeTab.test.tsx client/console/HomeTab.test.tsx
+   ```
+
+   No shared or builder-owned path changes. `server/index.ts` already serves the projection as is.
+
+### Verify
+
+- `npm run verify` green.
+- Set `SYNAPSE_APP_SECRET` to a wrong value and press Run. *Connected to Noon* goes red and names
+  the Citadel host. Its fix line points at `/portal/replit-apps` and does **not** say "Press Run
+  again". Restore the real secret, press Run, and the check goes green with an `eventId`.
+- `TEMPLATE_VERSION` reads `2026.11.23`.
+
+---
+
 ## 2026.11.17 — the console shows the app, and says when sign-in isn't configured
 
 ### What changed

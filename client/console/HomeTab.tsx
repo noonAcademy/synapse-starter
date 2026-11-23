@@ -10,7 +10,8 @@ interface Overview {
   baseUrl: string;
   configured: boolean;
   configError: string | null;
-  connection: { ok: boolean; detail: string };
+  // `reason` is optional so an older server (which never sends it) falls back to the generic fix.
+  connection: { ok: boolean; detail: string; reason?: 'credentials' | 'rejected' };
 }
 // Mirrors server/setup.ts SetupProjection (served by /__synapse/setup). Secret PRESENCE only —
 // the server never sends values. `scope` and `deploy` are optional so a clone running an older
@@ -260,13 +261,46 @@ function connectionCheck(overview: LoadState<Overview>): Check {
     title: 'Connected to Noon',
     status: 'bad',
     summary: overview.data.connection.detail,
-    fix: (
-      <>
-        Press <strong>Run</strong> again to retry. If it stays red, ask your agent to use the{' '}
-        <strong>synapse-error-report</strong> skill and share the report in the Synapse channel.
-      </>
-    ),
+    fix: connectionFix(overview.data),
   };
+}
+
+// "Press Run again" is only honest for a failure a retry can clear. A permanent one comes back
+// identical on every run, so telling the builder to retry sends them round a loop.
+function connectionFix(o: Overview): ReactNode {
+  const errorReport = (
+    <>
+      ask your agent to use the <strong>synapse-error-report</strong> skill and share the report in
+      the Synapse channel.
+    </>
+  );
+  if (o.connection.reason === 'credentials') {
+    return (
+      <>
+        Your keys don't belong to this Citadel — re-running won't change that. Open{' '}
+        <code className="font-mono text-xs">{o.baseUrl}/portal/replit-apps</code> and check your app
+        is listed there
+        {o.appId ? (
+          <>
+            {' '}
+            as <code className="font-mono text-xs">{o.appId}</code>
+          </>
+        ) : null}
+        . Keys made on the other Citadel (staging vs production) won't work: either change{' '}
+        <code className="font-mono text-xs">SYNAPSE_BASE_URL</code> or create the app here. Then
+        copy its secret into <code className="font-mono text-xs">SYNAPSE_APP_SECRET</code> again (no
+        spaces or quotes) and press <strong>Run</strong>. If it's still red, {errorReport}
+      </>
+    );
+  }
+  if (o.connection.reason === 'rejected') {
+    return <>Noon turned this request down, so re-running won't help — {errorReport}</>;
+  }
+  return (
+    <>
+      Press <strong>Run</strong> again to retry. If it stays red, {errorReport}
+    </>
+  );
 }
 
 function planCheck(setup: LoadState<Setup>): Check {
