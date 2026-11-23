@@ -84,4 +84,38 @@ describe('buildOverview', () => {
     expect(o.connection.ok).toBe(false);
     expect(o.connection.detail).toContain('HTTP 401');
   });
+
+  // The field report this guards: a 401 rendered as "Last publish failed_permanent" under a fix
+  // that said "Press Run again" — which can never clear it, and didn't say which Citadel refused.
+  it('flags a 401 as a credentials problem and names the Citadel that refused it', () => {
+    const o = buildOverview({
+      ...base,
+      baseUrl: 'https://citadel.studyatnoon.com',
+      configError: null,
+      recentPublishes: [publish({ status: 'failed_permanent', error: 'publishEvent failed: 401' })],
+    });
+    expect(o.connection.ok).toBe(false);
+    expect(o.connection.reason).toBe('credentials');
+    expect(o.connection.detail).toContain('citadel.studyatnoon.com');
+    expect(o.connection.detail).toContain('publishEvent failed: 401');
+  });
+
+  it('marks other permanent failures as rejected, not credentials', () => {
+    const o = buildOverview({
+      ...base,
+      configError: null,
+      recentPublishes: [publish({ status: 'failed_permanent', error: 'publishEvent failed: 422' })],
+    });
+    expect(o.connection.reason).toBe('rejected');
+  });
+
+  it('gives no reason for a dropped (transient) failure — a retry may clear it', () => {
+    const o = buildOverview({
+      ...base,
+      configError: null,
+      recentPublishes: [publish({ status: 'failed_dropped', error: 'timeout' })],
+    });
+    expect(o.connection.ok).toBe(false);
+    expect(o.connection.reason).toBeUndefined();
+  });
 });

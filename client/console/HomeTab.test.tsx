@@ -203,6 +203,38 @@ describe('<HomeTab />', () => {
     expect(screen.getByText(/synapse-error-report/)).toBeTruthy();
   });
 
+  it('on rejected keys, points at the portal instead of telling the builder to re-run', async () => {
+    stubFetch({
+      overview: {
+        ...READY_OVERVIEW,
+        connection: {
+          ok: false,
+          detail: "citadel.example didn't accept this app's keys (publishEvent failed: 401).",
+          reason: 'credentials',
+        },
+      },
+    });
+    const { container } = render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+
+    expect(await screen.findByText(/didn't accept this app's keys/)).toBeTruthy();
+    expect(screen.getByText(/re-running won't change that/)).toBeTruthy();
+    expect(screen.getByText(`${READY_OVERVIEW.baseUrl}/portal/replit-apps`)).toBeTruthy();
+    // The retry advice is split across nodes (`Press <strong>Run</strong> again…`), which
+    // getByText/queryByText never match as one string — so check the whole rendered text.
+    expect(container.textContent).not.toMatch(/Run again to retry/);
+  });
+
+  it('keeps the press-Run fix when the failure has no reason (transient, or an older server)', async () => {
+    stubFetch({
+      overview: { ...READY_OVERVIEW, connection: { ok: false, detail: 'Last publish failed.' } },
+    });
+    const { container } = render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+
+    expect(await screen.findByText('Last publish failed.')).toBeTruthy();
+    // Proves the negative assertion above can actually see this sentence.
+    expect(container.textContent).toMatch(/Run again to retry/);
+  });
+
   it('goes red on an unfilled SPEC.md and points at the kickoff prompt', async () => {
     stubFetch({ setup: { ...ALL_SET_SETUP, spec: { exists: true, filled: false } } });
     render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
