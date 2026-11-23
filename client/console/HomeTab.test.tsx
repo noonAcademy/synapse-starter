@@ -214,12 +214,25 @@ describe('<HomeTab />', () => {
         },
       },
     });
-    render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+    const { container } = render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
 
     expect(await screen.findByText(/didn't accept this app's keys/)).toBeTruthy();
     expect(screen.getByText(/re-running won't change that/)).toBeTruthy();
     expect(screen.getByText(`${READY_OVERVIEW.baseUrl}/portal/replit-apps`)).toBeTruthy();
-    expect(screen.queryByText(/Run again to retry/)).toBeNull();
+    // The retry advice is split across nodes (`Press <strong>Run</strong> again…`), which
+    // getByText/queryByText never match as one string — so check the whole rendered text.
+    expect(container.textContent).not.toMatch(/Run again to retry/);
+  });
+
+  it('keeps the press-Run fix when the failure has no reason (transient, or an older server)', async () => {
+    stubFetch({
+      overview: { ...READY_OVERVIEW, connection: { ok: false, detail: 'Last publish failed.' } },
+    });
+    const { container } = render(<HomeTab onNavigate={vi.fn()} verify={GREEN_VERIFY} />);
+
+    expect(await screen.findByText('Last publish failed.')).toBeTruthy();
+    // Proves the negative assertion above can actually see this sentence.
+    expect(container.textContent).toMatch(/Run again to retry/);
   });
 
   it('goes red on an unfilled SPEC.md and points at the kickoff prompt', async () => {
