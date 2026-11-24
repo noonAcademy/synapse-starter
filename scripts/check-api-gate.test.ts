@@ -174,6 +174,54 @@ describe('checkApp', () => {
     expect(await checkApp('workspace', app, publicRoutes)).toEqual([]);
   });
 
+  it('probes every method of an .all() route', async () => {
+    const app = express();
+    app.use(
+      createWorkspaceGate({
+        workspaceKey: KEY,
+        trustLocalCalls: false,
+        publicRoutes: [{ method: 'POST', path: '/api/action', reason: 'demo' }],
+      }),
+    );
+    app.route('/api/action').all((_req, res) => {
+      res.json({ done: true });
+    });
+    const problems = (await checkApp('workspace', app, [])).map((p) => p.problem);
+    expect(problems.some((p) => p.includes('anonymous POST /api/action reached'))).toBe(true);
+  });
+
+  it('keeps prefix middleware real for a public GET probe', async () => {
+    const publicRoutes = [{ method: 'GET' as const, path: '/api/contact', reason: 'demo' }];
+    const app = express();
+    app.use(createWorkspaceGate({ workspaceKey: KEY, trustLocalCalls: false, publicRoutes }));
+    app.use('/api', express.json());
+    app.get('/api/contact', (_req, res) => {
+      res.json({ email: 'x@y.z' });
+    });
+    const problems = (await checkApp('workspace', app, publicRoutes)).map((p) => p.problem);
+    expect(problems.some((p) => p.includes('GET /api/contact') && p.includes('email'))).toBe(true);
+  });
+
+  it('builds a matching probe for a numeric param, and reports a pattern it cannot call', async () => {
+    const app = express();
+    app.use(
+      createWorkspaceGate({
+        workspaceKey: KEY,
+        trustLocalCalls: false,
+        publicRoutes: [{ method: 'GET', path: '/api/users/1', reason: 'demo' }],
+      }),
+    );
+    app.get('/api/users/:id(\\d+)', (_req, res) => {
+      res.json({ ok: true });
+    });
+    app.get(/^\/api\/re$/, (_req, res) => {
+      res.json({ ok: true });
+    });
+    const problems = (await checkApp('workspace', app, [])).map((p) => p.problem);
+    expect(problems.some((p) => p.includes('anonymous GET /api/users/1 reached'))).toBe(true);
+    expect(problems.some((p) => p.includes('route pattern the check cannot call'))).toBe(true);
+  });
+
   it('reports a HEAD route that the gate lets through, though HEAD has no body', async () => {
     const app = express();
     app.use(

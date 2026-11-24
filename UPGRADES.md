@@ -96,14 +96,17 @@ signed-in users.
             client/console/WorkspaceLock.tsx client/console/WorkspaceLock.test.tsx \
             client/console/GetDataTab.tsx \
             client/console/GetDataTab.test.tsx client/console/ConsoleApp.tsx \
-            scripts/visual-check.ts vite.config.ts .synapse/ownership.json \
+            scripts/visual-check.ts .synapse/ownership.json \
             .agents/skills/synapse-access-control/SKILL.md \
             .agents/skills/synapse-verify-numbers/SKILL.md skill/SKILL.md AGENTS.md README.md; do
      cp "<template>/$f" "$f"
    done
    ```
 
-   If the builder changed `vite.config.ts`, keep their change and add only the `fs.deny` line.
+   **Guided edit — `vite.config.ts`** (it may hold the builder's own changes, so never copy it
+   over): ensure `server.fs.deny` lists `'**/*.local'` and `'**/.synapse-visual/**'` besides
+   Vite's defaults (`'.env'`, `'.env.*'`, `'*.{crt,pem}'`, `'**/.git/**'`), as in the template's
+   `vite.config.ts`. Add only what is missing; keep everything else in the file.
 
 2. **Create if missing** `server/public-routes.ts` (copy the template's). If the clone has one,
    leave it.

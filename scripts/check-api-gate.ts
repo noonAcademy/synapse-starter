@@ -25,7 +25,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
-import type { Application, RequestHandler } from 'express';
+import type { Application, Request, RequestHandler } from 'express';
 
 export interface ApiGateProblem {
   mode: string;
@@ -37,7 +37,7 @@ interface ExpressLayer {
   handle: RequestHandler & { stack?: ExpressLayer[] };
   method?: string;
   regexp?: RegExp;
-  route?: { path: string; methods: Record<string, boolean>; stack: ExpressLayer[] };
+  route?: { path: unknown; methods: Record<string, boolean>; stack: ExpressLayer[] };
 }
 
 export interface RouteInfo {
@@ -46,7 +46,12 @@ export interface RouteInfo {
   layer: ExpressLayer;
   // The method as Express stores it on the route (`get`, `_all`); undefined for app.use handlers.
   routeMethod?: string;
+  // The route's own path, without the mount prefix of its router; null when it is not a string.
+  localPath?: string | null;
 }
+
+// The methods an `app.all()` route answers, each probed on its own.
+const ALL_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
 const BUILT_IN_LAYERS = new Set(['query', 'expressInit']);
 export const GATE_NAME = 'synapseAccessGate';
@@ -76,10 +81,14 @@ export function listRoutes(
   const routes: RouteInfo[] = [];
   for (const layer of stack) {
     if (layer.route) {
+      const localPath = typeof layer.route.path === 'string' ? layer.route.path : null;
+      const path = prefix + String(layer.route.path);
       for (const method of Object.keys(layer.route.methods)) {
-        // `app.all()` is stored as `_all`; GET exercises it.
-        const verb = method === '_all' ? 'GET' : method.toUpperCase();
-        routes.push({ method: verb, path: prefix + layer.route.path, layer, routeMethod: method });
+        // `app.all()` is stored as `_all` and answers every method.
+        const verbs = method === '_all' ? ALL_METHODS : [method.toUpperCase()];
+        for (const verb of verbs) {
+          routes.push({ method: verb, path, layer, routeMethod: method, localPath });
+        }
       }
     } else if (layer.name === 'router' && layer.handle.stack) {
       const mount = mountPath(layer);
@@ -112,7 +121,9 @@ export function gateProblems(app: Application): string[] {
   return [];
 }
 
-function stubRoutes(routes: RouteInfo[]): void {
+// `isRealCall` says which requests are public GET probes: those run the real handlers, including
+// middleware mounted at a prefix of their path (app.use('/api', express.json())).
+function stubRoutes(routes: RouteInfo[], isRealCall: (req: Request) => boolean): void {
   const stub: RequestHandler = (_req, res) => {
     res.setHeader(REACHED_HEADER, '1');
     res.json({ [REACHED]: true });
@@ -120,23 +131,21 @@ function stubRoutes(routes: RouteInfo[]): void {
   // One app.route(path) chain keeps every method's handlers in one stack, so the stubbing is per
   // method: a public GET on the same path still runs for real.
   const stubbedMethods = new Map<ExpressLayer, Set<string>>();
-  for (const { layer, routeMethod } of routes) {
+  for (const { layer, method } of routes) {
     if (!layer.route) {
-      layer.handle = stub;
+      const mounted = layer.handle;
+      layer.handle = (req, res, next) =>
+        isRealCall(req) ? mounted(req, res, next) : stub(req, res, next);
       continue;
     }
     const methods = stubbedMethods.get(layer) ?? new Set<string>();
-    methods.add(routeMethod ?? '_all');
+    methods.add(method.toLowerCase());
     stubbedMethods.set(layer, methods);
   }
   for (const [layer, methods] of stubbedMethods) {
     for (const handler of layer.route?.stack ?? []) {
       if (handler.method === undefined) {
-        if (methods.has('_all')) {
-          handler.handle = stub;
-          continue;
-        }
-        // A shared .all() handler: real for the public method, the stub for a private one, so a
+        // A shared .all() handler: real for a public method, the stub for a private one, so a
         // private request is marked before the shared handler can answer it or write.
         const shared = handler.handle;
         handler.handle = (req, res, next) => {
@@ -153,8 +162,22 @@ function stubRoutes(routes: RouteInfo[]): void {
   }
 }
 
-export function concretePath(path: string): string {
-  return path.replace(/:\w+\??/g, 'x').replace(/\*/g, 'x');
+export function concretePath(path: string, value = 'x'): string {
+  return path.replace(/:\w+(\([^)]*\))?\??/g, value).replace(/\*/g, value);
+}
+
+// A path that the route really matches, or null when the probe cannot build one (a regex or an
+// array route, or a param pattern that neither 'x' nor '1' fits).
+export function probePath(route: RouteInfo): string | null {
+  if (!route.layer.route) return concretePath(route.path);
+  if (route.localPath == null) return null;
+  for (const value of ['x', '1']) {
+    const local = concretePath(route.localPath, value);
+    if (!route.layer.regexp || route.layer.regexp.test(local)) {
+      return route.path.slice(0, route.path.length - route.localPath.length) + local;
+    }
+  }
+  return null;
 }
 
 const PII_NAME =
@@ -234,7 +257,19 @@ export async function checkApp(
     if (!p.reason?.trim()) problems.push(`public route ${p.method} ${p.path} has no reason`);
   }
   const callForReal = (route: RouteInfo) => isPublic(route) && route.method === 'GET';
-  stubRoutes(routes.filter((route) => !callForReal(route)));
+  const realPaths = new Set(
+    routes
+      .filter(callForReal)
+      .map((route) => probePath(route)?.toLowerCase())
+      .filter((path): path is string => path !== undefined),
+  );
+  const isRealCall = (req: Request) =>
+    (req.method === 'GET' || req.method === 'HEAD') &&
+    realPaths.has((req.originalUrl.split('?')[0] ?? '').toLowerCase());
+  stubRoutes(
+    routes.filter((route) => !callForReal(route)),
+    isRealCall,
+  );
 
   const server = app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve) => server.once('listening', () => resolve()));
@@ -247,8 +282,14 @@ export async function checkApp(
           `${route.method} ${route.path} is outside /api/ — data routes go under /api/ so the gate can protect them`,
         );
       }
-      const path = concretePath(route.path);
       if (isPublic(route) && !callForReal(route)) continue;
+      const path = probePath(route);
+      if (path === null) {
+        problems.push(
+          `${route.method} ${route.path} uses a route pattern the check cannot call; use a plain path with :params (for example /api/users/:id)`,
+        );
+        continue;
+      }
       if (callForReal(route)) {
         const reply = await call(port, route.method, path);
         let json: unknown = null;
