@@ -1,7 +1,7 @@
 # AGENTS.md — working in the Synapse starter
 
-> **Kit compatibility: these rules describe kit `2026.11.24.2` or later.** Check this clone's
-> [`TEMPLATE_VERSION`](TEMPLATE_VERSION) file: if it is missing or older than `2026.11.24.2`
+> **Kit compatibility: these rules describe kit `2026.11.24.3` or later.** Check this clone's
+> [`TEMPLATE_VERSION`](TEMPLATE_VERSION) file: if it is missing or older than `2026.11.24.3`
 > (compare numerically, part by part — never as strings), your kit predates these rules — tell
 > the builder a kit upgrade is available and offer to run the **synapse-upgrade** skill
 > (fetching `UPGRADE.md` and `UPGRADES.md` live from the template repo) before other work.
@@ -143,7 +143,7 @@ path in the repo has exactly one owner. The machine-readable contract is
   regenerated, never copied), `server/index.ts`, `server/public-routes.ts`, the two registries
   (`server/queries/index.ts`, `client/app/pages/index.ts`), `client/app/theme.css`,
   `client/index.html` (RTL lives here), `.replit`. One exception to "preserving": from kit
-  `2026.11.24.2`, `client/app/theme.css` holds only the Noon brand import and `--app-face`, so
+  `2026.11.24.3`, `client/app/theme.css` holds only the Noon brand import and `--app-face`, so
   the upgrade to that shape drops the builder's other tokens (after telling them).
 
 Precedence is most-specific-wins (`client/app/pages/synapse.tsx` beats `client/app/**`).

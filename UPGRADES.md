@@ -25,7 +25,7 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
-## 2026.11.24.2 — one Noon design system: tokens, font, logo and favicon
+## 2026.11.24.3 — one Noon design system: tokens, font, logo and favicon
 
 ### What changed
 

@@ -3,7 +3,7 @@
   "version": 1,
   "rules": {
     "synapseOwned": "The template's to manage: an upgrade recipe may overwrite these from the template, add new files, or delete files the template has removed. LIMIT: a pattern here claims only paths that exist in the template at the target version — a file that matches (say, server/notes.ts) but was created by the builder is builder-owned by definition, and upgrades never touch it.",
-    "shared": "Both sides edit these. Upgrades change them only through the guided edits written in an UPGRADES.md entry — never a blind copy — and every guided edit must preserve the builder's additions. One exception, from kit 2026.11.24.2: client/app/theme.css may hold only the Noon brand import and --app-face (npm run check:theme enforces it), so the guided edit that moves a clone to that shape removes the builder's other tokens — with the builder told first.",
+    "shared": "Both sides edit these. Upgrades change them only through the guided edits written in an UPGRADES.md entry — never a blind copy — and every guided edit must preserve the builder's additions. One exception, from kit 2026.11.24.3: client/app/theme.css may hold only the Noon brand import and --app-face (npm run check:theme enforces it), so the guided edit that moves a clone to that shape removes the builder's other tokens — with the builder told first.",
     "builderOwned": "The builder's app. Upgrades NEVER overwrite, edit, or delete anything here. Creating a NEW file at a path the clone doesn't have (e.g. a new theme preset file) is allowed; touching an existing one is not. Everything not matched by any pattern is builder-owned too."
   },
   "synapseOwned": [
