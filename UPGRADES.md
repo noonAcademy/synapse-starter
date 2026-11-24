@@ -69,13 +69,15 @@ install that adds a package fetches the whole tree again). Runtime behaviour doe
    - If `overrides` already has a `tinypool` entry that allows only versions below 2.1.2 (for
      example `"2.1.1"` or `"^1.1.1"`), set it to `"^2.1.2"`, and tell the builder: every such
      version is blocked, so this is the one builder override the recipe changes. Leave an entry
-     that already allows 2.1.2 or later as it is.
+     that already allows 2.1.2 or later as it is. If the builder also lists `tinypool` in
+     `dependencies` or `devDependencies`, set that range to `"^2.1.2"` too, with their yes: npm
+     fails with `EOVERRIDE` when a direct dependency and its override disagree.
 3. **Regenerate the lockfile** without fetching tarballs (the firewall blocks tarballs, not
    package metadata), then install:
 
    ```bash
    npm install --package-lock-only --ignore-scripts
-   npm update proxy-addr --package-lock-only --ignore-scripts
+   npm update proxy-addr tinypool --package-lock-only --ignore-scripts
    npm install
    ```
 
