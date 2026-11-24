@@ -117,6 +117,10 @@ how the app looks** — tell the builder before you run it, and show them the re
      it is unreadable. The template's old `AppShell` used `text-primary` for the active nav item.
      Run `grep -rnE "text-primary([^-]|$)" client/app` and suggest `text-primary-ink` for each hit
      — tell the builder this one is a readability fix, not a style choice.
+   - **White and black.** `bg-white` / `text-black` stay fixed while `text-ink` and `bg-card` flip
+     in dark mode, and `text-white` on `bg-primary` is white on light green. `npm run check:theme`
+     now reports them. Run `grep -rnE "(bg|text|border)-(white|black)" client/app` and suggest
+     `bg-card`, `text-ink` or `text-on-primary` for each hit.
    The template's versions of these files show the exact code.
 
 ### Verify

@@ -34,6 +34,12 @@ describe('findViolations', () => {
     );
   });
 
+  it('flags fixed white and black, which do not follow dark mode', () => {
+    expect(check('<div className="bg-white" />')[0]?.reason).toMatch(/white or black/);
+    expect(check('<p className="text-black" />')[0]?.reason).toMatch(/white or black/);
+    expect(check('<p className="text-on-primary bg-card" />')).toEqual([]);
+  });
+
   it('flags an arbitrary Tailwind value', () => {
     expect(check('<div className="bg-[#fff] rounded-[3px]" />')[0]?.reason).toMatch(
       /arbitrary Tailwind value/,
@@ -95,6 +101,11 @@ describe('checkThemeFile', () => {
 
   it('accepts a short or upper-case hex face colour without a semicolon', () => {
     expect(checkThemeFile('@import "../brand/noon.css";\n:root { --app-face: #5FA }')).toEqual([]);
+  });
+
+  it("fails a face too dark for the logo's dark smile", () => {
+    const found = checkThemeFile('@import "../brand/noon.css";\n:root { --app-face: #1a1a1a; }');
+    expect(found[0]?.reason).toMatch(/too dark for the logo/);
   });
 
   it('fails an @import that comes after a rule (CSS would ignore it)', () => {

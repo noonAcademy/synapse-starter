@@ -59,6 +59,14 @@ const PATTERNS: Pattern[] = [
     reason: "Tailwind palette class — the app's look comes from theme.css tokens only",
   },
   {
+    // White and black do not follow dark mode: bg-white stays white under text-ink, which turns
+    // light. The token versions are bg-card, text-ink and text-on-primary.
+    regex:
+      /\b(?:bg|text|border|ring|fill|stroke|from|via|to|decoration|outline|accent|caret|divide|placeholder)-(?:white|black)\b/g,
+    reason:
+      'fixed white or black does not follow dark mode — use a token (bg-card, text-ink, text-on-primary)',
+  },
+  {
     // Inline styles are how a visual editor most plausibly writes a one-off tweak.
     regex: /style=\{\{[^}]*(?:color|background|border|font|radius)/gi,
     reason: 'inline style — restyling belongs in theme.css, not on the element',
@@ -118,6 +126,24 @@ const BRAND_IMPORT = /^@import\s+(["'])\.\.\/brand\/noon\.css\1\s*;$/;
 // A hex colour only: the favicon is drawn from it (scripts/brand-icons.ts).
 const FACE_DECLARATION = /^--app-face\s*:\s*#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?\s*;?$/;
 const ALLOWED_SELECTORS = new Set([':root']);
+// The logo's smile (--color-logo-smile in client/brand/noon.css) is drawn on the face.
+const LOGO_SMILE = '#151515';
+const MIN_SMILE_CONTRAST = 3;
+
+function fullHex(hex: string): string {
+  return hex.length === 4 ? `#${[...hex.slice(1)].map((c) => c + c).join('')}` : hex;
+}
+
+function luminance(hex: string): number {
+  const channels = [1, 3, 5].map((i) => Number.parseInt(fullHex(hex).slice(i, i + 2), 16) / 255);
+  const [r, g, b] = channels.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (b ?? 0);
+}
+
+export function smileContrast(face: string): number {
+  const [high, low] = [luminance(face), luminance(LOGO_SMILE)].sort((x, y) => y - x);
+  return ((high ?? 0) + 0.05) / ((low ?? 0) + 0.05);
+}
 
 // Checks client/app/theme.css: only the brand import and `--app-face` blocks are allowed.
 export function checkThemeFile(css: string, file = THEME_FILE): TokenViolation[] {
@@ -171,11 +197,21 @@ export function checkThemeFile(css: string, file = THEME_FILE): TokenViolation[]
     for (const declaration of body.split(';')) {
       const trimmed = declaration.trim();
       if (trimmed === '') continue;
+      const at = start + open + 1 + body.indexOf(trimmed);
       if (!FACE_DECLARATION.test(trimmed)) {
         fail(
-          start + open + 1 + body.indexOf(trimmed),
+          at,
           trimmed,
           'theme.css may set only --app-face, as a hex colour — every other token comes from client/brand/noon.css',
+        );
+        continue;
+      }
+      const face = trimmed.match(/#[0-9a-fA-F]+/)?.[0] ?? '';
+      if (smileContrast(face) < MIN_SMILE_CONTRAST) {
+        fail(
+          at,
+          trimmed,
+          `--app-face ${face} is too dark for the logo's dark smile (contrast ${smileContrast(face).toFixed(1)}:1, needs ${MIN_SMILE_CONTRAST}:1) — pick a light or mid tone`,
         );
       }
     }
