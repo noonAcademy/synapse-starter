@@ -1,7 +1,7 @@
 # AGENTS.md — working in the Synapse starter
 
-> **Kit compatibility: these rules describe kit `2026.11.24.3` or later.** Check this clone's
-> [`TEMPLATE_VERSION`](TEMPLATE_VERSION) file: if it is missing or older than `2026.11.24.3`
+> **Kit compatibility: these rules describe kit `2026.11.24.4` or later.** Check this clone's
+> [`TEMPLATE_VERSION`](TEMPLATE_VERSION) file: if it is missing or older than `2026.11.24.4`
 > (compare numerically, part by part — never as strings), your kit predates these rules — tell
 > the builder a kit upgrade is available and offer to run the **synapse-upgrade** skill
 > (fetching `UPGRADE.md` and `UPGRADES.md` live from the template repo) before other work.

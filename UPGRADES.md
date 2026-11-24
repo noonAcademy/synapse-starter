@@ -25,7 +25,7 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
-## 2026.11.24.3 — dark mode and English/Arabic for every Synapse app
+## 2026.11.24.4 — dark mode and English/Arabic for every Synapse app
 
 ### What changed
 
