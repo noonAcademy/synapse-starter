@@ -66,6 +66,10 @@ install that adds a package fetches the whole tree again). Runtime behaviour doe
      the case for `vitest` 3.x (and 2.x). `vitest` 4 and later has no `tinypool` dependency,
      so this edit does nothing there. Keep the three `@noonacademy/*` entries in `overrides`
      the same as in `dependencies`.
+   - If `overrides` already has a `tinypool` entry that allows only versions below 2.1.2 (for
+     example `"2.1.1"` or `"^1.1.1"`), set it to `"^2.1.2"`, and tell the builder: every such
+     version is blocked, so this is the one builder override the recipe changes. Leave an entry
+     that already allows 2.1.2 or later as it is.
 3. **Regenerate the lockfile** without fetching tarballs (the firewall blocks tarballs, not
    package metadata), then install:
 
