@@ -54,12 +54,12 @@ export function ConsoleApp() {
             <p className="text-sm text-slate-500">Manage your app's connection to Noon data</p>
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            {/* The way out to the builder's OWN app. The workspace always serves the console at
-                `/` (the /__synapse routes exist here, so useSynapseMode resolves to 'workspace'),
-                which means without this link the app being built is unreachable until it is
-                deployed — the `?surface=app` escape hatch was documented only in a code comment.
-                New tab, so the console stays where it is; the app's /synapse page carries the
-                matching `?surface=console` link back. */}
+            {/* The way out to the builder's OWN app. Until their first page exists the workspace
+                serves this console at `/`, so without this link the app being built would be
+                unreachable until it is deployed. After that `/` is the app and the console lives
+                at /synapse-starter, but `?surface=app` still forces the app in either state.
+                New tab, so the console stays where it is; the app's /synapse page carries a
+                `?surface=console` link back. */}
             <a
               href={previewHref('/?surface=app')}
               target="_blank"

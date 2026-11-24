@@ -53,5 +53,5 @@ console.log('Paste this key into the lock screen of each browser you use (the we
 console.log(`  ${key}\n`);
 console.log('Or open this link, which unlocks the tab it opens in:\n');
 // The key goes after '#', so the browser keeps it: it never reaches a server or a proxy log.
-console.log(`  ${origin}/#synapse_key=${key}\n`);
+console.log(`  ${origin}/synapse-starter#synapse_key=${key}\n`);
 console.log('Treat both like a password: never paste them into a chat, a ticket or code.');

@@ -10,7 +10,28 @@ import { workspaceKey } from './workspaceKey';
 // decision can't disagree with the server, because it's read straight off the server's response.
 // 'locked': the workspace gate refused the probe (no workspace key in this browser yet), so render
 // the unlock screen instead of either surface — see server/access-gate.ts and client/workspaceKey.ts.
+//
+// Read 'workspace' as "render the console" and 'published' as "render the shipped app": in the
+// workspace the console owns `/` only until the builder builds their first page (the probe's
+// `appBuilt`, server/app-built.ts). From then on `/` is their app, as it will be once deployed,
+// and the console lives at CONSOLE_PATH — which renders the console in the workspace whatever
+// state the app is in.
 export type SynapseMode = 'probing' | 'workspace' | 'published' | 'locked';
+
+// Where the console lives once the app has a page of its own. Never a published route: the
+// probe below only lets it render the console where the workspace-only endpoints exist.
+export const CONSOLE_PATH = '/synapse-starter';
+
+function onConsolePath(): boolean {
+  if (typeof window === 'undefined') return false;
+  const { pathname } = window.location;
+  return pathname === CONSOLE_PATH || pathname.startsWith(`${CONSOLE_PATH}/`);
+}
+
+async function appBuilt(res: Response): Promise<boolean> {
+  const body = (await res.json().catch(() => null)) as { appBuilt?: unknown } | null;
+  return body?.appBuilt === true;
+}
 
 // Escape hatch: `?surface=app` / `?surface=console` forces a mode so the builder can preview the
 // shipped app locally (where the endpoints DO exist) without deploying.
@@ -67,8 +88,9 @@ export function useSynapseMode(): SynapseMode {
         // workspace-only endpoint means we're in the console.
         const isJson =
           res.ok && Boolean(res.headers.get('content-type')?.includes('application/json'));
+        const showConsole = isJson && (onConsolePath() || !(await appBuilt(res)));
         if (!cancelled) {
-          setMode(forcedMode() ?? (isJson ? 'workspace' : 'published'));
+          setMode(forcedMode() ?? (showConsole ? 'workspace' : 'published'));
         }
       })
       .catch(() => {
