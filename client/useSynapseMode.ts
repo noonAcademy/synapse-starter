@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { workspaceKey } from './workspaceKey';
 
 // One static bundle is served at `/` in BOTH the workspace (the builder console) and a published
 // Replit deployment (the shipped app). The client can't read REPLIT_DEPLOYMENT, so it derives its
@@ -27,6 +28,13 @@ function forcedMode(): 'workspace' | 'published' | null {
   return null;
 }
 
+// The key the last refused probe sent (null: it sent none). The lock screen forgets only this key,
+// because another tab may have saved a newer one while the probe was in flight.
+let refusedKey: string | null = null;
+export function refusedWorkspaceKey(): string | null {
+  return refusedKey;
+}
+
 async function isLockedResponse(res: Response): Promise<boolean> {
   if (res.status !== 401) return false;
   const body = (await res.json().catch(() => null)) as { code?: unknown } | null;
@@ -47,9 +55,11 @@ export function useSynapseMode(): SynapseMode {
     // A hung probe must not strand end users on the blank splash forever — time out and fall back
     // to the shipped app (same as any other ambiguous outcome).
     const timeout = setTimeout(() => controller.abort(), 3000);
+    const sentKey = workspaceKey();
     fetch('/__synapse/overview', { signal: controller.signal })
       .then(async (res) => {
         if (await isLockedResponse(res)) {
+          refusedKey = sentKey;
           if (!cancelled) setMode('locked');
           return;
         }

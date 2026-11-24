@@ -4,16 +4,15 @@ import {
   notifyUnlocked,
   saveWorkspaceKey,
   storedWorkspaceKey,
-  workspaceKey,
 } from '../workspaceKey';
 
 // Shown in the Replit workspace when this browser has no workspace key yet. The server refuses
 // every /api and /__synapse request without it, so that nobody else can read Noon data through
 // this Repl's preview link (server/access-gate.ts).
-export function WorkspaceLock() {
+// `refusedKey`: the key the refused probe sent, or null when it sent none.
+export function WorkspaceLock({ refusedKey }: { refusedKey: string | null }) {
   const [key, setKey] = useState('');
   // A key was sent and refused: it is old (rotated) or mistyped. Say so, and drop it.
-  const [refusedKey] = useState(() => workspaceKey());
   const rejected = refusedKey !== null;
   useEffect(() => {
     if (refusedKey === null) return;

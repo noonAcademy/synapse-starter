@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { AppShell } from './app/AppShell';
 import { ConsoleApp } from './console/ConsoleApp';
 import { WorkspaceLock } from './console/WorkspaceLock';
-import { useSynapseMode } from './useSynapseMode';
+import { refusedWorkspaceKey, useSynapseMode } from './useSynapseMode';
 import { installWorkspaceKey, UNLOCKED_EVENT } from './workspaceKey';
 import './index.css';
 
@@ -22,7 +22,7 @@ function Root() {
     return <Splash />;
   }
   if (mode === 'locked') {
-    return <WorkspaceLock />;
+    return <WorkspaceLock refusedKey={refusedWorkspaceKey()} />;
   }
   return mode === 'workspace' ? <ConsoleApp /> : <AppShell />;
 }

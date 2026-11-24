@@ -117,16 +117,36 @@ function stubRoutes(routes: RouteInfo[]): void {
     res.setHeader(REACHED_HEADER, '1');
     res.json({ [REACHED]: true });
   };
+  // One app.route(path) chain keeps every method's handlers in one stack, so the stubbing is per
+  // method: a public GET on the same path still runs for real.
+  const stubbedMethods = new Map<ExpressLayer, Set<string>>();
   for (const { layer, routeMethod } of routes) {
     if (!layer.route) {
       layer.handle = stub;
       continue;
     }
-    // One app.route(path) chain keeps every method's handlers in one stack: stub only this
-    // method's handlers, so a public GET on the same path still runs for real.
-    const stubbedMethod = routeMethod === '_all' ? undefined : routeMethod;
-    for (const handler of layer.route.stack) {
-      if (handler.method === stubbedMethod) handler.handle = stub;
+    const methods = stubbedMethods.get(layer) ?? new Set<string>();
+    methods.add(routeMethod ?? '_all');
+    stubbedMethods.set(layer, methods);
+  }
+  for (const [layer, methods] of stubbedMethods) {
+    for (const handler of layer.route?.stack ?? []) {
+      if (handler.method === undefined) {
+        if (methods.has('_all')) {
+          handler.handle = stub;
+          continue;
+        }
+        // A shared .all() handler: real for the public method, the stub for a private one, so a
+        // private request is marked before the shared handler can answer it or write.
+        const shared = handler.handle;
+        handler.handle = (req, res, next) => {
+          const method = req.method === 'HEAD' ? 'get' : req.method.toLowerCase();
+          if (methods.has(method)) stub(req, res, next);
+          else shared(req, res, next);
+        };
+      } else if (methods.has(handler.method)) {
+        handler.handle = stub;
+      }
     }
   }
 }

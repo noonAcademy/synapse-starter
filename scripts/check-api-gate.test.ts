@@ -92,6 +92,32 @@ describe('checkApp', () => {
     expect(problems.some((p) => p.includes('GET /api/contact') && p.includes('email'))).toBe(true);
   });
 
+  it('reports a private POST that a shared .all() handler would answer', async () => {
+    const publicRoutes = [
+      { method: 'GET' as const, path: '/api/form', reason: 'demo' },
+      { method: 'POST' as const, path: '/api/form', reason: 'demo' },
+    ];
+    const app = express();
+    app.use(createWorkspaceGate({ workspaceKey: KEY, trustLocalCalls: false, publicRoutes }));
+    app
+      .route('/api/form')
+      .all((req, res, next) => {
+        if (req.method === 'POST') res.json({ saved: true });
+        else next();
+      })
+      .get((_req, res) => {
+        res.json({ ok: true });
+      })
+      .post((_req, res) => {
+        res.json({ ok: true });
+      });
+    const problems = (await checkApp('workspace', app, publicRoutes.slice(0, 1))).map(
+      (p) => p.problem,
+    );
+    expect(problems.some((p) => p.includes('anonymous POST /api/form reached'))).toBe(true);
+    expect(problems.some((p) => p.includes('anonymous GET'))).toBe(false);
+  });
+
   it('reports a HEAD route that the gate lets through, though HEAD has no body', async () => {
     const app = express();
     app.use(
