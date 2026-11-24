@@ -265,8 +265,10 @@ export async function checkApp(
         }
         continue;
       }
-      // Express answers HEAD with the GET handler, so a private GET is also probed with HEAD.
-      const methods = route.method === 'GET' ? ['GET', 'HEAD'] : [route.method];
+      // Express answers HEAD with the GET handler when the route has no HEAD handler of its own,
+      // so such a private GET is also probed with HEAD. An explicit HEAD has its own entry.
+      const headUsesGet = route.method === 'GET' && !route.layer.route?.methods.head;
+      const methods = headUsesGet ? ['GET', 'HEAD'] : [route.method];
       for (const method of methods) {
         for (const variant of [path, path.toUpperCase()]) {
           const reply = await call(port, method, variant);

@@ -159,6 +159,21 @@ describe('checkApp', () => {
     expect(problems.some((p) => p.includes('anonymous HEAD /api/report reached'))).toBe(true);
   });
 
+  it('does not report a public explicit HEAD next to a private GET', async () => {
+    const publicRoutes = [{ method: 'HEAD' as const, path: '/api/report', reason: 'demo' }];
+    const app = express();
+    app.use(createWorkspaceGate({ workspaceKey: KEY, trustLocalCalls: false, publicRoutes }));
+    app
+      .route('/api/report')
+      .get((_req, res) => {
+        res.json({ rows: [] });
+      })
+      .head((_req, res) => {
+        res.end();
+      });
+    expect(await checkApp('workspace', app, publicRoutes)).toEqual([]);
+  });
+
   it('reports a HEAD route that the gate lets through, though HEAD has no body', async () => {
     const app = express();
     app.use(
