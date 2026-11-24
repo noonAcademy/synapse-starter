@@ -7,6 +7,7 @@ import type { PublishEventResult } from '@noonacademy/synapse-sdk';
 import express, { type Application } from 'express';
 import { canAccessView } from './access.js';
 import { type GateMode, installAccessGate, routesOutsideDataPaths } from './access-gate.js';
+import { isAppBuilt } from './app-built.js';
 import { asAthenaClient } from './athena.js';
 import { buildEndUserAuthDeps, type EndUserAuthDeps } from './auth-routes.js';
 import { formatBootLog } from './boot.js';
@@ -90,16 +91,19 @@ export function buildApp(opts: {
       res.json(recentPublishes(synapse));
     });
 
-    // App identity + live-ish connection check.
+    // App identity + live-ish connection check, plus whether the builder has built their first
+    // page — the client's mode probe reads `appBuilt` to decide whether `/` is the console or the
+    // app (the console moves to /synapse-starter once it's true; see server/app-built.ts).
     app.get('/__synapse/overview', (_req, res) => {
-      res.json(
-        buildOverview({
+      res.json({
+        ...buildOverview({
           appId: synapseAppId,
           baseUrl: synapseBaseUrl,
           configError: synapseConfigError,
           recentPublishes: recentPublishes(synapse),
         }),
-      );
+        appBuilt: isAppBuilt(resolve(here, '../client/app/pages')),
+      });
     });
 
     // The Citadel registry, projected for the Get data tab's table browser. Live-parsed from

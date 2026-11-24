@@ -96,6 +96,10 @@ function StatusCard({ overview }: { overview: LoadState<Overview> }) {
       {inWorkspace && (
         <>
           <p className="mt-2 text-caption text-ink-faint">{overview.data.connection.detail}</p>
+          {/* `?surface=console` forces the console wherever the app stands, so this works both
+              before the first page (console at `/`) and after (console at /synapse-starter).
+              Kept rather than /synapse-starter because clones' builder-owned AppShell.test.tsx
+              pins this href, and an upgrade may not edit it. */}
           <a
             href="/?surface=console"
             className="mt-4 inline-flex items-center gap-1 text-body font-medium text-accent hover:underline"

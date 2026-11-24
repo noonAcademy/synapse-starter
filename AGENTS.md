@@ -74,12 +74,17 @@ things: **publishes events** and **runs reads**. Read this before adding either.
    views, and features live in the builder's app: `client/app/pages/` and the app nav.
 
 9. **Two things about the workspace the builder will ask you, so answer them without hedging:**
-   - **Where their app is.** The workspace webview at `/` always renders the *console*, however
-     finished the app is — `useSynapseMode` resolves to `workspace` wherever the `/__synapse/*`
-     routes are mounted, and nothing about building flips it. Their app is behind **Preview your
-     app ↗** in the console header (`?surface=app`); point at that button rather than letting
-     them conclude the page you just built isn't there. (The button ships in kit `2026.11.17`
-     and later — on an older clone, tell them to add `?surface=app` to the webview URL.)
+   - **Where their app is, and where the console went.** Until the builder's first page exists,
+     the workspace webview at `/` renders the *console*. **Building the first page flips it:**
+     once `client/app/pages/home.tsx` no longer renders `<NotBuiltYet />`, or any other page file
+     sits next to it ([`server/app-built.ts`](server/app-built.ts)), `/` is their app — as it will
+     be once deployed — and the console moves to **`/synapse-starter`**, which always renders the
+     console in the workspace. Tell them so when you finish the first page: reload the webview to
+     see the app, and open `/synapse-starter` (or the app's ⚙ Synapse page → **Open the builder
+     console**) to get back to the console. Before that, their app is behind **Preview your app ↗**
+     in the console header (`?surface=app`, which forces the app in either state;
+     `?surface=console` forces the console). (`/synapse-starter` ships in kit `2026.11.24.5`;
+     on an older clone `/` always renders the console and the app is only at `?surface=app`.)
    - **Whether it's protected.** Yes, in every mode, by one access gate
      ([`server/access-gate.ts`](server/access-gate.ts), rule 10). A published deployment sits
      behind "Sign in with Noon", Noon staff only. The workspace (and `npm run dev`, and the

@@ -103,6 +103,47 @@ freely through `theme.css`.
             .agents/skills/synapse-design-system/SKILL.md .agents/skills/synapse-design-system/brand.md \
             .agents/skills/synapse-plan-first/SKILL.md .agents/skills/synapse-arabic-rtl/SKILL.md \
             biome.json AGENTS.md; do
+## 2026.11.24.5 — your app takes over `/` once its first page is built; the console moves to `/synapse-starter`
+
+### What changed
+
+- **The workspace's `/` follows the app's progress.** A fresh clone still opens on the Synapse
+  console at `/`. Once the builder's first page exists, `/` renders their app — the same page end
+  users land on in a deployment — and the console lives at **`/synapse-starter`**.
+- **"First page built"** is read off the source by
+  [`server/app-built.ts`](server/app-built.ts), the same way `server/setup.ts` reads `SPEC.md`:
+  `client/app/pages/home.tsx` no longer renders `<NotBuiltYet />` (or is gone), or any other page
+  file sits next to it (anything but `home.tsx`, `synapse.tsx`, `index.ts` and tests). An
+  unreadable directory counts as not built, so the console stays at `/`.
+- `/__synapse/overview` gains **`appBuilt: boolean`**. The client's mode probe
+  ([`client/useSynapseMode.ts`](client/useSynapseMode.ts)) already fetches that route, so the
+  decision costs no extra request: it renders the console when the path is `/synapse-starter`
+  (`CONSOLE_PATH`) or the app is not built, and the app otherwise. A published deployment never
+  renders the console at any path, `/synapse-starter` included.
+- `?surface=app` and `?surface=console` still force either surface, in either state. **Preview
+  your app ↗** and the app's `/synapse` page link back keep using them.
+- `npm run workspace-key` prints `<origin>/synapse-starter#synapse_key=…`, so the unlock link
+  opens the console whether or not the app has a page yet.
+- AGENTS.md rule 9, the README's "two surfaces" section and **synapse-access-control** describe
+  the new behaviour.
+
+### Why a clone should care
+
+The builder stops landing on the console after they have an app, and `/` in the webview shows
+what users will see. **A clone that already has pages changes behaviour at once:** after this
+upgrade its webview opens on the app, not the console. Tell the builder before you finish: the
+console is now at `/synapse-starter` (or ⚙ Synapse in the app footer → **Open the builder
+console**).
+
+### Recipe
+
+1. **Copy** (synapse-owned):
+
+   ```bash
+   for f in server/app-built.ts server/app-built.test.ts client/useSynapseMode.ts \
+            client/useSynapseMode.test.tsx client/main.tsx client/console/ConsoleApp.tsx \
+            client/app/pages/synapse.tsx scripts/workspace-key.ts README.md AGENTS.md \
+            .agents/skills/synapse-access-control/SKILL.md; do
      cp "<template>/$f" "$f"
    done
    ```
@@ -145,6 +186,34 @@ freely through `theme.css`.
   both.
 
 ---
+2. **Guided edit — `server/index.ts`** (shared). Skip if the `/__synapse/overview` handler already
+   sends `appBuilt`. Otherwise:
+   - add `import { isAppBuilt } from './app-built.js';` with the other local imports;
+   - in the `/__synapse/overview` handler, send the overview with the flag added, keeping the
+     `buildOverview({...})` arguments exactly as the clone has them:
+
+     ```ts
+     res.json({
+       ...buildOverview({ /* unchanged */ }),
+       appBuilt: isAppBuilt(resolve(here, '../client/app/pages')),
+     });
+     ```
+
+   Touch nothing else in the file; the access gate and every builder route stay as they are.
+
+3. **No builder-owned file changes.** `client/app/` (including `home.tsx` and
+   `AppShell.test.tsx`) is untouched: the detection reads those files, it never edits them.
+
+### Verify
+
+- `npm run verify` green.
+- `curl -s -H @.synapse-workspace.headers.local localhost:3000/__synapse/overview` includes
+  `"appBuilt":false` while `home.tsx` still renders `<NotBuiltYet />` and no other page exists,
+  and `"appBuilt":true` otherwise. (Kits from `2026.11.24.2` need the header; it is in every kit
+  this entry can apply to.)
+- In the workspace, after unlocking with the `npm run workspace-key` link: `/synapse-starter`
+  shows the console. `/` shows the console if `appBuilt` is false and the app if it is true. A
+  page change in `client/app/pages/` is picked up on the next reload; no restart needed.
 
 ## 2026.11.24.4 — dark mode and English/Arabic for every Synapse app
 
