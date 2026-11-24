@@ -20,6 +20,11 @@ describe('faceFromThemeCss', () => {
     ).toBe('#5fa0e0');
   });
 
+  it('uses the last declaration across :root blocks, as CSS does', () => {
+    expect(faceFromThemeCss(':root {} :root { --app-face: #5fa0e0; }')).toBe('#5fa0e0');
+    expect(faceFromThemeCss(':root { --app-face: #64d8ae; --app-face: #ffffff; }')).toBe('#ffffff');
+  });
+
   it('falls back to the Noon green when the value is missing or not a hex colour', () => {
     expect(faceFromThemeCss('')).toBe(DEFAULT_FACE);
     expect(faceFromThemeCss(':root { --app-face: var(--x); }')).toBe(DEFAULT_FACE);

@@ -76,7 +76,7 @@ how the app looks** — tell the builder before you run it, and show them the re
    for f in scripts/brand-icons.ts scripts/brand-icons.test.ts scripts/brand-tokens.test.ts \
             scripts/vite-brand.ts scripts/check-theme-tokens.ts scripts/check-theme-tokens.test.ts \
             client/main.tsx client/app/blocks/ChartBlock.tsx client/console/ConsoleApp.tsx \
-            client/console/WorkspaceLock.tsx vite.config.ts .synapse/ownership.json \
+            client/console/WorkspaceLock.tsx .synapse/ownership.json \
             .agents/skills/synapse-design-system/SKILL.md .agents/skills/synapse-chart/SKILL.md \
             .agents/skills/synapse-add-page/SKILL.md .agents/skills/synapse-plan-first/SKILL.md \
             .agents/skills/synapse-arabic-rtl/SKILL.md AGENTS.md; do
@@ -84,12 +84,17 @@ how the app looks** — tell the builder before you run it, and show them the re
    done
    ```
 
-   If the builder changed `vite.config.ts`, keep their change and add only the `noonBrand(...)`
-   plugin line and its import.
+   **Guided edit — `vite.config.ts`** (it may hold the builder's own plugins, so never copy it
+   over): if it does not contain `noonBrand(`, add
+   `import { noonBrand } from './scripts/vite-brand.js';` and, in `plugins`,
+   `noonBrand({ themeCssPath: resolve(here, 'client/app/theme.css') })` (with the `here` and
+   `resolve` lines from the template's `vite.config.ts` if the file lacks them). Keep everything else.
 
 2. **Guided edit — `client/app/theme.css` (shared). Do it in the same step as the copy above**:
-   the new `check:theme` fails on the old file, and a deploy runs it. If the file does not yet
-   start with `@import "../brand/noon.css";`:
+   the new `check:theme` fails on the old file, and a deploy runs it. Run
+   `npx tsx scripts/check-theme-tokens.ts`; if it reports any `client/app/theme.css` problem (the
+   import missing or not first, or any token other than `--app-face`, even after the import), do
+   this step. If the file already sets `--app-face`, keep that colour and skip the colour question:
    - **This step is the one exception to "preserve the builder's additions"** for shared paths,
      written into `.synapse/ownership.json` and AGENTS.md "Who owns what" in this version: one
      shared design system means the builder's own tokens cannot stay. Say so to the builder
@@ -119,7 +124,8 @@ how the app looks** — tell the builder before you run it, and show them the re
      — tell the builder this one is a readability fix, not a style choice.
    - **White and black.** `bg-white` / `text-black` stay fixed while `text-ink` and `bg-card` flip
      in dark mode, and `text-white` on `bg-primary` is white on light green. `npm run check:theme`
-     now reports them. Run `grep -rnE "(bg|text|border)-(white|black)" client/app` and suggest
+     prints them as warnings and does not fail on them, so `verify` stays green until the builder
+     decides. Run `grep -rnE "(bg|text|border)-(white|black)" client/app` and suggest
      `bg-card`, `text-ink` or `text-on-primary` for each hit.
    The template's versions of these files show the exact code.
 

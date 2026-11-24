@@ -33,12 +33,15 @@ export interface TokenViolation {
   line: number;
   text: string;
   reason: string;
+  // Reported, but does not fail the check: a clone keeps these until the builder agrees to a change.
+  warning?: boolean;
 }
 
 interface Pattern {
   // `global` is required — every match on a line is reported, not just the first.
   regex: RegExp;
   reason: string;
+  warning?: boolean;
 }
 
 // ORDER MATTERS: the first pattern to match a line is the one reported, so the most SPECIFIC
@@ -65,6 +68,7 @@ const PATTERNS: Pattern[] = [
       /\b(?:bg|text|border|ring|fill|stroke|from|via|to|decoration|outline|accent|caret|divide|placeholder)-(?:white|black)\b/g,
     reason:
       'fixed white or black does not follow dark mode — use a token (bg-card, text-ink, text-on-primary)',
+    warning: true,
   },
   {
     // Inline styles are how a visual editor most plausibly writes a one-off tweak.
@@ -109,13 +113,24 @@ export function findViolations(files: string[], read = readFileSync): TokenViola
     const lines = String(read(file, 'utf8')).split('\n');
     lines.forEach((line, i) => {
       if (isExempted(line)) return;
-      for (const { regex, reason } of PATTERNS) {
-        regex.lastIndex = 0;
-        if (regex.test(line)) {
-          violations.push({ file, line: i + 1, text: line.trim().slice(0, 100), reason });
-          return; // one finding per line is enough to act on
+      // One finding per line is enough to act on; a failing pattern beats a warning.
+      let warning: TokenViolation | null = null;
+      for (const pattern of PATTERNS) {
+        pattern.regex.lastIndex = 0;
+        if (!pattern.regex.test(line)) continue;
+        const found = {
+          file,
+          line: i + 1,
+          text: line.trim().slice(0, 100),
+          reason: pattern.reason,
+        };
+        if (!pattern.warning) {
+          violations.push(found);
+          return;
         }
+        warning ??= { ...found, warning: true };
       }
+      if (warning) violations.push(warning);
     });
   }
   return violations;
@@ -240,7 +255,16 @@ function printViolations(violations: TokenViolation[]): void {
 
 function main(): void {
   const themeViolations = checkThemeFile(readFileSync(THEME_FILE, 'utf8'));
-  const violations = findViolations(appFiles());
+  const found = findViolations(appFiles());
+  const warnings = found.filter((v) => v.warning);
+  const violations = found.filter((v) => !v.warning);
+  if (warnings.length > 0) {
+    console.warn(
+      `[check-theme-tokens] warning: ${warnings.length} fixed white or black class(es) in client/app. They do not\n` +
+        'follow dark mode. Offer the builder the token versions (bg-card, text-ink, text-on-primary).\n',
+    );
+    for (const w of warnings) console.warn(`  ! ${w.file}:${w.line} — ${w.text}`);
+  }
   if (violations.length === 0 && themeViolations.length === 0) {
     console.log(
       '[check-theme-tokens] client/app is token-clean and theme.css sets only --app-face — OK.',

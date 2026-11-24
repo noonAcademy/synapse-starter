@@ -34,9 +34,15 @@ describe('findViolations', () => {
     );
   });
 
-  it('flags fixed white and black, which do not follow dark mode', () => {
-    expect(check('<div className="bg-white" />')[0]?.reason).toMatch(/white or black/);
-    expect(check('<p className="text-black" />')[0]?.reason).toMatch(/white or black/);
+  it('warns on fixed white and black, which do not follow dark mode', () => {
+    expect(check('<div className="bg-white" />')[0]).toMatchObject({
+      reason: expect.stringMatching(/white or black/),
+      warning: true,
+    });
+    expect(check('<p className="text-black" />')[0]?.warning).toBe(true);
+    expect(check('<p className="bg-white" style={{ color: "red" }} />')[0]?.reason).toMatch(
+      /inline style/,
+    );
     expect(check('<p className="text-on-primary bg-card" />')).toEqual([]);
   });
 

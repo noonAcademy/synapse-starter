@@ -24,13 +24,17 @@ export function markSvg(face: string): string {
   ].join('');
 }
 
-// Reads `--app-face` from the `:root { }` block of client/app/theme.css. Falls back to the Noon
-// green when the value is missing or is not a plain hex colour (the favicon needs real pixels).
+// Reads `--app-face` from the `:root { }` blocks of client/app/theme.css. The last declaration
+// wins, as in CSS, so the favicon matches the logo. Falls back to the Noon green when the value is
+// missing or is not a plain hex colour (the favicon needs real pixels).
 export function faceFromThemeCss(css: string): string {
   const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
-  const rootBlock = withoutComments.match(/(?:^|[}\s;])\s*:root\s*\{([^}]*)\}/)?.[1] ?? '';
-  const match = rootBlock.match(/--app-face\s*:\s*(#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?)\s*(?:;|$)/);
-  return match?.[1] ? normalizeHex(match[1]) : DEFAULT_FACE;
+  const rootBlocks = [...withoutComments.matchAll(/(?:^|[}\s;])\s*:root\s*\{([^}]*)\}/g)];
+  const values = rootBlocks.flatMap((block) =>
+    [...(block[1] ?? '').matchAll(/--app-face\s*:\s*([^;]*)/g)].map((m) => (m[1] ?? '').trim()),
+  );
+  const last = values.at(-1) ?? '';
+  return /^#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?$/.test(last) ? normalizeHex(last) : DEFAULT_FACE;
 }
 
 function normalizeHex(hex: string): string {
