@@ -58,6 +58,7 @@ const VERIFY_COMMANDS: VerifyCommand[] = [
   { name: 'lint', command: 'npm', args: ['run', 'lint'] },
   { name: 'test', command: 'npm', args: ['run', 'test'] },
   { name: 'check:theme', command: 'npm', args: ['run', 'check:theme'] },
+  { name: 'check:api', command: 'npm', args: ['run', 'check:api'] },
 ];
 
 function truncateOutput(raw: string): string {

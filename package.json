@@ -20,11 +20,13 @@
     "visual": "tsx scripts/visual-check.ts",
     "job": "tsx server/jobs/run.ts",
     "sync:registry": "tsx scripts/sync-registry.ts",
-    "verify": "npm run secrets && npm run typecheck && npm run lint && npm run test && npm run check:urls && npm run check:theme",
+    "verify": "npm run secrets && npm run typecheck && npm run lint && npm run test && npm run check:urls && npm run check:theme && npm run check:api",
     "check:urls": "tsx scripts/check-live-urls.ts",
     "check:theme": "tsx scripts/check-theme-tokens.ts",
     "check:release": "tsx scripts/check-template-version.ts",
-    "prepare": "node scripts/setup-hooks.mjs"
+    "prepare": "node scripts/setup-hooks.mjs",
+    "check:api": "tsx scripts/check-api-gate.ts",
+    "workspace-key": "tsx scripts/workspace-key.ts"
   },
   "dependencies": {
     "@noonacademy/citadel-transport": "file:vendor/noonacademy-citadel-transport-0.3.0.tgz",

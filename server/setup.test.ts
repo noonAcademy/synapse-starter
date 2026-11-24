@@ -106,12 +106,14 @@ describe('GET /__synapse/setup', () => {
     vi.stubEnv('SYNAPSE_APP_ID', 'canary-value-that-must-not-leak');
     // Pinned empty so the deploy verdict below is about the projection, not the dev machine's env.
     vi.stubEnv('APP_SESSION_SECRET', '');
-    const app = buildApp({ isReplitDeployment: false });
-    const server = app.listen(0);
+    const app = buildApp({ isReplitDeployment: false, workspaceKey: 'k'.repeat(40) });
+    const server = app.listen(0, '127.0.0.1');
     await new Promise<void>((resolve) => server.once('listening', () => resolve()));
     const { port } = server.address() as { port: number };
     try {
-      const res = await fetch(`http://127.0.0.1:${port}/__synapse/setup`);
+      const res = await fetch(`http://127.0.0.1:${port}/__synapse/setup`, {
+        headers: { 'x-synapse-workspace-key': 'k'.repeat(40) },
+      });
       expect(res.status).toBe(200);
       const body = await res.text();
       expect(body).not.toContain('canary-value-that-must-not-leak');

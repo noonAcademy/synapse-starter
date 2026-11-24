@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { previewHref } from '../workspaceKey';
 import { EventsTab } from './EventsTab';
 import { GetDataTab } from './GetDataTab';
 import { HomeTab } from './HomeTab';
@@ -44,7 +45,7 @@ export function ConsoleApp() {
                 New tab, so the console stays where it is; the app's /synapse page carries the
                 matching `?surface=console` link back. */}
             <a
-              href="/?surface=app"
+              href={previewHref('/?surface=app')}
               target="_blank"
               rel="noreferrer"
               title="Opens your app (not the console) in a new tab, exactly as a deployment serves it — minus the Sign in with Noon gate, which only a deployment mounts."

@@ -209,7 +209,7 @@ describe('registry freshness banner', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders the source pill, label, and raw-registry link', async () => {
+  it('renders the source pill, label, and raw-registry button', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => ({
@@ -234,7 +234,7 @@ describe('registry freshness banner', () => {
     render(<GetDataTab onNavigate={vi.fn()} />);
 
     expect(await screen.findByText(/Built-in snapshot \(dated 2026-05-04\)/)).toBeTruthy();
-    const link = screen.getByText('view raw registry →') as HTMLAnchorElement;
-    expect(link.getAttribute('href')).toBe('/__synapse/registry');
+    const button = screen.getByText('view raw registry →');
+    expect(button.tagName).toBe('BUTTON');
   });
 });

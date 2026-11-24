@@ -6,8 +6,9 @@ import { SYNAPSE_EVENT_TYPES } from '@noonacademy/synapse-catalog';
 import type { PublishEventResult } from '@noonacademy/synapse-sdk';
 import express, { type Application } from 'express';
 import { canAccessView } from './access.js';
+import { type GateMode, installAccessGate, routesOutsideDataPaths } from './access-gate.js';
 import { asAthenaClient } from './athena.js';
-import { buildEndUserAuthDeps, type EndUserAuthDeps, installEndUserAuth } from './auth-routes.js';
+import { buildEndUserAuthDeps, type EndUserAuthDeps } from './auth-routes.js';
 import { formatBootLog } from './boot.js';
 import { buildCatalog } from './catalog.js';
 import { recentPublishes } from './events.js';
@@ -33,6 +34,7 @@ import {
 } from './synapse.js';
 import { projectTables } from './tables.js';
 import { verifyRunner } from './verify.js';
+import { loadWorkspaceKey } from './workspace-key.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // One cached fetcher for the process — the console Home tab polls /__synapse/kit on every
@@ -49,6 +51,10 @@ const getRegistry = registryFetcher({
 });
 const isDev = process.env.NODE_ENV === 'development';
 const isReplitDeployment = Boolean(process.env.REPLIT_DEPLOYMENT);
+const replId = process.env.REPL_ID ?? null;
+const onReplit = Boolean(replId || process.env.REPLIT_DEV_DOMAIN);
+// A direct call from this machine counts as the builder only in `npm run dev` off Replit.
+const trustLocalCalls = isDev && !onReplit;
 const port = Number(process.env.PORT ?? 3000);
 const host = '0.0.0.0';
 
@@ -57,8 +63,22 @@ const host = '0.0.0.0';
 export function buildApp(opts: {
   isReplitDeployment: boolean;
   authDeps?: EndUserAuthDeps | null;
+  // Required in the workspace: the builder's key (server/workspace-key.ts).
+  workspaceKey?: string;
+  trustLocalCalls?: boolean;
 }): Application {
   const app = express();
+
+  // FIRST, before any route: the access gate (server/access-gate.ts). Every route below, and
+  // every route added later, is behind it. Never register a route above this line.
+  const gate: GateMode = opts.isReplitDeployment
+    ? { kind: 'deployment', authDeps: opts.authDeps ?? null }
+    : {
+        kind: 'workspace',
+        workspaceKey: opts.workspaceKey ?? '',
+        trustLocalCalls: opts.trustLocalCalls ?? false,
+      };
+  installAccessGate(app, gate);
 
   // Workspace-only inspection surface for the builder console (Home / Get data / Views /
   // Events / Settings tabs). Registered before the client middleware so the SPA catch-all
@@ -217,30 +237,13 @@ export function buildApp(opts: {
     });
   }
 
-  // "Sign in with Noon" gate for the deployed app ONLY. Mounted BEFORE the public /api/views routes
-  // and (later, in createServerInstance) the SPA catch-all, so it guards both: unauthenticated API
-  // calls get 401 and page loads are redirected to /login, while the login screen's own routes and
-  // static assets are allowlisted. Never mounted in the workspace, so the builder console stays open.
-  // If the auth config is incomplete, the deployment FAILS CLOSED: rather than serving Noon data and
-  // the SPA to anyone, every request gets a 503. An auth boundary must not fall open on misconfig
-  // (the specific missing config is still surfaced in the boot log).
-  if (opts.isReplitDeployment) {
-    if (opts.authDeps) {
-      installEndUserAuth(app, opts.authDeps);
-    } else {
-      app.use((_req, res) => {
-        res.status(503).json({ error: 'authentication is not configured' });
-      });
-    }
-  }
-
-  // Public read API for the shipped app. Unlike /__synapse/* (workspace-only), these are mounted
-  // in EVERY mode — the app the builder ships renders live views for end users through them. Same
-  // baked reads, same cache; just the product-facing surface. Registered before the SPA catch-all
-  // so the client middleware doesn't swallow them.
-  // Access is enforced only in a deployment — that's where end users exist. Passed explicitly
-  // rather than inferred from "is there a session?", so a request arriving without one is never
-  // mistaken for a trusted one (see server/access.ts).
+  // Read API for the shipped app. Unlike /__synapse/* (workspace-only), these are mounted in EVERY
+  // mode — the app the builder ships renders live views through them — and the gate above lets
+  // only a signed-in user (deployment) or the builder (workspace) reach them. Registered before the
+  // SPA catch-all so the client middleware doesn't swallow them.
+  // VIEW_ACCESS is enforced only in a deployment — that's where end users exist; in the workspace
+  // the gate has already proved the caller is the builder, who owns every view. Passed explicitly
+  // rather than inferred from "is there a session?" (see server/access.ts).
   const enforceAccess = opts.isReplitDeployment;
 
   app.get('/api/views', (req, res) => {
@@ -284,8 +287,8 @@ export function buildApp(opts: {
 
   // Public event API for the shipped app — the events-out primitive (client/sendEvent.ts). Any
   // interaction can report to Noon by POSTing { type, payload }; the server holds the app secret and
-  // calls synapse.publishEvent, so the client never sees it. In a deployment this sits behind the
-  // sign-in gate above (only a signed-in user can send). The event type must already exist — a
+  // calls synapse.publishEvent, so the client never sees it. Behind the access gate like every
+  // route (only a signed-in user, or the builder in the workspace, can send). The event type must already exist — a
   // built-in, or one the agent declared at build time; this route publishes, it does not declare.
   app.post('/api/events', express.json(), async (req, res) => {
     const type = typeof req.body?.type === 'string' ? req.body.type.trim() : '';
@@ -337,7 +340,22 @@ async function createServerInstance(): Promise<Server> {
     console.error(`[synapse] ${authConfigError ?? 'Sign in with Noon disabled (misconfigured).'}`);
   }
 
-  const app = buildApp({ isReplitDeployment, authDeps });
+  const workspaceKey = isReplitDeployment
+    ? undefined
+    : loadWorkspaceKey({ rootDir: resolve(here, '..'), replId });
+  if (workspaceKey && !trustLocalCalls) {
+    console.log(
+      '[synapse] This workspace is locked to you. To open the console in a browser, run `npm run workspace-key` in the Shell and open the link it prints.',
+    );
+  }
+  const app = buildApp({ isReplitDeployment, authDeps, workspaceKey, trustLocalCalls });
+  if (!isReplitDeployment) {
+    for (const route of routesOutsideDataPaths(app)) {
+      console.error(
+        `[synapse] ${route} is outside /api/. In the Replit workspace anyone with the dev URL can call it without the workspace key. Move it under /api/ (npm run check:api fails on it).`,
+      );
+    }
+  }
   const httpServer = createHttpServer(app);
 
   if (isDev) {
@@ -415,6 +433,6 @@ async function main(): Promise<void> {
 
 // Start the server unless we're under Vitest, which imports buildApp directly and must not have the
 // module bind a port or publish a boot event as a side effect of the import.
-if (!process.env.VITEST) {
+if (!process.env.VITEST && !process.env.SYNAPSE_SKIP_MAIN) {
   void main();
 }

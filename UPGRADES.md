@@ -25,6 +25,141 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.11.24.2 — no anonymous API in any mode: one access gate, a workspace key, and `check:api`
+
+### What changed
+
+Until now the "Sign in with Noon" gate was mounted only in a deployment, and only part-way down
+`buildApp`. In the **workspace** (Replit Run, the preview, `npm run dev`) nothing was gated:
+`/api/views/:name`, `/api/events` and every `/__synapse/*` route — including `/__synapse/probe`,
+which runs **any SELECT on Noon's warehouse** — answered anyone who could reach the dev URL.
+Replit dev URLs are private by default, but one click makes them public, and the app cannot see
+that switch. A route a builder added above the old gate line was also ungated in a deployment.
+
+- **One access gate, first, in every mode** ([`server/access-gate.ts`](server/access-gate.ts)).
+  `buildApp` installs it before any route, so every route — including the ones a builder adds
+  later — is behind it. Paths are compared in lower case (Express matches `/API/views` to
+  `/api/views`).
+  - **Deployment:** unchanged behaviour (sign-in routes, then a session on everything; static
+    assets and `GET /health` open; `503` when auth config is missing), now also honouring the
+    public list below.
+  - **Workspace:** pages and assets stay open; every `/api` and `/__synapse` request, and every
+    non-GET request, needs the **builder's workspace key** in the `x-synapse-workspace-key`
+    header. Only in `npm run dev` off Replit (a laptop), a direct call from the same machine also
+    passes; never in `npm start`, where a reverse proxy would make every request look local. Anyone else gets `401 {"code":"workspace_locked"}`.
+- **The workspace key** ([`server/workspace-key.ts`](server/workspace-key.ts)): created on first
+  boot in `.synapse-workspace-key.local` (git-ignored by `*.local`, bound to `REPL_ID` so a fork
+  gets its own), plus `.synapse-workspace.headers.local` for `curl -H @…`. `npm run workspace-key`
+  prints the browser unlock link (`/#synapse_key=…` — a fragment, so it never reaches a proxy
+  log); `-- --rotate` makes a new key. Vite's dev file server now denies `**/*.local`.
+- **Browser side:** [`client/workspaceKey.ts`](client/workspaceKey.ts) stores the key from the
+  link or the lock screen's paste field and adds it to same-origin `/api` and `/__synapse` fetches (a header, because the Replit
+  webview is a cross-site iframe where cookies are blocked). `useSynapseMode` gains a `locked`
+  state, and `main.tsx` shows a lock screen ([`client/console/WorkspaceLock.tsx`](client/console/WorkspaceLock.tsx))
+  before either surface, `?surface=app` included. The console's "view raw registry" link is now
+  a button that fetches with the key, **Preview your app ↗** carries the key to its new tab, and
+  `npm run visual` sends it too.
+- **Public routes** ([`server/public-routes.ts`](server/public-routes.ts), **shared**, empty): the
+  only way past the gate — method, exact path, and a reason.
+- **`npm run check:api`** ([`scripts/check-api-gate.ts`](scripts/check-api-gate.ts)), added to
+  `npm run verify` and to the console's verify chip: builds the app in both modes, replaces every
+  handler with a stub, calls every route anonymously (lower and upper case) and fails if a stub
+  answers; calls each public route for real and fails when its JSON has a field named like
+  personal data; fails on a route outside `/api/`, a route before the gate, a second
+  server/`express()` in `server/`, or a WebSocket upgrade handler. `server/index.ts` skips
+  `main()` when `SYNAPSE_SKIP_MAIN` is set, so the check never binds a port or publishes.
+- **Docs:** AGENTS.md rule 9 corrected (the workspace is not open), new rule 10, skills table and
+  "Where things live"; **synapse-access-control** gains "No anonymous data, ever"; the
+  **synapse-verify-numbers** and SQL skills' `curl` calls send the key. Kit-compatibility header
+  → `2026.11.24.2`.
+
+### Why a clone should care
+
+Without this, a clone whose dev URL is public (or is made public to show a colleague) serves
+Noon data — and an anonymous SQL console on the warehouse — to anyone with the link. Adopt it.
+
+**What changes for the builder:** each browser that opens the console or the app preview must be
+unlocked once (`npm run workspace-key`, open the link). The Agent's `curl` calls need the
+`-H @.synapse-workspace.headers.local` header (the skills say so). A deployment is unchanged for
+signed-in users.
+
+### Recipe
+
+0. **Check first, before any copy:** if `vite.config.ts` sets `server.fs.strict: false`, stop
+   and ask the builder whether they still need it. Vite then ignores `fs.deny`, so anyone with
+   the dev URL could read the workspace key through `/@fs/`. Do not change it without their yes,
+   and do not start this upgrade while it stays `false`.
+
+1. **Copy** (synapse-owned):
+
+   ```bash
+   for f in server/access-gate.ts server/workspace-key.ts server/workspace-key.test.ts \
+            server/auth-routes.ts server/verify.ts server/index.test.ts server/setup.test.ts \
+            scripts/check-api-gate.ts scripts/check-api-gate.test.ts scripts/workspace-key.ts \
+            client/workspaceKey.ts client/workspaceKey.test.tsx client/main.tsx \
+            client/useSynapseMode.ts client/useSynapseMode.test.tsx \
+            client/console/WorkspaceLock.tsx client/console/WorkspaceLock.test.tsx \
+            client/console/GetDataTab.tsx \
+            client/console/GetDataTab.test.tsx client/console/ConsoleApp.tsx \
+            scripts/visual-check.ts .synapse/ownership.json \
+            .agents/skills/synapse-access-control/SKILL.md \
+            .agents/skills/synapse-verify-numbers/SKILL.md skill/SKILL.md AGENTS.md README.md; do
+     cp "<template>/$f" "$f"
+   done
+   ```
+
+   **Guided edit — `vite.config.ts`** (it may hold the builder's own changes, so never copy it
+   over): ensure `server.fs.deny` lists `'**/*.local'` and `'**/.synapse-visual/**'` besides
+   Vite's defaults (`'.env'`, `'.env.*'`, `'*.{crt,pem}'`, `'**/.git/**'`), as in the template's
+   `vite.config.ts`. Add only what is missing; keep everything else in the file.
+
+2. **Create if missing** `server/public-routes.ts` (copy the template's). If the clone has one,
+   leave it.
+
+3. **Guided edit — `server/index.ts` (shared).** Ensure each of these; skip any already true:
+   - Imports: `import { type GateMode, installAccessGate } from './access-gate.js';` and
+     `import { loadWorkspaceKey } from './workspace-key.js';`; drop `installEndUserAuth` from the
+     `./auth-routes.js` import.
+   - Next to `isReplitDeployment`: the template's `replId`, `onReplit` and `trustLocalCalls`
+     constants.
+   - `buildApp`'s options gain `workspaceKey?: string; trustLocalCalls?: boolean;`, and **the first
+     lines after `const app = express();`** are the template's `const gate: GateMode = …;
+     installAccessGate(app, gate);` block.
+   - **Delete** the old block that starts `if (opts.isReplitDeployment) { if (opts.authDeps) {
+     installEndUserAuth(...)` (and its 503 fallback) — the gate does both now.
+   - **Move any route the builder registered above the new gate line to below it**, and any
+     data route outside `/api/` to a path under `/api/` (update its client fetch). Routes the
+     builder added stay otherwise untouched.
+   - In `createServerInstance`, before `buildApp`: the template's `workspaceKey` /
+     `loadWorkspaceKey` lines and the boot log; pass `workspaceKey, trustLocalCalls` to `buildApp`.
+   - The last line becomes `if (!process.env.VITEST && !process.env.SYNAPSE_SKIP_MAIN) {`.
+
+4. **Guided edit — `package.json` (shared).** Ensure scripts
+   `"check:api": "tsx scripts/check-api-gate.ts"` and
+   `"workspace-key": "tsx scripts/workspace-key.ts"`, and that `verify` ends with
+   `&& npm run check:api`. Keep the builder's other scripts.
+
+5. **If the builder's own client code fetches `/api/*` with something other than `fetch`**
+   (`EventSource`, `navigator.sendBeacon`, a plain `<a href="/api/…">`), tell them it cannot carry
+   the workspace key in the workspace; offer to switch it to `fetch`.
+
+### Verify
+
+- `npm run verify` green, including `[check-api-gate] … OK`.
+- On Replit, restart the app. In a browser with no key, `/` shows **This workspace is locked to
+  you**; after opening the link from `npm run workspace-key`, the console loads, and
+  **Preview your app ↗** shows the app with its data. (With `npm run dev` on a laptop, a browser
+  on the same machine passes without a key and the console loads at once; a browser on another
+  machine sees the lock screen.)
+- From the Replit Shell: `curl -s -o /dev/null -w '%{http_code}\n' localhost:3000/__synapse/overview`
+  prints `401`; with `-H @.synapse-workspace.headers.local` it prints `200`. (With `npm run dev`
+  on a laptop the plain call prints `200`.)
+- From another machine, `curl -s -o /dev/null -w '%{http_code}\n' https://<dev-domain>/api/views`
+  prints `401`, also as `/API/views`.
+- `git status` does not list `.synapse-workspace-key.local` or `.synapse-workspace.headers.local`.
+
+---
+
 ## 2026.11.24 — `npm install` passes on Replit again (Package Firewall)
 
 ### What changed

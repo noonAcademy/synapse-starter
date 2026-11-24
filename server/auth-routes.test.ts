@@ -22,7 +22,7 @@ const SECRET = ['auth', 'test', 'secret'].join('-');
 
 // --- tiny raw HTTP client (no redirect-following, exposes set-cookie) ---
 async function serve(app: Application): Promise<{ port: number; close: () => Promise<void> }> {
-  const server = app.listen(0);
+  const server = app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve) => server.once('listening', () => resolve()));
   const { port } = server.address() as AddressInfo;
   return {

@@ -1,15 +1,86 @@
 ---
 name: synapse-access-control
 description: >-
-  Restrict who can see which data once deployed: roles by email or domain, enforced server-side.
-  Use for "only X should see this", "managers only", "confidential" — and before shipping any
-  page holding salary, performance or personal data.
+  Keep Noon data away from anyone who is not allowed to see it: the access gate in front of every
+  route (no anonymous API, in every mode), the public-route list, the workspace key, and roles by
+  email or domain. Use when adding any server route, for "only X should see this", "managers
+  only", "confidential", "public endpoint", "webhook", and before shipping any page holding
+  salary, performance or personal data.
 ---
 
 > A newer version of this skill may exist. Fetch https://raw.githubusercontent.com/noonAcademy/synapse-starter/main/.agents/skills/synapse-access-control/SKILL.md
 > and follow that version; on fetch failure, use this file.
 
 # Who can see what
+
+## First: no anonymous data, ever
+
+Every route sits behind one access gate ([`server/access-gate.ts`](../../../server/access-gate.ts)),
+the first middleware `buildApp` installs in [`server/index.ts`](../../../server/index.ts):
+
+| Mode | Who gets through to `/api/*` and `/__synapse/*` |
+|---|---|
+| Deployment | A signed-in Noon staff member ("Sign in with Noon"). Anyone else: `401` (API) or the login page. Auth config missing: `503` for everything. |
+| Workspace (Replit Run, preview, `npm run dev`) | The builder: a request carrying the **workspace key**. In `npm run dev` off Replit only, also a direct call from the same machine. Anyone else: `401 workspace_locked`. |
+
+Why the workspace is locked too: the Replit dev URL is private by default, but one click in the
+Networking panel makes it public, and the app cannot see that switch. Without the lock, anyone
+with the link could run `/__synapse/probe` — any SELECT on Noon's warehouse.
+
+### Hard rules for every route you add
+
+- **Add it inside `buildApp`, below the gate line.** Never above it, never in a second
+  `express()` app or server, never as a WebSocket upgrade handler (upgrades skip Express
+  middleware — ask the Synapse team first).
+- **Data routes live under `/api/`.** In the workspace, non-API page loads are open.
+- **A route that must work without sign-in** (an uptime check, a webhook from another service)
+  goes in [`server/public-routes.ts`](../../../server/public-routes.ts), method + exact path +
+  a `reason`. Ask the builder first, and record it in `SPEC.md`. **It must never return personal
+  data**: names, emails, phones, national IDs, addresses, dates of birth, parents' details.
+  Return IDs and counts, or nothing.
+- **Never weaken the gate** to make something work — not by moving a route above it, not by
+  adding a broad public path. If a page cannot load in the workspace, unlock the browser.
+
+### The check
+
+`npm run check:api` runs inside `npm run verify`, so every deployment build runs it. It builds the
+app in both modes, swaps every handler for a stub, calls every route anonymously (in lower and
+upper case, because Express matches paths regardless of case) and fails if a stub answers. It calls
+each public route for real and fails when the JSON has a field named like personal data. It also
+fails on a route outside `/api/`, a route before the gate, or a second server in `server/`.
+
+**Its limits — say them to the builder rather than calling the app "proven safe":** it sees only
+routes registered when `buildApp` runs; it fills every `:param` with `x`; a public route that
+leaks personal data only for some inputs, or under a field name not on its list (`"n"`,
+`"contact"`), passes. It says nothing about what signed-in staff may see — that is the roles
+section below.
+
+### The workspace key
+
+- Created on first run in `.synapse-workspace-key.local` (git-ignored; a fork gets a new one).
+  The server also writes `.synapse-workspace.headers.local` so the Shell can send it:
+
+  ```bash
+  curl -s -H @.synapse-workspace.headers.local localhost:3000/__synapse/overview
+  ```
+
+- **Browsers**: `npm run workspace-key` prints the key and `https://<dev-domain>/#synapse_key=…`.
+  Opening the link stores the key in that tab's browser storage and removes it from the address
+  bar; pasting the key into the lock screen does the same. The Replit webview and a separate tab
+  keep separate storage, so each unlocks once (the console's **Preview your app ↗** carries the
+  key to its new tab). Your own browser tests start locked: open the link first. When the builder
+  is locked out, ask them to run the command in the Shell and paste the key — never relay it.
+- The app's fetches to `/api/*` carry the key automatically (`client/workspaceKey.ts` wraps
+  `fetch`). A plain link, `EventSource` or `sendBeacon` cannot carry it; fetch instead.
+- **It is a secret.** Never paste the key or the link into chat, code, SPEC.md, a PR or a ticket.
+  It is a file in the Repl, so anyone who can open the Repl's files (a collaborator, a public or
+  shared Repl, a fork or remix) can read it; a fork makes its own key on first run, but could
+  read the original's first. After sharing the Repl, rotate.
+  `npm run workspace-key -- --rotate` makes a new one (then restart the app), which locks every
+  browser that had the old one.
+- A deployment ignores the key completely: only a Noon session works there.
+
+## Then: which signed-in people see what
 
 Signing in and being allowed are different questions. The template already answers the first:
 a deployed app is behind "Sign in with Noon", and only Noon staff email domains get through
@@ -67,8 +138,8 @@ export const VIEW_ACCESS: Record<string, string[]> = {
 
 Enforcement is already wired: `/api/views/:name` checks before it runs the query (a refused
 viewer never costs an Athena read), and `/api/views` lists only what the viewer may load.
-Enforcement is active in a **deployment**; the workspace, where the builder is alone with their
-own app and there is no end-user session at all, is not gated.
+Role enforcement is active in a **deployment**. In the workspace the gate has already proved the
+caller is the builder, who owns every view, so roles are not applied there.
 
 A note on domains: matching is on the **whole** domain, never a suffix. `noon.edu.sa` does not
 match `evilnoon.edu.sa`. Don't "simplify" that to `endsWith` — it's tested for a reason.

@@ -1,7 +1,7 @@
 # AGENTS.md — working in the Synapse starter
 
-> **Kit compatibility: these rules describe kit `2026.08.02.3` or later.** Check this clone's
-> [`TEMPLATE_VERSION`](TEMPLATE_VERSION) file: if it is missing or older than `2026.08.02.3`
+> **Kit compatibility: these rules describe kit `2026.11.24.2` or later.** Check this clone's
+> [`TEMPLATE_VERSION`](TEMPLATE_VERSION) file: if it is missing or older than `2026.11.24.2`
 > (compare numerically, part by part — never as strings), your kit predates these rules — tell
 > the builder a kit upgrade is available and offer to run the **synapse-upgrade** skill
 > (fetching `UPGRADE.md` and `UPGRADES.md` live from the template repo) before other work.
@@ -80,9 +80,11 @@ things: **publishes events** and **runs reads**. Read this before adding either.
      app ↗** in the console header (`?surface=app`); point at that button rather than letting
      them conclude the page you just built isn't there. (The button ships in kit `2026.11.17`
      and later — on an older clone, tell them to add `?surface=app` to the webview URL.)
-   - **Whether it's protected.** A published deployment sits behind "Sign in with Noon", Noon
-     staff only. It is mounted **only** when `REPLIT_DEPLOYMENT` is set — so there is no login in
-     the workspace, in `npm run dev`, or in the preview, and every view is open there. It also
+   - **Whether it's protected.** Yes, in every mode, by one access gate
+     ([`server/access-gate.ts`](server/access-gate.ts), rule 10). A published deployment sits
+     behind "Sign in with Noon", Noon staff only. The workspace (and `npm run dev`, and the
+     preview) has no Noon sign-in: there, every `/api` and `/__synapse` request needs the
+     **builder's workspace key** instead (rule 10 says how to unlock). The deployment gate also
      needs `APP_OAUTH_REDIRECT_URI` + `APP_SESSION_SECRET` set. **Two different failures, so
      don't conflate them:** a missing value (either of those, or the `SYNAPSE_*` pair the OAuth
      calls are signed with) **fails closed** — a 503 on every request, which the console predicts
@@ -92,6 +94,25 @@ things: **publishes events** and **runs reads**. Read this before adding either.
      will report ready. Send the builder to the console for the first, and to the portal for the
      second. Never say the app "has auth" without saying it arrives at deploy time. **You never
      hold or mint these secrets; the builder sets them.**
+
+**No anonymous data, ever:**
+
+10. **Every route is behind the access gate, in every mode.** `buildApp` in
+    [`server/index.ts`](server/index.ts) installs it first; add routes **inside `buildApp`, below
+    that line**, and put every data route under **`/api/`**. In a deployment a route needs a Noon
+    session; in the workspace it needs the builder's workspace key. Never register a route above
+    the gate, never start a second server or `express()` app, never handle WebSocket upgrades in
+    `server/` without asking. A route that must answer someone who is not signed in goes in
+    [`server/public-routes.ts`](server/public-routes.ts) with a reason, and must never return
+    personal data (names, emails, phones, national IDs, addresses, dates of birth).
+    `npm run check:api` (in `verify`, so in every deploy) fails on any of this.
+    **The workspace key** — to call the console from the Shell, send it:
+    `curl -s -H @.synapse-workspace.headers.local localhost:3000/__synapse/...` (kits older than
+    `2026.11.24.2` have no key: use plain `curl`). **Your own browser tests:** run
+    `npm run workspace-key` and open the link it prints in your browser first. **When the builder
+    sees the lock screen:** ask them to run `npm run workspace-key` in the Shell and paste the
+    key into it — never print the key or the link in chat, a PR, SPEC.md or code; it is a
+    password. Details: **synapse-access-control**.
 
 ## Who owns what — the upgrade contract
 
@@ -104,7 +125,7 @@ path in the repo has exactly one owner. The machine-readable contract is
 - **Synapse-owned** — the template's to manage; an upgrade may overwrite, add, or delete here.
   The console (`client/console/`), the skills (`.agents/skills/`, `skill/`), `vendor/`,
   `scripts/`, `.github/`, the server scaffolding (`server/**`), the client primitives
-  (`client/useView.ts`, `client/sendEvent.ts`, …), the docs (`AGENTS.md`, `README.md`,
+  (`client/useView.ts`, `client/sendEvent.ts`, `client/workspaceKey.ts`, …), the docs (`AGENTS.md`, `README.md`,
   `INTEGRATE.md`, `replit.md`, upgrade files), tooling configs, and exactly two files inside
   the app surface: `client/app/pages/synapse.tsx` and `client/app/blocks/ViewBlock.tsx`.
   A synapse-owned pattern claims **only files the template actually ships** — a file the
@@ -117,7 +138,7 @@ path in the repo has exactly one owner. The machine-readable contract is
   existing one.
 - **Shared** — both sides edit; upgrades change these only via the guided edits in an
   `UPGRADES.md` entry, preserving the builder's additions: `package.json` (+ lockfile —
-  regenerated, never copied), `server/index.ts`, the two registries
+  regenerated, never copied), `server/index.ts`, `server/public-routes.ts`, the two registries
   (`server/queries/index.ts`, `client/app/pages/index.ts`), `client/app/theme.css`,
   `client/index.html` (RTL lives here), `.replit`.
 
@@ -165,8 +186,8 @@ in between (a dashboard, a chart, a game):
 
 - **Data in** — render a view as a ready-made table with `<ViewBlock name="<read-name>" />`, or for
   a custom UI read the rows yourself with the **`useView(name)`** hook
-  ([`client/useView.ts`](client/useView.ts)) and lay them out however you want. Both read the public
-  `/api/views/:name`. If the page needs data no existing read covers, add the read first (above).
+  ([`client/useView.ts`](client/useView.ts)) and lay them out however you want. Both read
+  `/api/views/:name`, which is behind the access gate (rule 10). If the page needs data no existing read covers, add the read first (above).
 - **Events out** — report something to Noon from any interaction (a click, a completed level) with
   **`sendEvent(type, payload)`** ([`client/sendEvent.ts`](client/sendEvent.ts)). It POSTs to
   `/api/events`, which publishes server-side via `synapse.publishEvent` (the app secret never reaches
@@ -235,7 +256,7 @@ source of truth is the template's `main`.
 | [`.agents/skills/synapse-add-page/SKILL.md`](.agents/skills/synapse-add-page/SKILL.md) (**synapse-add-page**) | Adding a page, dashboard, screen, or chart to the shipped app — the end-to-end read → `useView`/`ViewBlock` → page recipe. |
 | [`.agents/skills/synapse-chart/SKILL.md`](.agents/skills/synapse-chart/SKILL.md) (**synapse-chart**) | Any chart, graph, trend or visual breakdown — `<ChartBlock>`, choosing the form from the data's shape, the theme's chart palette, and keeping the figures reachable. |
 | [`.agents/skills/synapse-scheduled-job/SKILL.md`](.agents/skills/synapse-scheduled-job/SKILL.md) (**synapse-scheduled-job**) | Anything recurring — "every Monday", "each morning", "alert me when" — a job in `server/jobs/` run by a Replit Scheduled Deployment. |
-| [`.agents/skills/synapse-access-control/SKILL.md`](.agents/skills/synapse-access-control/SKILL.md) (**synapse-access-control**) | "Only X should see this", managers-only, anything confidential — roles by email/domain in `server/access.ts`, enforced server-side on the view routes. |
+| [`.agents/skills/synapse-access-control/SKILL.md`](.agents/skills/synapse-access-control/SKILL.md) (**synapse-access-control**) | **Adding any server route**, a public endpoint or webhook, "only X should see this", managers-only, anything confidential — the access gate (no anonymous API in any mode), `server/public-routes.ts`, the workspace key, and roles by email/domain in `server/access.ts`. |
 | [`.agents/skills/synapse-arabic-rtl/SKILL.md`](.agents/skills/synapse-arabic-rtl/SKILL.md) (**synapse-arabic-rtl**) | Arabic-first or RTL apps — `dir`/`lang`, Arabic font stack, logical properties, bidi-safe Latin runs, Arabic number/date formatting, mirrored charts. |
 | [`.agents/skills/synapse-workflow/SKILL.md`](.agents/skills/synapse-workflow/SKILL.md) (**synapse-workflow**) | Any form → workflow feature — "submit a request", "log an incident", "approve", "track status", "let people report/log X" — the three-stores rule, per-app Postgres storage, and the row-first-event-second recipe. |
 | [`.agents/skills/synapse-event-design/SKILL.md`](.agents/skills/synapse-event-design/SKILL.md) (**synapse-event-design**) | Tracking or instrumenting anything — which moments deserve events, `publishEvent` vs `sendEvent`, `declareEvent`, payload and naming rules, verifying delivery. |
@@ -254,6 +275,7 @@ source of truth is the template's `main`.
 | [`server/probe.ts`](server/probe.ts) | The **cross-check primitive** behind synapse-verify-numbers: `POST /__synapse/probe` runs one throwaway, read-only, uncached SELECT so a number can be proved a second way without baking a temp read. Workspace-only. |
 | [`server/metrics.ts`](server/metrics.ts) | **What the app's words mean.** Named metric definitions ("active student") that reads declare and carry to the page with their rows, so two pages can't quietly disagree about the same word. The machine-checkable half of SPEC.md's number table. |
 | [`server/query-cost.ts`](server/query-cost.ts) | Boot-time warnings for reads that will scan more than they need — a partitioned table with no `dt` filter, `SELECT *` over a fact table, a row read with no `LIMIT`. Warnings only; never blocks. |
+| [`server/access-gate.ts`](server/access-gate.ts), [`server/public-routes.ts`](server/public-routes.ts) | **The access gate** — the first middleware: Noon session (deployment) or the builder's workspace key (workspace) on every route; the public list is the only way out, each entry with a reason. `npm run check:api` proves it on every verify. `npm run workspace-key` prints the browser unlock link. |
 | [`server/access.ts`](server/access.ts) | **Who may see what** in a deployment: roles by email/domain, and which views they gate. Enforced in `/api/views/:name`, never in the browser. Empty in a fresh clone = every signed-in staff member sees everything. |
 | [`server/jobs/`](server/jobs/) | Scheduled work (`<name>.job.ts`) + its registry, run by `npm run job -- <name>` from a Replit Scheduled Deployment — a separate process with its own secrets and no read cache. |
 | [`client/app/blocks/ChartBlock.tsx`](client/app/blocks/ChartBlock.tsx) | `ViewBlock`'s sibling: the same read drawn as a chart, bound to the theme's `--color-chart-*` palette, RTL-aware, with the figures kept reachable as a table. |
@@ -261,7 +283,7 @@ source of truth is the template's `main`.
 | [`scripts/check-theme-tokens.ts`](scripts/check-theme-tokens.ts) | `npm run check:theme` (in `verify`) — fails when `client/app/**` holds a raw hex, a Tailwind palette class, an arbitrary value, or an inline style. **A check, not a rule**: Replit's Design Canvas writes visual edits straight to the codebase without running an agent loop, so no skill can defend the token convention. Mark a genuine exception with a `theme-tokens-ignore` comment. |
 | [`server/synapse.ts`](server/synapse.ts) | Constructs the SDK client from secrets; exports `null` (not a throw) when secrets are missing. |
 | [`server/reads.ts`](server/reads.ts), [`server/athena.ts`](server/athena.ts), [`server/query-cache.ts`](server/query-cache.ts) | Read orchestration, the `athenaQuery` wrapper + result normaliser, and the in-memory cache. |
-| [`server/index.ts`](server/index.ts) | Express server. Mounts the workspace-only `/__synapse/*` endpoints (the builder console's data) **only when `REPLIT_DEPLOYMENT` is unset**; the public `/api/views*` (data in) and `/api/events` (events out) endpoints — the shipped app's surface — are mounted in every mode. |
+| [`server/index.ts`](server/index.ts) | Express server. `buildApp` installs the access gate first, then mounts the workspace-only `/__synapse/*` endpoints (the builder console's data) **only when `REPLIT_DEPLOYMENT` is unset**, and the app's `/api/views*` (data in) and `/api/events` (events out) endpoints in every mode — behind the gate. |
 | [`client/console/`](client/console/) | The workspace-only **Synapse** management console (Home / Get data / Views / Events / Settings tabs). |
 | [`client/app/`](client/app/) | The **shipped app** rendered at `/` for end users. Pages live in `client/app/pages/<name>.tsx` (a registry, like `server/queries/`); views render as blocks via `client/app/blocks/ViewBlock.tsx`. The `/synapse` page there is the starter's frozen scaffolding corner (example views + status). |
 | [`client/app/theme.css`](client/app/theme.css) | **The app's entire look** — Tailwind v4 `@theme` tokens (color, radius, type, density) with three documented presets. Restyling the app = editing this file (see Conventions). |
@@ -300,7 +322,7 @@ source of truth is the template's `main`.
 - TypeScript, ESM (`type: module`). Server uses NodeNext resolution — **relative imports need a
   `.js` extension** (e.g. `import { runRead } from './reads.js'`).
 - Verify with **`npm run verify`** (secret scan → typecheck → lint → tests → link check → theme
-  tokens, fail-fast) before
+  tokens → API gate, fail-fast) before
   you're done. The
   same gate runs before every deployment, so a red check here is a blocked deploy there.
 - Commit `package-lock.json`; never commit `.env`.
