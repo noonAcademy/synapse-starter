@@ -75,8 +75,12 @@ before the first paint so the page never flashes the wrong direction.
 a language someone picked while the switch still existed.
 
 **3. The font.** Nothing to do: the Noon design system
-([`client/brand/noon.css`](../../../client/brand/noon.css)) ships IBM Plex Sans Arabic, one family
-for Arabic and Latin, so a mixed line never jumps between typefaces. Never set `--font-app`.
+([`client/brand/noon.css`](../../../client/brand/noon.css)) ships IBM Plex Sans Arabic for text
+(one family for Arabic and Latin, so a mixed line never jumps between typefaces) and, for
+`font-display` titles, Quicksand with Tajawal for the Arabic letters. Don't set a Latin-only font
+on Arabic text; if the builder wants another font, it must have Arabic glyphs or fall back to one
+that does (**synapse-design-system**). Never letter-space Arabic: pair any `tracking-*` with
+`ar:tracking-normal`.
 
 **4. Line height.** Arabic needs more vertical room than Latin at the same size — diacritics sit
 above and below. The design system already gives `:lang(ar)` text a taller line; don't change

@@ -20,9 +20,9 @@ to do._
 ## Look & feel
 
 _Where and on what people use it (office desktop? phone in a classroom?), language(s) —
-including whether it's RTL/Arabic-first — and the colour of the face in the Noon logo (Noon green unless they pick another). The look
-itself is the shared Noon design system; the agent sets the face colour in
-`client/app/theme.css` and, for RTL, `dir`/`lang` on `<html>` in `client/index.html`._
+including whether it's RTL/Arabic-first — and the look: the Noon brand default (Ink & Light) unless they
+ask for something else, and the colour of the face in the Noon logo. The agent sets any changes as
+tokens in `client/app/theme.css` and, for RTL, `dir`/`lang` on `<html>` in `client/index.html`._
 
 ## Data: where every displayed number comes from
 

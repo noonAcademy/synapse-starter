@@ -25,6 +25,113 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.11.24.5 — Noon's Ink & Light brand as the default look, and freedom to change it
+
+### What changed
+
+Apps used to share one locked look (the noon-apps product palette) and could change only the
+logo's face colour. Now every app **starts** on Noon's brand, **Ink & Light**, and the builder may
+change any part of it through tokens.
+
+- **[`client/brand/noon.css`](client/brand/noon.css)** (synapse-owned): the default tokens are now
+  Ink & Light. Paper page (`#f7f1e6`), card `#fdfbf6`, hairline borders, espresso text
+  (`#3a2318`), warm grey secondary text, terracotta main action (`#b75c38`), deep terracotta
+  titles and active nav (`text-primary-ink`, `#9c4a26`), future teal accent and links
+  (`#647067`), a derived dark mode (espresso grounds, paper text), and the brand chart series
+  (terracotta, espresso, teal, clay, warm grey, sage). Radius 14px on cards. No card shadow
+  (`shadow-card` still exists and draws nothing). Same utility names, so existing pages keep
+  working; they just change colour.
+- **New tokens:** `bg-muted` (warm oak: quiet cards, chips), `bg-accent` + `text-on-accent` (a
+  teal fill), `font-display` (Quicksand Bold for Latin and digits, Tajawal Bold for Arabic
+  letters), `text-display` (36px hero numbers), and the `ar:` variant
+  (`tracking-widest ar:tracking-normal`, since Arabic is never letter-spaced). Quicksand and
+  Tajawal are vendored in `client/brand/fonts/` under the SIL OFL (`OFL-Quicksand.txt`,
+  `OFL-Tajawal.txt`). `scripts/brand-tokens.test.ts` proves every text pair passes AA in both
+  themes, now including text on teal and on oak.
+- **`client/app/theme.css` (shared) may hold any token again.** After
+  `@import "../brand/noon.css";` it may override any `--noon-*` colour, any `@theme` token
+  (`--font-display`, `--radius-card`, …), add tokens of its own, and declare `@font-face`. What
+  `npm run check:theme` still fails on: a missing or late brand import, a **style rule**
+  (`.card { color: … }`), a declaration outside a block, and a `--app-face` that isn't a hex in
+  `:root` (the favicon is drawn from it). Components still may not hardcode colours.
+- **Skill [synapse-design-system](.agents/skills/synapse-design-system/SKILL.md)** rewritten:
+  the brand is the default, the builder's ask wins, how to override tokens; new
+  [`brand.md`](.agents/skills/synapse-design-system/brand.md) beside it holds the Ink & Light
+  rules translated for screens (colour roles and proportions, type, Arabic and RTL, charts,
+  imagery, voice, measured contrast, the hard don'ts, a checklist) with a link to the full pack
+  on Noon's Drive. The plan-first and Arabic skills, AGENTS.md and `.synapse/ownership.json`
+  follow.
+- `ChartBlock` (synapse-owned): Ink & Light fallback colours and solid hairline gridlines.
+- Template's own app files (builder-owned in clones): page and sign-in titles use
+  `font-display font-bold text-primary-ink`, the header name `font-display`, and the home page's
+  step numbers are deep terracotta instead of teal (one teal thing per view). `SPEC.md`'s Look &
+  feel prompt mentions the brand default.
+
+### Why a clone should care
+
+The app's colours, title font and card shadows change: it moves from the mint-green product
+look to Noon's brand. **Tell the builder before you run this, and show them the result.** A
+builder who prefers the old look can keep it (step 2). Builders can also now restyle their app
+freely through `theme.css`.
+
+### Recipe
+
+1. **Before copying anything, ask the builder:** "Noon's apps now default to the Ink & Light brand
+   (warm paper, terracotta, Quicksand titles). Move to it, or keep your current colours?" If
+   they want to keep the old colours, save the old palette now:
+   `git show HEAD:client/brand/noon.css > /tmp/noon-old.css` (guard: only if the clone's
+   `client/brand/noon.css` still contains `--noon-primary: #64d8ae`).
+
+2. **Copy** (synapse-owned):
+
+   ```bash
+   mkdir -p client/brand/fonts .agents/skills/synapse-design-system
+   cp -R <template>/client/brand/. client/brand/
+   for f in scripts/check-theme-tokens.ts scripts/check-theme-tokens.test.ts \
+            scripts/brand-tokens.test.ts client/app/blocks/ChartBlock.tsx .synapse/ownership.json \
+            .agents/skills/synapse-design-system/SKILL.md .agents/skills/synapse-design-system/brand.md \
+            .agents/skills/synapse-plan-first/SKILL.md .agents/skills/synapse-arabic-rtl/SKILL.md \
+            AGENTS.md; do
+     cp "<template>/$f" "$f"
+   done
+   ```
+
+   **Guided edit — `client/app/theme.css` (shared).** Nothing is required: a file holding the
+   import and `--app-face` passes the new check. Keep the builder's `--app-face`. You may replace
+   the comment block at the top with the template's (it now explains overrides). If in step 1
+   the builder chose to keep the old colours, copy the `--noon-*` lines from the three palette
+   blocks of `/tmp/noon-old.css` into `theme.css` under the import, in the same three selectors
+   (`:root`, `:root[data-theme="dark"]`, and `:root:not([data-theme="light"])` inside
+   `@media (prefers-color-scheme: dark)`), and add `@theme { --radius-card: 0.75rem; }` and
+   `:root { --noon-shadow-card: 0 1px 2px rgb(20 20 20 / 0.06); }` (dark:
+   `0 1px 2px rgb(0 0 0 / 0.4)`) for the old shape. Record the choice in SPEC.md's Decisions log.
+
+3. **After the upgrade, as app work — not part of this recipe.** Law 5 keeps upgrades out of
+   builder-owned files. Tell the builder what the template's own app files now do, and make each
+   change only if they say yes (skip all of it if they kept the old look):
+   - Titles in the brand face: `font-display font-bold text-primary-ink` on the page `<h2>` in
+     `client/app/pages/home.tsx` and the sign-in `<h1>` in `client/app/LoginScreen.tsx`;
+     `font-display font-bold` on the app name in `client/app/AppShell.tsx`. The same on the
+     builder's own page titles and big numbers.
+   - One teal thing per view: `text-accent` is now teal. If a page uses it for several things
+     (the template's home page did, for its step numbers), keep it for links or the selection and
+     use `text-primary-ink` for the rest: `grep -rn "text-accent" client/app`.
+   - `shadow-card` now draws nothing; nothing to do unless the builder misses it.
+   The template's versions of these files show the exact code.
+
+### Verify
+
+- `npm run verify` green, including `[check-theme-tokens] client/app is token-clean and
+  theme.css holds only tokens — OK`.
+- The app (`?surface=app`) shows a paper background, a terracotta sign-in button and Quicksand
+  titles (or the old look, if the builder kept it); in dark mode, espresso grounds with paper text,
+  charts included; in Arabic, titles in Tajawal with digits still in Quicksand.
+- Add `:root { --noon-primary: #2b6cb0; }` to `theme.css`: `npm run check:theme` passes and the
+  sign-in button turns blue. Add `.card { color: red; }`: the check fails naming that line. Undo
+  both.
+
+---
+
 ## 2026.11.24.4 — dark mode and English/Arabic for every Synapse app
 
 ### What changed

@@ -34,9 +34,9 @@ Work through the SPEC sections in order — each one is roughly one or two quest
 3. **Look & feel** — at most TWO light questions; don't let this bloat the interview:
    - "Where will people use this — a desk, a phone in a classroom? And in which language(s)?"
      (covers context + language, including whether the app is Arabic-first/RTL)
-   - "Every Noon app shares the Noon look; yours chooses the colour of the round face in the
-     Noon logo. Keep Noon green, or pick another?" (note any colour they name; the look itself —
-     fonts, spacing, light/dark — is not a choice)
+   - "Apps start on Noon's brand look (warm paper, terracotta, Quicksand titles) with the Noon
+     logo. Keep it as is, or do you have something else in mind — a colour, a feel, another
+     face colour for the logo?" (note what they say; no answer means the Noon default)
 4. **Data** — for every number they want: what it is, and how it's calculated. This is where
    most of the interview happens.
 5. **Records this app owns** — if their description involves people *submitting, requesting,
@@ -73,13 +73,14 @@ per-student live data needs redesigning *in the interview*, not at build time.
 2. **Show it to the builder and ask for approval** in plain terms: "This is what I'll build —
    did I get it right?" Fold in corrections and ask again.
 3. **On approval, flip the top line** to `status: approved YYYY-MM-DD`.
-4. **Set the face colour and the name before building any page.** Set `--app-face` in
-   [`client/app/theme.css`](../../../client/app/theme.css) (the only value that file may hold)
-   and `APP_NAME` in `client/app/config.ts`. Every app has an English/Arabic switch; if the app is
+4. **Set the look and the name before building any page.** Set `APP_NAME` in
+   `client/app/config.ts`, and the face colour (`--app-face`) plus any look the builder asked
+   for as token overrides in [`client/app/theme.css`](../../../client/app/theme.css)
+   (**synapse-design-system**); with no ask, leave the Noon defaults. Every app has an English/Arabic switch; if the app is
    Arabic-first, make Arabic the default with `lang="ar" dir="rtl"` on `<html>` in
    [`client/index.html`](../../../client/index.html), and if it is one language only, add
    `data-fixed-lang` there and remove the switch (**synapse-arabic-rtl**).
-   Everything else about the look is the Noon design system (**synapse-design-system**); never
+   Build pages on brand by default (**synapse-design-system** and its `brand.md`); never
    hardcode colors in components.
 5. Only now does building start — usually via the **synapse-add-page** skill, one Data-table
    row at a time. The placeholder home page (`client/app/pages/home.tsx` rendering

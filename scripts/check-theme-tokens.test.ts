@@ -125,12 +125,31 @@ describe('checkThemeFile', () => {
     expect(checkThemeFile(':root { --app-face: #64d8ae; }')[0]?.reason).toMatch(/must import/);
   });
 
-  it('fails on any other token, selector, @theme block or import, with its line', () => {
+  it('accepts any token override or new token: the Noon look is a default, not a lock', () => {
+    const css = [
+      '@import "../brand/noon.css";',
+      '@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap");',
+      ':root {',
+      '  --app-face: #5fa0e0;',
+      '  --noon-primary: #2b6cb0;',
+      '  --noon-on-primary: #ffffff',
+      '}',
+      ':root[data-theme="dark"] { --noon-primary: #7fb3e6; }',
+      '@media (prefers-color-scheme: dark) {',
+      '  :root:not([data-theme="light"]) { --noon-primary: #7fb3e6; }',
+      '}',
+      '@theme { --color-brand: #2b6cb0; --font-display: "Inter", sans-serif; --radius-card: 4px; }',
+      '@font-face { font-family: "Mine"; font-weight: 700; src: url("./mine.woff2") format("woff2"); }',
+    ].join('\n');
+    expect(checkThemeFile(css)).toEqual([]);
+  });
+
+  it('fails on a style rule, a stray declaration or a face the favicon cannot use, with its line', () => {
     const cases = [
-      `${ok}:root { --color-primary: #ff0000; }`,
-      `${ok}@theme { --color-primary: #ff0000; }`,
-      `${ok}.card { --app-face: #ff0000; }`,
-      `${ok}@import "./other.css";`,
+      `${ok}.card { color: #ff0000; }`,
+      `${ok}body { --noon-ink: #111111; background: #ffffff; }`,
+      `${ok}@media (min-width: 40rem) { .card { padding: 2rem; } }`,
+      `${ok}--noon-primary: #2b6cb0;`,
       `${ok}:root { --app-face: var(--x); }`,
       `${ok}:root { --app-face: oklch(0.8 0.1 250); }`,
       `${ok}:root[data-theme="dark"] { --app-face: #5fa0e0; }`,
