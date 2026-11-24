@@ -23,6 +23,19 @@ describe('WorkspaceLock', () => {
     expect(storedWorkspaceKey()).toBeNull();
   });
 
+  it('tries a key another tab saved when the refused probe sent none', () => {
+    saveWorkspaceKey('newer-key');
+    let unlocked = 0;
+    const count = () => {
+      unlocked += 1;
+    };
+    window.addEventListener(UNLOCKED_EVENT, count);
+    render(<WorkspaceLock refusedKey={null} />);
+    window.removeEventListener(UNLOCKED_EVENT, count);
+    expect(storedWorkspaceKey()).toBe('newer-key');
+    expect(unlocked).toBeGreaterThan(0);
+  });
+
   it('keeps a newer key another tab saved while the refused probe was in flight', () => {
     saveWorkspaceKey('newer-key');
     let unlocked = 0;

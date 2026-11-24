@@ -140,7 +140,9 @@ function stubRoutes(routes: RouteInfo[]): void {
         // private request is marked before the shared handler can answer it or write.
         const shared = handler.handle;
         handler.handle = (req, res, next) => {
-          const method = req.method === 'HEAD' ? 'get' : req.method.toLowerCase();
+          // Express answers HEAD with the GET handlers only when the route has no HEAD handler.
+          const headAsGet = req.method === 'HEAD' && !layer.route?.methods.head;
+          const method = headAsGet ? 'get' : req.method.toLowerCase();
           if (methods.has(method)) stub(req, res, next);
           else shared(req, res, next);
         };

@@ -118,6 +118,31 @@ describe('checkApp', () => {
     expect(problems.some((p) => p.includes('anonymous GET'))).toBe(false);
   });
 
+  it('reports a private explicit HEAD that a shared .all() handler would answer', async () => {
+    const publicRoutes = [
+      { method: 'GET' as const, path: '/api/ping', reason: 'demo' },
+      { method: 'HEAD' as const, path: '/api/ping', reason: 'demo' },
+    ];
+    const app = express();
+    app.use(createWorkspaceGate({ workspaceKey: KEY, trustLocalCalls: false, publicRoutes }));
+    app
+      .route('/api/ping')
+      .all((req, res, next) => {
+        if (req.method === 'HEAD') res.end();
+        else next();
+      })
+      .get((_req, res) => {
+        res.json({ ok: true });
+      })
+      .head((_req, res) => {
+        res.end();
+      });
+    const problems = (await checkApp('workspace', app, publicRoutes.slice(0, 1))).map(
+      (p) => p.problem,
+    );
+    expect(problems.some((p) => p.includes('anonymous HEAD /api/ping reached'))).toBe(true);
+  });
+
   it('reports a HEAD route that the gate lets through, though HEAD has no body', async () => {
     const app = express();
     app.use(

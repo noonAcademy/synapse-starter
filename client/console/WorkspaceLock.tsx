@@ -15,9 +15,8 @@ export function WorkspaceLock({ refusedKey }: { refusedKey: string | null }) {
   // A key was sent and refused: it is old (rotated) or mistyped. Say so, and drop it.
   const rejected = refusedKey !== null;
   useEffect(() => {
-    if (refusedKey === null) return;
-    forgetWorkspaceKey(refusedKey);
-    // Another tab saved a newer key: try it before asking the builder.
+    if (refusedKey !== null) forgetWorkspaceKey(refusedKey);
+    // Another tab saved a key while the probe was in flight: try it before asking the builder.
     const newer = storedWorkspaceKey();
     if (newer && newer !== refusedKey) notifyUnlocked();
   }, [refusedKey]);
