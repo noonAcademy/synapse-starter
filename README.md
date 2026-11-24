@@ -61,13 +61,20 @@ running:
   [Deploying](#deploying-your-app)). This is the part you and your coding agent build out
   with pages.
 
-To see your app in the workspace without deploying, press **Preview your app ↗** in the
-console header — it opens the shipped app in a new tab. (It's the `?surface=app` query
-param underneath, so you can also add that to the webview URL by hand; the app's
-`/synapse` page carries a **Open the builder console** link back, and `?surface=console`
-forces the console too.) The preview shows the app exactly as a deployment serves it with
-one exception: the **Sign in with Noon** gate is never mounted in a workspace, so you
-won't be asked to log in.
+**Where each one lives in the workspace.** A fresh clone opens on the console at `/`. As soon
+as you (or your agent) build the app's first page, `/` becomes your app — the same page your
+end users will land on — and the console moves to **`/synapse-starter`**. "Built" means
+`client/app/pages/home.tsx` no longer shows the "not built yet" placeholder, or another page
+file exists next to it ([`server/app-built.ts`](server/app-built.ts)). `/synapse-starter`
+always opens the console in the workspace, before and after, and never exists in a published
+deployment. The app's ⚙ **Synapse** page (footer link) also carries an **Open the builder
+console** link back.
+
+Before the first page exists, press **Preview your app ↗** in the console header to see your
+app — it opens the shipped app in a new tab. (It's the `?surface=app` query param underneath,
+which forces the app at any time; `?surface=console` forces the console.) The app in the
+workspace looks exactly as a deployment serves it with one exception: the **Sign in with
+Noon** gate is never mounted in a workspace, so you won't be asked to log in.
 
 ## The console tabs
 

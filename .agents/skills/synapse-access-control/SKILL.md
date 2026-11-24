@@ -64,7 +64,7 @@ section below.
   curl -s -H @.synapse-workspace.headers.local localhost:3000/__synapse/overview
   ```
 
-- **Browsers**: `npm run workspace-key` prints the key and `https://<dev-domain>/#synapse_key=…`.
+- **Browsers**: `npm run workspace-key` prints the key and `https://<dev-domain>/synapse-starter#synapse_key=…` (the console's own path, so it opens the console whether or not the app has a page yet).
   Opening the link stores the key in that tab's browser storage and removes it from the address
   bar; pasting the key into the lock screen does the same. The Replit webview and a separate tab
   keep separate storage, so each unlocks once (the console's **Preview your app ↗** carries the

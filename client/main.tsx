@@ -16,8 +16,9 @@ if (!rootElement) {
   throw new Error('Root element #root not found');
 }
 
-// The single hinge of the two-part split: probe whether we're in the workspace (render the builder
-// console) or a published deployment (render the shipped app).
+// The single hinge of the two-part split: probe whether to render the builder console (the
+// workspace, at `/` until the first page is built and at /synapse-starter always) or the shipped
+// app (a published deployment, and the workspace's `/` once the app has a page).
 function Root() {
   const mode = useSynapseMode();
   if (mode === 'probing') {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { useSynapseMode } from './useSynapseMode';
+import { CONSOLE_PATH, useSynapseMode } from './useSynapseMode';
 
 function stubFetch(
   res: { ok: boolean; contentType: string; status?: number; body?: unknown } | Error,
@@ -31,6 +31,42 @@ describe('useSynapseMode', () => {
     stubFetch({ ok: true, contentType: 'application/json' });
     const { result } = renderHook(() => useSynapseMode());
     await waitFor(() => expect(result.current).toBe('workspace'));
+  });
+
+  it('keeps the console at / until the first page is built', async () => {
+    stubFetch({ ok: true, contentType: 'application/json', body: { appBuilt: false } });
+    const { result } = renderHook(() => useSynapseMode());
+    await waitFor(() => expect(result.current).toBe('workspace'));
+  });
+
+  it('hands / to the app once the first page is built', async () => {
+    stubFetch({ ok: true, contentType: 'application/json', body: { appBuilt: true } });
+    const { result } = renderHook(() => useSynapseMode());
+    await waitFor(() => expect(result.current).toBe('published'));
+  });
+
+  it(`always renders the console at ${CONSOLE_PATH} in the workspace`, async () => {
+    window.history.replaceState(null, '', CONSOLE_PATH);
+    stubFetch({ ok: true, contentType: 'application/json', body: { appBuilt: true } });
+    const { result } = renderHook(() => useSynapseMode());
+    await waitFor(() => expect(result.current).toBe('workspace'));
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('lets ?surface=console force the console at / after the app is built', async () => {
+    window.history.replaceState(null, '', '/?surface=console');
+    stubFetch({ ok: true, contentType: 'application/json', body: { appBuilt: true } });
+    const { result } = renderHook(() => useSynapseMode());
+    await waitFor(() => expect(result.current).toBe('workspace'));
+    window.history.replaceState(null, '', '/');
+  });
+
+  it(`never renders the console at ${CONSOLE_PATH} in a published deployment`, async () => {
+    window.history.replaceState(null, '', CONSOLE_PATH);
+    stubFetch({ ok: true, contentType: 'text/html' });
+    const { result } = renderHook(() => useSynapseMode());
+    await waitFor(() => expect(result.current).toBe('published'));
+    window.history.replaceState(null, '', '/');
   });
 
   it('resolves to published when the request falls through to the SPA (html)', async () => {
