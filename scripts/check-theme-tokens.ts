@@ -172,7 +172,8 @@ interface CssStatement {
 }
 
 // Splits source[from, to) into statements and blocks at one nesting level, matching braces and
-// skipping quoted strings (a font URL may hold a `;`). Small on purpose: theme.css is a token list.
+// skipping quoted strings and parentheses (a font or data URL may hold a `;`, quoted or not, as in
+// `url(data:image/png;base64,…)`). Small on purpose: theme.css is a token list.
 function cssStatements(source: string, from: number, to: number): CssStatement[] {
   const out: CssStatement[] = [];
   let i = from;
@@ -183,6 +184,7 @@ function cssStatements(source: string, from: number, to: number): CssStatement[]
     let depth = 0;
     let open = -1;
     let quote = '';
+    let parens = 0;
     let ended = false;
     for (; i < to; i++) {
       const ch = source[i];
@@ -193,6 +195,12 @@ function cssStatements(source: string, from: number, to: number): CssStatement[]
       }
       if (ch === '"' || ch === "'") {
         quote = ch;
+      } else if (ch === '(') {
+        parens++;
+      } else if (ch === ')') {
+        if (parens > 0) parens--;
+      } else if (parens > 0) {
+        // Inside a value's parentheses: a `;`, `{` or `}` here is part of the value.
       } else if (ch === '{') {
         if (depth === 0) open = i;
         depth++;
@@ -235,9 +243,16 @@ export function checkThemeFile(css: string, file = THEME_FILE): TokenViolation[]
     violations.push({ file, line, text: text.trim().slice(0, 100), reason });
   };
 
-  const checkFace = (prelude: string, at: number, text: string) => {
-    if (prelude !== ':root') {
-      fail(at, text, '--app-face belongs in :root { } — the favicon is drawn from it');
+  // `topLevel`: the block is not inside @media or any other block. The favicon reader
+  // (faceFromThemeCss) takes the last `:root` value without evaluating conditions, so a face set
+  // under `@media print { :root { … } }` would draw a favicon the screen never shows.
+  const checkFace = (prelude: string, topLevel: boolean, at: number, text: string) => {
+    if (prelude !== ':root' || !topLevel) {
+      fail(
+        at,
+        text,
+        '--app-face belongs in a top-level :root { }, outside @media — the favicon is drawn from it',
+      );
       return;
     }
     if (!FACE_DECLARATION.test(text)) {
@@ -254,7 +269,7 @@ export function checkThemeFile(css: string, file = THEME_FILE): TokenViolation[]
     }
   };
 
-  const checkBlock = (block: CssStatement) => {
+  const checkBlock = (block: CssStatement, topLevel: boolean) => {
     const prelude = source
       .slice(block.start, block.bodyStart - 1)
       .trim()
@@ -262,7 +277,7 @@ export function checkThemeFile(css: string, file = THEME_FILE): TokenViolation[]
     if (/^@font-face$/i.test(prelude)) return;
     for (const child of cssStatements(source, block.bodyStart, block.bodyEnd)) {
       if (child.kind === 'block') {
-        checkBlock(child);
+        checkBlock(child, false);
         continue;
       }
       const text = child.text.trim();
@@ -276,7 +291,7 @@ export function checkThemeFile(css: string, file = THEME_FILE): TokenViolation[]
         );
         continue;
       }
-      if (/^--app-face\s*:/.test(text)) checkFace(prelude, child.start, text);
+      if (/^--app-face\s*:/.test(text)) checkFace(prelude, topLevel, child.start, text);
     }
   };
 
@@ -286,7 +301,7 @@ export function checkThemeFile(css: string, file = THEME_FILE): TokenViolation[]
     const text = statement.text.trim();
     if (statement.kind === 'block') {
       seenRule = true;
-      checkBlock(statement);
+      checkBlock(statement, true);
       continue;
     }
     if (text.startsWith('@import')) {

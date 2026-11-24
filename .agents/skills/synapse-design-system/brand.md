@@ -144,7 +144,8 @@ Warm, plain and specific, like a person who was in the room.
 
 ## 7. Contrast, measured
 
-WCAG AA: 4.5:1 for body text, 3:1 for large text (18px+, or 14px+ bold). The light tokens:
+WCAG AA: 4.5:1 for body text, 3:1 for large text, which WCAG sets at 18pt
+(24px) or 14pt bold (about 18.7px). The light tokens:
 
 | Pair | Ratio |
 |---|---|
@@ -154,7 +155,7 @@ WCAG AA: 4.5:1 for body text, 3:1 for large text (18px+, or 14px+ bold). The lig
 | Teal on paper / card | 4.6 / 5.0 |
 | White on terracotta / deep terracotta / teal | 4.6 / 6.1 / 5.2 |
 
-**Below AA for body text** (fine only at 18px+, or 14px+ bold):
+**Below AA for body text** (fine only for large text: 24px+, or bold 18.7px+):
 
 | Pair | Instead |
 |---|---|

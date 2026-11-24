@@ -60,9 +60,19 @@ pages read tokens through utilities, so one change reaches every page, in light 
   --noon-primary-strong: #1f5590;
   --noon-primary-ink: #1f5590;  /* …and the brand-coloured text that goes with it */
 }
-:root[data-theme="dark"] { --noon-primary-ink: #7fb3e6; }
+/* noon.css sets its own dark values in these two selectors, so repeat every override here,
+   or dark mode keeps the Noon colour. */
+:root[data-theme="dark"] {
+  --noon-primary: #2b6cb0;
+  --noon-primary-strong: #1f5590;
+  --noon-primary-ink: #7fb3e6;
+}
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --noon-primary-ink: #7fb3e6; }
+  :root:not([data-theme="light"]) {
+    --noon-primary: #2b6cb0;
+    --noon-primary-strong: #1f5590;
+    --noon-primary-ink: #7fb3e6;
+  }
 }
 
 @theme {
@@ -81,7 +91,8 @@ pages read tokens through utilities, so one change reaches every page, in light 
 - **A font of the app's own:** an `@font-face` block in `theme.css` (font file under
   `client/app/`, or an `@import url(...)` from Google Fonts placed right after the brand import),
   then point `--font-app` or `--font-display` at it.
-- **Keep it readable.** Text on a background should reach 4.5:1 (3:1 for 18px+ or bold 14px+).
+- **Keep it readable.** Text on a background should reach 4.5:1 (3:1 only for large text: 24px+, or bold 18.7px+, which is
+  WCAG's 18pt / 14pt bold).
   When you recolour, check the new pairs; [`brand.md` §7](brand.md) has the method.
 - **Never edit `client/brand/**`**: an upgrade overwrites it. Overrides belong in `theme.css`.
 

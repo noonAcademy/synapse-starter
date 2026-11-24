@@ -78,9 +78,14 @@ freely through `theme.css`.
 
 1. **Before copying anything, ask the builder:** "Noon's apps now default to the Ink & Light brand
    (warm paper, terracotta, Quicksand titles). Move to it, or keep your current colours?" If
-   they want to keep the old colours, save the old palette now:
-   `git show HEAD:client/brand/noon.css > /tmp/noon-old.css` (guard: only if the clone's
-   `client/brand/noon.css` still contains `--noon-primary: #64d8ae`).
+   they want to keep the old colours, save the old palette now, inside the clone (`*.local` is
+   git-ignored, and unlike `/tmp` it survives a restart, so a retried upgrade can reuse it):
+   `git show HEAD:client/brand/noon.css > .synapse-noon-old.css.local`. Guard: skip if
+   `.synapse-noon-old.css.local` already exists and contains `--noon-primary: #64d8ae` (an
+   earlier attempt saved it); otherwise run it only if `git show HEAD:client/brand/noon.css`
+   contains `--noon-primary: #64d8ae`. Reading from `HEAD` rather than the working copy keeps
+   this right on a retry where the new `noon.css` has already been copied in, as long as the
+   upgrade isn't committed yet.
 
 2. **Copy** (synapse-owned):
 
@@ -100,11 +105,13 @@ freely through `theme.css`.
    import and `--app-face` passes the new check. Keep the builder's `--app-face`. You may replace
    the comment block at the top with the template's (it now explains overrides). If in step 1
    the builder chose to keep the old colours, copy the `--noon-*` lines from the three palette
-   blocks of `/tmp/noon-old.css` into `theme.css` under the import, in the same three selectors
+   blocks of `.synapse-noon-old.css.local` into `theme.css` under the import, in the same three selectors
    (`:root`, `:root[data-theme="dark"]`, and `:root:not([data-theme="light"])` inside
    `@media (prefers-color-scheme: dark)`), and add `@theme { --radius-card: 0.75rem; }` and
    `:root { --noon-shadow-card: 0 1px 2px rgb(20 20 20 / 0.06); }` (dark:
    `0 1px 2px rgb(0 0 0 / 0.4)`) for the old shape. Record the choice in SPEC.md's Decisions log.
+   Delete `.synapse-noon-old.css.local` only after `npm run check:theme` passes on the edited
+   `theme.css`.
 
 3. **After the upgrade, as app work — not part of this recipe.** Law 5 keeps upgrades out of
    builder-owned files. Tell the builder what the template's own app files now do, and make each

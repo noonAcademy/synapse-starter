@@ -139,6 +139,7 @@ describe('checkThemeFile', () => {
       '  :root:not([data-theme="light"]) { --noon-primary: #7fb3e6; }',
       '}',
       '@theme { --color-brand: #2b6cb0; --font-display: "Inter", sans-serif; --radius-card: 4px; }',
+      ':root { --hero-image: url(data:image/png;base64,AAAA); --hero-quoted: url("a;b.png"); }',
       '@font-face { font-family: "Mine"; font-weight: 700; src: url("./mine.woff2") format("woff2"); }',
     ].join('\n');
     expect(checkThemeFile(css)).toEqual([]);
@@ -153,6 +154,7 @@ describe('checkThemeFile', () => {
       `${ok}:root { --app-face: var(--x); }`,
       `${ok}:root { --app-face: oklch(0.8 0.1 250); }`,
       `${ok}:root[data-theme="dark"] { --app-face: #5fa0e0; }`,
+      `${ok}@media print { :root { --app-face: #ffffff; } }`,
     ];
     for (const css of cases) {
       const [violation] = checkThemeFile(css);
