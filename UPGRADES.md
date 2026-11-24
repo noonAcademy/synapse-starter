@@ -110,10 +110,11 @@ check its layout; a clone with `dir="rtl"` but `lang="en"` or no `lang` turns le
 - If the builder added `<LanguageSwitch />`: `العربية` turns the page Arabic and right-to-left,
   and a reload stays Arabic.
 - Whatever the builder chose, in a private window (no saved `noon.theme` or `noon.lang`): with
-  the device in dark mode the app opens dark; with `lang="ar"` on `<html>` the data blocks show
-  their loading, empty and error states in Arabic. Unless `data-fixed-lang` is set, a saved
-  Arabic choice (`localStorage.setItem('noon.lang', 'ar')`, then reload) does the same on an
-  English `<html>`.
+  the device in dark mode the app opens dark (`document.documentElement.dataset.theme` is
+  `dark`); with `lang="ar"` on `<html>` the page is right-to-left (`dir` is `rtl`), and any data
+  block on it shows its loading, empty and error states in Arabic (an app with no `ViewBlock` or
+  `ChartBlock` skips that part). Unless `data-fixed-lang` is set, a saved Arabic choice
+  (`localStorage.setItem('noon.lang', 'ar')`, then reload) does the same on an English `<html>`.
 - `curl -s localhost:3000/ | head -5` shows the inline `<script>` first in `<head>`.
 - The console (workspace `/`) stays English, left-to-right and light after both switches.
 
