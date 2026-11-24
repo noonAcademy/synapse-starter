@@ -1,7 +1,7 @@
 # AGENTS.md — working in the Synapse starter
 
-> **Kit compatibility: these rules describe kit `2026.11.24.5` or later.** Check this clone's
-> [`TEMPLATE_VERSION`](TEMPLATE_VERSION) file: if it is missing or older than `2026.11.24.5`
+> **Kit compatibility: these rules describe kit `2026.11.24.6` or later.** Check this clone's
+> [`TEMPLATE_VERSION`](TEMPLATE_VERSION) file: if it is missing or older than `2026.11.24.6`
 > (compare numerically, part by part — never as strings), your kit predates these rules — tell
 > the builder a kit upgrade is available and offer to run the **synapse-upgrade** skill
 > (fetching `UPGRADE.md` and `UPGRADES.md` live from the template repo) before other work.
@@ -148,7 +148,7 @@ path in the repo has exactly one owner. The machine-readable contract is
   regenerated, never copied), `server/index.ts`, `server/public-routes.ts`, the two registries
   (`server/queries/index.ts`, `client/app/pages/index.ts`), `client/app/theme.css`,
   `client/index.html` (RTL lives here), `.replit`. `client/app/theme.css` holds the app's token
-  overrides on top of the Noon defaults (from kit `2026.11.24.5`; kits `2026.11.24.3`–`.4`
+  overrides on top of the Noon defaults (from kit `2026.11.24.6`; kits `2026.11.24.3`–`.5`
   allowed only `--app-face` there).
 
 Precedence is most-specific-wins (`client/app/pages/synapse.tsx` beats `client/app/**`).

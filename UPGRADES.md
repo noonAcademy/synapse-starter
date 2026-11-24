@@ -25,7 +25,7 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
-## 2026.11.24.5 — Noon's Ink & Light brand as the default look, and freedom to change it
+## 2026.11.24.6 — Noon's Ink & Light brand as the default look, and freedom to change it
 
 ### What changed
 
