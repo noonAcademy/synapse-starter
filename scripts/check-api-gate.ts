@@ -265,12 +265,16 @@ export async function checkApp(
         }
         continue;
       }
-      for (const variant of [path, path.toUpperCase()]) {
-        const reply = await call(port, route.method, variant);
-        if (reply.reached) {
-          problems.push(
-            `an anonymous ${route.method} ${variant} reached its handler (status ${reply.status})`,
-          );
+      // Express answers HEAD with the GET handler, so a private GET is also probed with HEAD.
+      const methods = route.method === 'GET' ? ['GET', 'HEAD'] : [route.method];
+      for (const method of methods) {
+        for (const variant of [path, path.toUpperCase()]) {
+          const reply = await call(port, method, variant);
+          if (reply.reached) {
+            problems.push(
+              `an anonymous ${method} ${variant} reached its handler (status ${reply.status})`,
+            );
+          }
         }
       }
     }

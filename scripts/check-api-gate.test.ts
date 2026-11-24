@@ -143,6 +143,22 @@ describe('checkApp', () => {
     expect(problems.some((p) => p.includes('anonymous HEAD /api/ping reached'))).toBe(true);
   });
 
+  it('reports a public HEAD entry that runs a private GET handler', async () => {
+    const app = express();
+    app.use(
+      createWorkspaceGate({
+        workspaceKey: KEY,
+        trustLocalCalls: false,
+        publicRoutes: [{ method: 'HEAD', path: '/api/report', reason: 'demo' }],
+      }),
+    );
+    app.get('/api/report', (_req, res) => {
+      res.json({ rows: [] });
+    });
+    const problems = (await checkApp('workspace', app, [])).map((p) => p.problem);
+    expect(problems.some((p) => p.includes('anonymous HEAD /api/report reached'))).toBe(true);
+  });
+
   it('reports a HEAD route that the gate lets through, though HEAD has no body', async () => {
     const app = express();
     app.use(
