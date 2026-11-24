@@ -78,8 +78,10 @@ install that adds a package fetches the whole tree again). Runtime behaviour doe
 
    ```bash
    npm install --package-lock-only --ignore-scripts
-   # Only while the lockfile still holds a blocked version (this grep prints a match):
-   grep -E 'proxy-addr-2\.0\.[1-7]\.tgz|tinypool-(1\.|2\.0\.|2\.1\.[01]\.tgz)' package-lock.json \
+   # Only while the lockfile still locks a blocked version (this prints a match). It reads the
+   # locked versions, so it works when the lockfile has no `resolved` URLs.
+   npm ls proxy-addr tinypool --all --package-lock-only 2>/dev/null \
+     | grep -E 'proxy-addr@2\.0\.[1-7]( |$)|tinypool@(1\.|2\.0\.|2\.1\.[01]( |$))' \
      && npm update proxy-addr tinypool --package-lock-only --ignore-scripts
    npm install
    ```
