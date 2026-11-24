@@ -105,8 +105,9 @@ how the app looks** — tell the builder before you run it, and show them the re
      example `--color-brand`). Then replace the file with the template's `theme.css`, with
      `--app-face` set to the chosen colour.
    - For each noted token, `grep -rn "<utility>" client/app` (for `--color-brand`: `bg-brand`,
-     `text-brand`, `border-brand`, …). Nothing fails when a token disappears — the class just stops
-     styling — so this search is the only way to find them. Tell the builder each hit; changing
+     `text-brand`, `border-brand`, …), and also `grep -rn "var(--<token>" client` for direct uses
+     (for `--color-brand`: `var(--color-brand`). Nothing fails when a token disappears — the class
+     or `var()` just stops styling — so these searches are the only way to find them. Tell the builder each hit; changing
      it to the nearest Noon token is app work (step 4).
 
 3. **Guided edit — `client/index.html` (shared):** if the `<title>` is still `Synapse starter`,
