@@ -22,9 +22,10 @@ marked **(screen)**: that's our reading, not the brand owner's words.
   that folder; without one, ask the builder for the file.
 - The pack calls itself the *working* brand system. If official guidelines replace it, they win;
   the Synapse team will update the defaults.
-- **The artwork and illustrations are not in this repo.** If a page needs the character cast, a
-  faceted landscape or the smile, get the file from the Drive folder (ask the builder) and add it
-  under `client/app/`.
+- **The illustrations are in this repo**, in
+  [`client/brand/illustrations/`](../../../client/brand/illustrations/) (§5a). The faceted
+  artwork, textures, photo frames and the smile are not: if a page needs one, get the file from
+  the Drive folder (ask the builder) and add it under `client/app/`.
 
 ## 1. Colour
 
@@ -120,15 +121,62 @@ calls are yours:
 - **Photos:** real phone photos from real schools, in a white polaroid frame (border about 5% of
   the width, deeper at the bottom), no captions, never blurred, **never stock**. No photo? Use a
   number or an illustration instead.
-- **Illustrations** (the character cast in the Drive pack): for human moments, such as welcomes,
-  empty states, a question or a win. Mix the characters; use a pose when the moment has a verb.
-  Never put an illustration and a photo of people side by side.
+- **Illustrations** (§5a): for human moments, such as welcomes, empty states, a question or a
+  win. Never put an illustration and a photo of people side by side.
 - **Icons:** the pack says "no icon sets". On a screen **(screen)**: no decorative icons, and no
   icon as an illustration or a bullet. A functional glyph on a control (×, ‹, ⓘ, a chevron) is
   fine with an accessible name.
 - **The logo:** `<NoonLogo />` (SKILL.md). Clear space around it is the height of the "n"; keep the
   full logo at least ~100px wide **(screen)**; never recolour the letters, stretch it, add
   effects or mirror it.
+
+## 5a. The illustrations
+
+38 SVGs in [`client/brand/illustrations/`](../../../client/brand/illustrations/), drawn on one
+skeleton: a single espresso outline at a constant weight, an ellipse face, two dot eyes, one
+curved smile, shoulders below. Only the garment, hair and headwear change, which is what makes
+them one family. They're Noon's artwork, synapse-owned (kit upgrades keep them current): use
+them in Noon apps, don't edit them in an app, and don't redraw the skeleton.
+
+**Use one** as an image, so its colours and ids stay its own:
+
+```tsx
+import highFive from '../../brand/illustrations/scene_highfive.svg';
+
+<div className="rounded-card bg-art-ground p-card">
+  <img src={highFive} alt="" className="mx-auto h-40 w-auto" />
+</div>
+```
+
+- **Put it on `bg-art-ground`** (or straight on `bg-surface` / `bg-card` in light mode). The
+  outlines are espresso, so on a dark ground they vanish; `bg-art-ground` stays light in dark mode.
+- **`alt=""`** when it's decoration beside text that already says the thing (the usual case);
+  a short `alt` only when the picture carries meaning the text doesn't.
+- **Keep the aspect ratio**: size by height (`h-40 w-auto`) or width, never both. Scenes are made
+  for a half-width block or a full-width band.
+- **Don't mirror them in RTL**; they read the same both ways.
+- **Never import them into a page as inline SVG markup** (several share ids such as `cloth`).
+
+**The cast** (pick by the moment, and mix them; a row of identical characters misses the point):
+
+| Files | What | Use for |
+|---|---|---|
+| `char_hijab_{terracotta,teal,deep,oak}`, `char_thobe_ghutra`, `char_thobe_shemagh`, `char_curly_{terracotta,teal}`, `char_bun_{deep,oak}`, `char_short_{sand,teal}` | 12 standing figures, arms down | anywhere a person stands for "someone": avatars, lists of people |
+| `char_pk_dupatta_{terra,teal,deep,oak}`, `char_pk_kurta_{sand,teal}`, `char_pk_facilitator` | 7 figures in dupatta and kurta (the facilitator is pointing) | the Pakistan programme and team |
+| `char_pose_wave_hijab`, `char_pose_wave_curly` | waving | welcomes, new joiners, a first-run screen |
+| `char_pose_question`, `char_pose_think` | asking, thinking | a question, an open decision, "nothing found" |
+| `char_pose_thumbs` | thumbs up | an approval, a win, "all done" |
+| `char_pose_point_hijab` | pointing beside her | drawing attention to the thing next to it |
+| `char_pose_book`, `char_pose_laptop` | reading, on a laptop | study, work, "loading your data" |
+| `scene_highfive`, `scene_celebration` | two people high-fiving; a celebration | a win, a launch, a milestone |
+| `scene_presenting`, `scene_classroom` | presenting at a board; a teacher and four students | teaching, explaining, a demo |
+| `scene_row`, `scene_circle` | a row of four; a circle in discussion | a team or cohort; a workshop or townhall |
+| `scene_videocall`, `scene_mentoring`, `scene_reading` | a call across cities; one-to-one; quiet study | distributed teams; onboarding and coaching; research |
+| `doodle_kit` | squiggles, a star, arrows, a burst, a speech bubble, a question mark, a cross | one or two as punctuation, never as a border |
+
+A pose beats a standing figure whenever the moment has a verb in it. Use a photo when you have
+a real one; reach for an illustration when you don't, or when the screen is about people in
+general rather than these people.
 
 ## 6. Voice
 

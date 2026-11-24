@@ -116,6 +116,7 @@ colour ignores dark mode and every override.
 | Charts | `--color-chart-1` … `-6` through `<ChartBlock>` (**synapse-chart**) | terracotta, espresso, teal, clay, warm grey, sage |
 | Shape and rhythm | `rounded-card` (14px), `rounded-control` (8px), `rounded-full` (pills), `p-card`, `px-gutter`, `py-stack`, `space-y-stack` | |
 | Type | `font-app` (text), `font-display` (titles, big numbers; bold only), `text-display` (36px), `text-title` (24px), `text-body` (14px), `text-caption` (12px) | Quicksand + Tajawal; IBM Plex Sans (Arabic) |
+| Behind an illustration | `bg-art-ground` (stays light in dark mode) | sand |
 | Arabic only | the `ar:` variant, e.g. `uppercase tracking-widest ar:tracking-normal` | |
 
 `shadow-card` still exists for older pages; in Ink & Light it draws nothing.
@@ -162,6 +163,23 @@ RTL, or use an image file of it.
 its face another light or mid tone (blue `#5fa0e0`, purple `#b08af9`, orange `#ff8d65`, yellow
 `#ffe164`, pink `#eea3c9`) to tell Noon apps apart; the brand pack itself never recolours the
 logo, so keep green for anything that speaks for Noon as a whole.
+
+## Illustrations
+
+Noon's character cast (38 SVGs: standing figures, poses, scenes and a doodle kit) ships in
+[`client/brand/illustrations/`](../../../client/brand/illustrations/) for empty states,
+welcomes, questions and wins. Import one as an image and put it on `bg-art-ground`:
+
+```tsx
+import thumbs from '../../brand/illustrations/char_pose_thumbs.svg';
+
+<div className="rounded-card bg-art-ground p-card">
+  <img src={thumbs} alt="" className="mx-auto h-32 w-auto" />
+</div>
+```
+
+Which one to pick, and the rules (one family, no photos of people beside them, never stretched):
+[`brand.md` §5a](brand.md).
 
 ## The favicon and the tab title
 

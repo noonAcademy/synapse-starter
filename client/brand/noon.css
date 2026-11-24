@@ -118,6 +118,7 @@
   --noon-chart-6: #848f86; /* sage, darkened from #98a398 to reach 3:1 */
   --noon-shadow-card: 0 0 #0000; /* Ink & Light: no drop shadows. Depth is a hairline and a fill step */
   --noon-logo-ink: #151515; /* the letters of the logo */
+  --noon-art-ground: #f4eee0; /* sand: behind an illustration (client/brand/illustrations) */
 }
 
 /* Dark palette, derived from Ink & Light: when the person chose dark, or chose nothing and the
@@ -149,6 +150,8 @@
   --noon-chart-6: #98a398;
   --noon-shadow-card: 0 0 #0000;
   --noon-logo-ink: #f7f1e6;
+  /* Illustrations are drawn with espresso outlines, so they keep a light ground in dark mode. */
+  --noon-art-ground: #e6dbca;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -178,6 +181,7 @@
     --noon-chart-6: #98a398;
     --noon-shadow-card: 0 0 #0000;
     --noon-logo-ink: #f7f1e6;
+    --noon-art-ground: #e6dbca;
   }
 }
 
@@ -203,6 +207,7 @@
   /* The app's own colour (client/app/theme.css). Logo face, and accents such as bg-face. */
   --color-face: var(--app-face, #64d8ae);
   --color-logo-ink: var(--noon-logo-ink);
+  --color-art-ground: var(--noon-art-ground);
   /* The smile stays dark in both themes: it sits on the face, which is light in every app. */
   --color-logo-smile: #151515;
 

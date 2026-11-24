@@ -61,6 +61,12 @@ change any part of it through tokens.
   imagery, voice, measured contrast, the hard don'ts, a checklist) with a link to the full pack
   on Noon's Drive. The plan-first and Arabic skills, AGENTS.md and `.synapse/ownership.json`
   follow.
+- **Noon's illustrations** in [`client/brand/illustrations/`](client/brand/illustrations/)
+  (synapse-owned): the 38-SVG character cast from the brand pack (12 standing figures, 7 for the
+  Pakistan programme, 8 poses, 9 scenes, the doodle kit), plus a `bg-art-ground` token that stays
+  light in dark mode so their espresso outlines stay visible. Which one to use, and how:
+  `brand.md` §5a. `biome.json` (synapse-owned) skips that folder: the files are artwork shown
+  through `<img alt>`, and Biome would otherwise ask each SVG for a `<title>`.
 - `ChartBlock` (synapse-owned): Ink & Light fallback colours and solid hairline gridlines.
 - Template's own app files (builder-owned in clones): page and sign-in titles use
   `font-display font-bold text-primary-ink`, the header name `font-display`, and the home page's
@@ -96,7 +102,7 @@ freely through `theme.css`.
             scripts/brand-tokens.test.ts client/app/blocks/ChartBlock.tsx .synapse/ownership.json \
             .agents/skills/synapse-design-system/SKILL.md .agents/skills/synapse-design-system/brand.md \
             .agents/skills/synapse-plan-first/SKILL.md .agents/skills/synapse-arabic-rtl/SKILL.md \
-            AGENTS.md; do
+            biome.json AGENTS.md; do
      cp "<template>/$f" "$f"
    done
    ```
@@ -133,6 +139,7 @@ freely through `theme.css`.
 - The app (`?surface=app`) shows a paper background, a terracotta sign-in button and Quicksand
   titles (or the old look, if the builder kept it); in dark mode, espresso grounds with paper text,
   charts included; in Arabic, titles in Tajawal with digits still in Quicksand.
+- `ls client/brand/illustrations/*.svg | wc -l` prints `38`.
 - Add `:root { --noon-primary: #2b6cb0; }` to `theme.css`: `npm run check:theme` passes and the
   sign-in button turns blue. Add `.card { color: red; }`: the check fails naming that line. Undo
   both.
