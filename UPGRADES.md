@@ -61,8 +61,11 @@ install that adds a package fetches the whole tree again). Runtime behaviour doe
    dependencies, scripts and overrides alone):
    - If `dependencies.vite` is a `6.x` range lower than `^6.4.6`, set it to `"^6.4.6"`. Leave a
      `7.x` or later range as it is.
-   - If `devDependencies.vitest` is a `3.x` range, add `"tinypool": "^2.1.2"` to `overrides`.
-     Keep the three `@noonacademy/*` entries in `overrides` the same as in `dependencies`.
+   - If `overrides` has no `tinypool` entry and `npm ls tinypool` (or `package-lock.json`)
+     shows `tinypool` 1.x or 2.0.0–2.1.1, add `"tinypool": "^2.1.2"` to `overrides`. This is
+     the case for `vitest` 3.x (and 2.x). `vitest` 4 and later has no `tinypool` dependency,
+     so this edit does nothing there. Keep the three `@noonacademy/*` entries in `overrides`
+     the same as in `dependencies`.
 3. **Regenerate the lockfile** without fetching tarballs (the firewall blocks tarballs, not
    package metadata), then install:
 
@@ -73,12 +76,13 @@ install that adds a package fetches the whole tree again). Runtime behaviour doe
    ```
 
    If `npm install` still gets a 403, the message names the blocked tarball. Move that package
-   to a newer patch version the same way (a range, an override, or `npm update <name>`). Don't
-   downgrade it.
+   to a newer version the same way (a range, an override, or `npm update <name>`): a patch if
+   one is allowed, otherwise a minor or major, then run `npm run verify`. Don't downgrade it.
 
 ### Verify
 
-- `npm install` passes on Replit with no 403.
+- The full `npm install` (not only the Run button's `--omit=dev` one) passes on Replit with no
+  403.
 - `npm ls vite proxy-addr tinypool` shows `vite@6.4.6` (or later), `proxy-addr@2.0.8` and
   `tinypool@2.x` (2.1.2 or later).
 - This prints nothing:
