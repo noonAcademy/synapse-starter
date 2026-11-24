@@ -1,5 +1,5 @@
 import { useI18n } from './i18n';
-import { setThemeChoice, useResolvedTheme } from './preferences';
+import { setThemeChoice, systemTheme, useResolvedTheme } from './preferences';
 
 // Header controls for the shipped app: light/dark and English/Arabic. SYNAPSE-OWNED.
 // Both remember the choice in this browser (client/brand/preferences.ts).
@@ -15,7 +15,8 @@ export function ThemeToggle() {
   return (
     <button
       type="button"
-      onClick={() => setThemeChoice(next)}
+      // Picking the device's own theme goes back to following the device.
+      onClick={() => setThemeChoice(next === systemTheme() ? 'system' : next)}
       aria-label={label}
       title={label}
       className={CONTROL}

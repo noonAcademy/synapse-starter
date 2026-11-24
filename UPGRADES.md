@@ -69,7 +69,8 @@ Every Noon app gets dark mode and Arabic the same way, and the agent stops hand-
 app. **Two things change at once, before step 3:** the copied `ViewBlock` / `ChartBlock` speak the
 language on `<html lang>` (a clone with `lang="ar"` gets Arabic block copy and mirrored charts),
 and `dir` now follows `lang` (a clone with `lang="ar"` but no `dir="rtl"` turns right-to-left —
-check its layout).
+check its layout; a clone with `dir="rtl"` but `lang="en"` or no `lang` turns left-to-right — set
+`lang="ar"` in `client/index.html`).
 
 ### Recipe
 

@@ -20,7 +20,8 @@ function errorKey(): (typeof ERROR_KEYS)[keyof typeof ERROR_KEYS] | null {
   if (!code) {
     return null;
   }
-  // Object.hasOwn: `?error=__proto__` must not reach Object.prototype.
+  // Own keys only: `?error=__proto__` must not reach Object.prototype. (Object.hasOwn is missing
+  // before Safari 15.4.)
   return Object.hasOwn(ERROR_KEYS, code)
     ? ERROR_KEYS[code as keyof typeof ERROR_KEYS]
     : 'signInFailed';

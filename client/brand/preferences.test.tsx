@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { formatNumber, formatRelative, translate } from './i18n';
 import {
@@ -99,6 +99,18 @@ describe('theme', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Switch to dark mode' }));
     expect(html.dataset.theme).toBe('dark');
     expect(screen.getByRole('button', { name: 'Switch to light mode' })).toBeTruthy();
+  });
+
+  it("goes back to following the device when the button picks the device's theme", () => {
+    cleanup();
+    setThemeChoice('system');
+    installPreferences();
+    render(<ThemeToggle />);
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to dark mode' }));
+    expect(window.localStorage.getItem(THEME_KEY)).toBe('dark');
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to light mode' }));
+    expect(themeChoice()).toBe('system');
+    expect(html.dataset.theme).toBe('light');
   });
 });
 

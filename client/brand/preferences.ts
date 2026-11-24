@@ -51,6 +51,10 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
+export function systemTheme(): 'light' | 'dark' {
+  return systemIsDark() ? 'dark' : 'light';
+}
+
 function systemIsDark(): boolean {
   return typeof window.matchMedia === 'function'
     ? window.matchMedia('(prefers-color-scheme: dark)').matches
