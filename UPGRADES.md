@@ -83,8 +83,9 @@ install that adds a package fetches the whole tree again). Runtime behaviour doe
 
 - The full `npm install` (not only the Run button's `--omit=dev` one) passes on Replit with no
   403.
-- `npm ls vite proxy-addr tinypool` shows `vite@6.4.6` (or later), `proxy-addr@2.0.8` and
-  `tinypool@2.x` (2.1.2 or later).
+- `npm ls vite proxy-addr tinypool` shows `vite@6.4.6` (or later) and `proxy-addr@2.0.8`. If
+  `tinypool` is in the tree (`vitest` 3.x or 2.x), it is `tinypool@2.x`, 2.1.2 or later; a clone on
+  `vitest` 4 or later has no `tinypool`, which is fine.
 - This prints nothing:
 
   ```bash
