@@ -103,6 +103,49 @@ freely through `theme.css`.
             .agents/skills/synapse-design-system/SKILL.md .agents/skills/synapse-design-system/brand.md \
             .agents/skills/synapse-plan-first/SKILL.md .agents/skills/synapse-arabic-rtl/SKILL.md \
             biome.json AGENTS.md; do
+     cp "<template>/$f" "$f"
+   done
+   ```
+
+   **Guided edit — `client/app/theme.css` (shared).** Nothing is required: a file holding the
+   import and `--app-face` passes the new check. Keep the builder's `--app-face`. You may replace
+   the comment block at the top with the template's (it now explains overrides). If in step 1
+   the builder chose to keep the old colours, copy the `--noon-*` lines from the three palette
+   blocks of `.synapse-noon-old.css.local` into `theme.css` under the import, in the same three selectors
+   (`:root`, `:root[data-theme="dark"]`, and `:root:not([data-theme="light"])` inside
+   `@media (prefers-color-scheme: dark)`), and add `@theme { --radius-card: 0.75rem; }` and
+   `:root { --noon-shadow-card: 0 1px 2px rgb(20 20 20 / 0.06); }` (dark:
+   `0 1px 2px rgb(0 0 0 / 0.4)`) for the old shape. Record the choice in SPEC.md's Decisions log.
+   Delete `.synapse-noon-old.css.local` only after `npm run check:theme` passes on the edited
+   `theme.css`.
+
+3. **After the upgrade, as app work — not part of this recipe.** Law 5 keeps upgrades out of
+   builder-owned files. Tell the builder what the template's own app files now do, and make each
+   change only if they say yes (skip all of it if they kept the old look):
+   - Titles in the brand face: `font-display font-bold text-primary-ink` on the page `<h2>` in
+     `client/app/pages/home.tsx` and the sign-in `<h1>` in `client/app/LoginScreen.tsx`;
+     `font-display font-bold` on the app name in `client/app/AppShell.tsx`. The same on the
+     builder's own page titles and big numbers.
+   - One teal thing per view: `text-accent` is now teal. If a page uses it for several things
+     (the template's home page did, for its step numbers), keep it for links or the selection and
+     use `text-primary-ink` for the rest: `grep -rn "text-accent" client/app`.
+   - `shadow-card` now draws nothing; nothing to do unless the builder misses it.
+   The template's versions of these files show the exact code.
+
+### Verify
+
+- `npm run verify` green, including `[check-theme-tokens] client/app is token-clean and
+  theme.css holds only tokens — OK`.
+- The app (`?surface=app`) shows a paper background, a terracotta sign-in button and Quicksand
+  titles (or the old look, if the builder kept it); in dark mode, espresso grounds with paper text,
+  charts included; in Arabic, titles in Tajawal with digits still in Quicksand.
+- `ls client/brand/illustrations/*.svg | wc -l` prints `38`.
+- Add `:root { --noon-primary: #2b6cb0; }` to `theme.css`: `npm run check:theme` passes and the
+  sign-in button turns blue. Add `.card { color: red; }`: the check fails naming that line. Undo
+  both.
+
+---
+
 ## 2026.11.24.5 — your app takes over `/` once its first page is built; the console moves to `/synapse-starter`
 
 ### What changed
@@ -148,44 +191,6 @@ console**).
    done
    ```
 
-   **Guided edit — `client/app/theme.css` (shared).** Nothing is required: a file holding the
-   import and `--app-face` passes the new check. Keep the builder's `--app-face`. You may replace
-   the comment block at the top with the template's (it now explains overrides). If in step 1
-   the builder chose to keep the old colours, copy the `--noon-*` lines from the three palette
-   blocks of `.synapse-noon-old.css.local` into `theme.css` under the import, in the same three selectors
-   (`:root`, `:root[data-theme="dark"]`, and `:root:not([data-theme="light"])` inside
-   `@media (prefers-color-scheme: dark)`), and add `@theme { --radius-card: 0.75rem; }` and
-   `:root { --noon-shadow-card: 0 1px 2px rgb(20 20 20 / 0.06); }` (dark:
-   `0 1px 2px rgb(0 0 0 / 0.4)`) for the old shape. Record the choice in SPEC.md's Decisions log.
-   Delete `.synapse-noon-old.css.local` only after `npm run check:theme` passes on the edited
-   `theme.css`.
-
-3. **After the upgrade, as app work — not part of this recipe.** Law 5 keeps upgrades out of
-   builder-owned files. Tell the builder what the template's own app files now do, and make each
-   change only if they say yes (skip all of it if they kept the old look):
-   - Titles in the brand face: `font-display font-bold text-primary-ink` on the page `<h2>` in
-     `client/app/pages/home.tsx` and the sign-in `<h1>` in `client/app/LoginScreen.tsx`;
-     `font-display font-bold` on the app name in `client/app/AppShell.tsx`. The same on the
-     builder's own page titles and big numbers.
-   - One teal thing per view: `text-accent` is now teal. If a page uses it for several things
-     (the template's home page did, for its step numbers), keep it for links or the selection and
-     use `text-primary-ink` for the rest: `grep -rn "text-accent" client/app`.
-   - `shadow-card` now draws nothing; nothing to do unless the builder misses it.
-   The template's versions of these files show the exact code.
-
-### Verify
-
-- `npm run verify` green, including `[check-theme-tokens] client/app is token-clean and
-  theme.css holds only tokens — OK`.
-- The app (`?surface=app`) shows a paper background, a terracotta sign-in button and Quicksand
-  titles (or the old look, if the builder kept it); in dark mode, espresso grounds with paper text,
-  charts included; in Arabic, titles in Tajawal with digits still in Quicksand.
-- `ls client/brand/illustrations/*.svg | wc -l` prints `38`.
-- Add `:root { --noon-primary: #2b6cb0; }` to `theme.css`: `npm run check:theme` passes and the
-  sign-in button turns blue. Add `.card { color: red; }`: the check fails naming that line. Undo
-  both.
-
----
 2. **Guided edit — `server/index.ts`** (shared). Skip if the `/__synapse/overview` handler already
    sends `appBuilt`. Otherwise:
    - add `import { isAppBuilt } from './app-built.js';` with the other local imports;

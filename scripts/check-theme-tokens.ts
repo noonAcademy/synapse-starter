@@ -140,6 +140,9 @@ export function findViolations(files: string[], read = readFileSync): TokenViola
 const THEME_FILE = join(APP_DIR, 'theme.css');
 const BRAND_IMPORT = /^@import\s+(["'])\.\.\/brand\/noon\.css\1\s*;$/;
 const CUSTOM_PROPERTY = /^--[\w-]+\s*:/;
+// Tailwind's namespace resets, valid only inside @theme: `--color-*: initial` clears one
+// namespace before the app defines its own, `--*: initial` clears the whole theme.
+const THEME_RESET = /^--(?:[\w-]+-)?\*\s*:\s*initial\s*;?$/;
 // A hex colour only: the favicon is drawn from it (scripts/brand-icons.ts).
 const FACE_DECLARATION = /^--app-face\s*:\s*#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?\s*;?$/;
 // The logo's smile (--color-logo-smile in client/brand/noon.css) is drawn on the face.
@@ -286,21 +289,24 @@ export function checkThemeFile(css: string, file = THEME_FILE): TokenViolation[]
     }
   };
 
-  const checkBlock = (block: CssStatement, topLevel: boolean) => {
+  const checkBlock = (block: CssStatement, topLevel: boolean, inTheme = false) => {
     const prelude = source
       .slice(block.start, block.bodyStart - 1)
       .trim()
       .replace(/\s+/g, ' ');
     if (/^@font-face$/i.test(prelude)) return;
+    // `@theme`, `@theme inline`, `@theme static`, …
+    const isTheme = /^@theme\b/i.test(prelude);
     const children = cssStatements(source, block.bodyStart, block.bodyEnd);
     const hasNested = children.some((child) => child.kind === 'block');
     for (const child of children) {
       if (child.kind === 'block') {
-        checkBlock(child, false);
+        checkBlock(child, false, inTheme || isTheme);
         continue;
       }
       const text = child.text.trim();
       if (text === '' || text === ';') continue;
+      if ((inTheme || isTheme) && THEME_RESET.test(text)) continue;
       if (!CUSTOM_PROPERTY.test(text)) {
         const property = text.split(':')[0]?.trim() ?? text;
         fail(
