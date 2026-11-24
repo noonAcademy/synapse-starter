@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   brandIcons,
@@ -66,5 +67,16 @@ describe('brandIcons', () => {
     ];
     expect(at(14, 10)).toEqual([0x5f, 0xa0, 0xe0, 255]);
     expect(at(0, 0)[3]).toBe(0);
+  });
+});
+
+describe('PREFERENCES_SCRIPT', () => {
+  it('uses the same storage keys as client/brand/preferences.ts', async () => {
+    const { PREFERENCES_SCRIPT } = await import('./vite-brand.js');
+    const source = readFileSync('client/brand/preferences.ts', 'utf8');
+    for (const key of ['noon.theme', 'noon.lang']) {
+      expect(PREFERENCES_SCRIPT).toContain(`'${key}'`);
+      expect(source).toContain(`'${key}'`);
+    }
   });
 });

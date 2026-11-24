@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useI18n } from '../brand/i18n';
 import { NoonLogo } from '../brand/NoonLogo';
+import { LanguageSwitch, ThemeToggle } from '../brand/Toggles';
 import { APP_NAME } from './config';
 import { LoginScreen } from './LoginScreen';
 import { type AppPage, getPageForPath, listAppPages } from './pages';
@@ -80,7 +82,8 @@ function useAppPath(): [string, (path: string) => void] {
 export function AppShell() {
   const auth = useEndUserAuth();
   const [path, navigate] = useAppPath();
-  const pageTitle = auth === 'unauthenticated' ? 'Sign in' : getPageForPath(path)?.title;
+  const { t } = useI18n();
+  const pageTitle = auth === 'unauthenticated' ? t('signInTab') : getPageForPath(path)?.title;
 
   useEffect(() => {
     document.title = pageTitle ? `${pageTitle} · ${APP_NAME}` : APP_NAME;
@@ -110,13 +113,21 @@ export function AppShell() {
             <NoonLogo className="h-6" />
             <span className="border-s border-line ps-3">{APP_NAME}</span>
           </button>
-          {/* One page needs no nav; it appears once the app grows past the home page. */}
-          {navPages.length > 1 && <AppNav pages={navPages} current={path} onNavigate={navigate} />}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* One page needs no nav; it appears once the app grows past the home page. */}
+            {navPages.length > 1 && (
+              <AppNav pages={navPages} current={path} onNavigate={navigate} />
+            )}
+            {/* One-language app: remove LanguageSwitch here and in LoginScreen.tsx, and add
+                data-fixed-lang to <html> in index.html so a saved choice cannot override lang. */}
+            <LanguageSwitch />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-gutter py-stack">
-        {page ? <page.Page /> : <NotFound />}
+        {page ? <page.Page /> : <NotFound onHome={() => navigate('/')} />}
       </main>
 
       {/* Synapse's one piece of chrome in the shipped app: a quiet corner link to the /synapse
@@ -144,8 +155,9 @@ function AppNav({
   current: string;
   onNavigate: (path: string) => void;
 }) {
+  const { t } = useI18n();
   return (
-    <nav className="flex gap-1" aria-label="App pages">
+    <nav className="flex gap-1" aria-label={t('appPages')}>
       {pages.map((p) => (
         <button
           key={p.path}
@@ -163,10 +175,14 @@ function AppNav({
   );
 }
 
-function NotFound() {
+function NotFound({ onHome }: { onHome: () => void }) {
+  const { t } = useI18n();
   return (
     <div className="rounded-control border border-dashed border-line px-4 py-10 text-center text-body text-ink-muted">
-      This page doesn't exist yet.
+      <p>{t('notFound')}</p>
+      <button type="button" onClick={onHome} className="mt-2 font-medium text-accent">
+        {t('goHome')}
+      </button>
     </div>
   );
 }

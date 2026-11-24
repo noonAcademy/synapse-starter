@@ -1,6 +1,7 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppShell } from './app/AppShell';
+import { installPreferences } from './brand/preferences';
 import { ConsoleApp } from './console/ConsoleApp';
 import { WorkspaceLock } from './console/WorkspaceLock';
 import { refusedWorkspaceKey, useSynapseMode } from './useSynapseMode';
@@ -8,6 +9,7 @@ import { installWorkspaceKey, UNLOCKED_EVENT } from './workspaceKey';
 import './index.css';
 
 installWorkspaceKey();
+installPreferences();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

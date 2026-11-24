@@ -125,8 +125,8 @@ describe('home page pre-build empty state', () => {
     render(<AppShell />);
     expect(await screen.findByText("This app hasn't been built yet")).toBeTruthy();
     // The two next steps: console checklist, kickoff prompt.
-    expect(screen.getByText('Synapse console')).toBeTruthy();
-    expect(screen.getByText('kickoff prompt')).toBeTruthy();
+    expect(screen.getByText(/Open the Synapse console/)).toBeTruthy();
+    expect(screen.getByText(/Paste the kickoff prompt/)).toBeTruthy();
     // Synapse's only chrome in the shipped app: the small footer link, not a nav entry.
     expect(screen.getByRole('button', { name: 'Synapse' })).toBeTruthy();
     expect(screen.queryByRole('navigation')).toBeNull();

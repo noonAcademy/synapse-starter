@@ -11,6 +11,8 @@
 // delete <NotBuiltYet /> and write the product here. It's the builder's app, not Synapse's.
 // ──────────────────────────────────────────────────────────────────────────────────────────────
 
+import { useI18n } from '../../brand/i18n';
+
 export const path = '/';
 
 export const title = 'Home';
@@ -23,31 +25,22 @@ export function Page() {
 
 // The pre-build empty state. Safe to delete wholesale along with the <NotBuiltYet /> call above.
 function NotBuiltYet() {
+  const { t } = useI18n();
   return (
     <div className="mx-auto max-w-md space-y-stack py-stack text-center">
       <div className="space-y-2">
-        <h2 className="text-title font-semibold tracking-tight text-ink">
-          This app hasn't been built yet
-        </h2>
-        <p className="text-body leading-relaxed text-ink-muted">
-          It's connected to Noon and ready to become something. Two steps get it there:
-        </p>
+        <h2 className="text-title font-semibold tracking-tight text-ink">{t('notBuiltTitle')}</h2>
+        <p className="text-body leading-relaxed text-ink-muted">{t('notBuiltIntro')}</p>
       </div>
 
       <ol className="space-y-3 text-start text-body text-ink">
         <li className="flex gap-3 rounded-card border border-line bg-card p-card">
           <span className="font-semibold text-accent">1</span>
-          <span>
-            Open the <strong>Synapse console</strong> — the Run view in the Replit workspace — and
-            finish its checklist.
-          </span>
+          <span>{t('notBuiltStep1')}</span>
         </li>
         <li className="flex gap-3 rounded-card border border-line bg-card p-card">
           <span className="font-semibold text-accent">2</span>
-          <span>
-            Paste the <strong>kickoff prompt</strong> from the console's Home tab to tell the agent
-            what to build.
-          </span>
+          <span>{t('notBuiltStep2')}</span>
         </li>
       </ol>
     </div>

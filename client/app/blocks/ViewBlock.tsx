@@ -1,4 +1,4 @@
-import { relativeTime } from '../../format';
+import { useI18n } from '../../brand/i18n';
 import { useView, type ViewData } from '../../useView';
 import { AppCard, AppEmptyState, DataTable } from '../ui';
 
@@ -9,13 +9,12 @@ import { AppCard, AppEmptyState, DataTable } from '../ui';
 // theme.css tokens (via the app/ui.tsx primitives) — never hardcode colors here.
 export function ViewBlock({ name }: { name: string }) {
   const state = useView(name);
+  const { t } = useI18n();
 
   return (
     <AppCard>
-      {state.status === 'loading' && <p className="text-body text-ink-muted">Loading…</p>}
-      {state.status === 'error' && (
-        <AppEmptyState>This data isn't available right now.</AppEmptyState>
-      )}
+      {state.status === 'loading' && <p className="text-body text-ink-muted">{t('loading')}</p>}
+      {state.status === 'error' && <AppEmptyState>{t('dataUnavailable')}</AppEmptyState>}
       {state.status === 'ready' && <ViewBlockBody view={state.data} />}
     </AppCard>
   );
@@ -25,14 +24,15 @@ export function ViewBlock({ name }: { name: string }) {
 // "Nothing to show here yet" is how a broken app gets mistaken for a quiet week: an empty result is
 // often correct (a new campus, a holiday), while a missing secret or a failed query needs someone
 // to act. The builder can only tell those apart if the block says which one happened.
-function unavailableReason(view: ViewData): string | null {
-  if (!view.configured) return "This isn't connected to Noon data yet.";
-  if (view.error !== null) return "This couldn't load just now. Try again in a moment.";
-  if (view.columns.length === 0 || view.rows.length === 0) return 'No data for this period yet.';
+function unavailableReason(view: ViewData): 'notConnected' | 'loadFailed' | 'noDataYet' | null {
+  if (!view.configured) return 'notConnected';
+  if (view.error !== null) return 'loadFailed';
+  if (view.columns.length === 0 || view.rows.length === 0) return 'noDataYet';
   return null;
 }
 
 function ViewBlockBody({ view }: { view: ViewData }) {
+  const { t, formatNumber, formatRelative } = useI18n();
   const unavailable = unavailableReason(view);
 
   return (
@@ -40,17 +40,19 @@ function ViewBlockBody({ view }: { view: ViewData }) {
       <h3 className="text-body font-semibold text-ink">{view.title}</h3>
       <p className="text-body text-ink-muted">{view.description}</p>
       {view.configured && view.dataAsOf !== null && (
-        <p className="mt-1 text-caption text-ink-faint">Updated {relativeTime(view.dataAsOf)}</p>
+        <p className="mt-1 text-caption text-ink-faint">
+          {t('updated', { time: formatRelative(view.dataAsOf) })}
+        </p>
       )}
 
       <div className="mt-4">
         {unavailable !== null ? (
-          <AppEmptyState>{unavailable}</AppEmptyState>
+          <AppEmptyState>{t(unavailable)}</AppEmptyState>
         ) : (
           <>
             {view.truncated && (
               <p className="mb-2 text-caption text-warning">
-                Showing the first {view.rows.length.toLocaleString()} rows.
+                {t('truncated', { count: formatNumber(view.rows.length) })}
               </p>
             )}
             <DataTable columns={view.columns} rows={view.rows} />

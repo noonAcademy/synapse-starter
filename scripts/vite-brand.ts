@@ -14,6 +14,10 @@ function readFace(themeCssPath: string): string {
   }
 }
 
+// Runs before any CSS or app code, so a dark or Arabic page never flashes light or left-to-right.
+// Mirrors client/brand/preferences.ts (same storage keys): keep the two in step.
+export const PREFERENCES_SCRIPT = `(function(){try{var h=document.documentElement;h.dataset.defaultLang=h.getAttribute('lang')||'en';var g=function(k){try{return window.localStorage.getItem(k)}catch(e){return null}};var t=g('noon.theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}h.dataset.theme=t;var l=h.hasAttribute('data-fixed-lang')?null:g('noon.lang');if(l==='ar'||l==='en'){h.lang=l;h.dir=l==='ar'?'rtl':'ltr'}}catch(e){}})();`;
+
 export function iconLinkTags(): HtmlTagDescriptor[] {
   const link = (attrs: Record<string, string>): HtmlTagDescriptor => ({
     tag: 'link',
@@ -68,7 +72,10 @@ export function noonBrand(options: { themeCssPath: string }): Plugin {
       }
     },
     transformIndexHtml() {
-      return iconLinkTags();
+      return [
+        { tag: 'script', children: PREFERENCES_SCRIPT, injectTo: 'head-prepend' },
+        ...iconLinkTags(),
+      ];
     },
   };
 }

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { pinDocument } from '../brand/preferences';
 import { previewHref } from '../workspaceKey';
 import { EventsTab } from './EventsTab';
 import { GetDataTab } from './GetDataTab';
@@ -29,10 +30,23 @@ export function ConsoleApp() {
   // One verify run, shared by the header chip and the Home tab's checklist.
   const verify = useVerify();
 
+  // The console is English, left-to-right and light, whatever the app's language and theme were
+  // in this browser: reset <html> too, so scrollbars and anything outside #root follow.
+  useEffect(() => {
+    document.title = 'Synapse console';
+    pinDocument();
+    const html = document.documentElement;
+    html.lang = 'en';
+    html.dir = 'ltr';
+    html.dataset.theme = 'light';
+  }, []);
+
   return (
-    // The console keeps its own light styling; the app's Noon theme (dark mode included) never
-    // reaches it.
-    <div className="min-h-screen bg-slate-50 text-slate-900 [color-scheme:light]">
+    <div
+      dir="ltr"
+      lang="en"
+      className="min-h-screen bg-slate-50 text-slate-900 [color-scheme:light]"
+    >
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-start justify-between gap-4 px-4 py-4 sm:px-6">
           <div>
