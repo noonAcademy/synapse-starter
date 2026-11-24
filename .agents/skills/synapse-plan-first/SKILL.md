@@ -34,8 +34,9 @@ Work through the SPEC sections in order — each one is roughly one or two quest
 3. **Look & feel** — at most TWO light questions; don't let this bloat the interview:
    - "Where will people use this — a desk, a phone in a classroom? And in which language(s)?"
      (covers context + language, including whether the app is Arabic-first/RTL)
-   - "Should it feel calm, bold, or warm — and roomy or compact?" (covers tone/vibe + density;
-     note any color preference they volunteer)
+   - "Every Noon app shares the Noon look; yours chooses the colour of the round face in the
+     Noon logo. Keep Noon green, or pick another?" (note any colour they name; the look itself —
+     fonts, spacing, light/dark — is not a choice)
 4. **Data** — for every number they want: what it is, and how it's calculated. This is where
    most of the interview happens.
 5. **Records this app owns** — if their description involves people *submitting, requesting,
@@ -72,12 +73,12 @@ per-student live data needs redesigning *in the interview*, not at build time.
 2. **Show it to the builder and ask for approval** in plain terms: "This is what I'll build —
    did I get it right?" Fold in corrections and ask again.
 3. **On approval, flip the top line** to `status: approved YYYY-MM-DD`.
-4. **Set the theme before building any page.** From the Look & feel answers, edit
-   [`client/app/theme.css`](../../../client/app/theme.css): activate the closest preset
-   ("calm" / "bold" / "warm") and tweak individual tokens (e.g. `--color-primary` for a stated
-   brand color). If the app is Arabic-first/RTL, also set `dir="rtl" lang="ar"` on `<html>` in
-   [`client/index.html`](../../../client/index.html) — direction is not a CSS token. Those two
-   files are the whole restyle; never hardcode colors in components.
+4. **Set the face colour and the name before building any page.** Set `--app-face` in
+   [`client/app/theme.css`](../../../client/app/theme.css) (the only value that file may hold)
+   and `APP_NAME` in `client/app/config.ts`. If the app is Arabic-first/RTL, also set
+   `dir="rtl" lang="ar"` on `<html>` in [`client/index.html`](../../../client/index.html).
+   Everything else about the look is the Noon design system (**synapse-design-system**); never
+   hardcode colors in components.
 5. Only now does building start — usually via the **synapse-add-page** skill, one Data-table
    row at a time. The placeholder home page (`client/app/pages/home.tsx` rendering
    `<NotBuiltYet />`) gets replaced with the real product as part of this.

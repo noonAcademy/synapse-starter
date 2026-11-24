@@ -30,7 +30,9 @@ export function ConsoleApp() {
   const verify = useVerify();
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    // The console keeps its own light styling; the app's Noon theme (dark mode included) never
+    // reaches it.
+    <div className="min-h-screen bg-slate-50 text-slate-900 [color-scheme:light]">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-start justify-between gap-4 px-4 py-4 sm:px-6">
           <div>

@@ -40,20 +40,13 @@ Getting this right is mostly a handful of specific decisions, made early.
 <html dir="rtl" lang="ar">
 ```
 
-**2. The font.** The default stack in [`client/app/theme.css`](../../../client/app/theme.css)
-resolves to a system font that renders Arabic, but usually not well — wrong weight, cramped
-diacritics. Set `--font-app` to an Arabic-first stack in the active `@theme` block:
-
-```css
---font-app: "IBM Plex Sans Arabic", "Noto Sans Arabic", ui-sans-serif, system-ui, sans-serif;
-```
-
-Then load the webfont in `client/index.html`. Two rules: subset to Arabic + Latin (the full range
-is enormous over a classroom connection), and pick a family that ships **both** scripts, so a
-mixed line doesn't jump between two typefaces mid-sentence.
+**2. The font.** Nothing to do: the Noon design system
+([`client/brand/noon.css`](../../../client/brand/noon.css)) ships IBM Plex Sans Arabic, one family
+for Arabic and Latin, so a mixed line never jumps between typefaces. Never set `--font-app`.
 
 **3. Line height.** Arabic needs more vertical room than Latin at the same size — diacritics sit
-above and below. Nudge the line-height tokens up by roughly 0.125rem; don't touch font sizes.
+above and below. The design system already gives `:lang(ar)` text a taller line; don't change
+font sizes or line heights per page.
 
 ## Bidi — where it actually goes wrong
 

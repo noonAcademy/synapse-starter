@@ -19,10 +19,10 @@ to do._
 
 ## Look & feel
 
-_Where and on what people use it (office desktop? phone in a classroom?), the tone in 2–3
-adjectives, any color/vibe preference, language(s) — including whether it's RTL/Arabic-first —
-and density (roomy or compact). The agent turns this into `client/app/theme.css` (pick the
-closest preset, tweak tokens) and, for RTL, `dir`/`lang` on `<html>` in `client/index.html`._
+_Where and on what people use it (office desktop? phone in a classroom?), language(s) —
+including whether it's RTL/Arabic-first — and the colour of the face in the Noon logo (Noon green unless they pick another). The look
+itself is the shared Noon design system; the agent sets the face colour in
+`client/app/theme.css` and, for RTL, `dir`/`lang` on `<html>` in `client/index.html`._
 
 ## Data: where every displayed number comes from
 

@@ -1,3 +1,5 @@
+import { NoonLogo } from '../brand/NoonLogo';
+
 // Noon-branded sign-in wall for the deployed app. One path in: the button is a plain navigation to
 // /auth/login, which redirects to Citadel's authorize page and back through /oauth/callback. No
 // third-party script, no XHR — failures come back as ?error=<code> on this page's URL.
@@ -25,9 +27,9 @@ export function LoginScreen() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface px-gutter font-app">
-      <div className="w-full max-w-sm rounded-card border border-line bg-card p-8 shadow-sm">
+      <div className="w-full max-w-sm rounded-card border border-line bg-card p-8 shadow-card">
         <div className="mb-6 text-center">
-          <div className="text-title font-semibold tracking-tight text-ink">noon</div>
+          <NoonLogo className="mx-auto h-8" />
           <h1 className="mt-4 text-lg font-medium text-ink">Sign in with Noon</h1>
           <p className="mt-1 text-body text-ink-muted">Use your Noon staff account to continue.</p>
         </div>

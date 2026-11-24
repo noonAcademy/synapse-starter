@@ -30,9 +30,9 @@ looking like one app.
   its own data path. Write the read (**noon-sql-analyst**), verify it
   (**synapse-verify-numbers**), then draw it. A chart makes a wrong number *more* persuasive.
 - **Never hardcode a color.** Not a hex, not a Tailwind palette class, not a Recharts default.
-  Series colors come from the `--color-chart-*` tokens in
-  [`client/app/theme.css`](../../../client/app/theme.css) via `<ChartBlock>`. Retheming the app
-  must retheme the charts.
+  Series colors come from the `--color-chart-*` tokens of the Noon design system
+  ([`client/brand/noon.css`](../../../client/brand/noon.css)) via `<ChartBlock>`, which re-reads
+  them when the app switches between light and dark.
 - **Never use the semantic colors for series.** `--color-danger` means *something is wrong*.
   Painting a course type red because it sorted third tells the reader a lie.
 - **Always keep the numbers reachable.** `showTable` defaults to true for a reason: a chart alone
@@ -132,8 +132,8 @@ Layout uses theme spacing tokens (`space-y-stack`), never fixed pixel gaps.
 
 > **If you restyle a chart on Replit's Design Canvas**, the edit lands in the file without an
 > agent loop — so it may write a literal color instead of a token. `npm run check:theme` (inside
-> `verify`) will fail the build if it does. Fix it by moving the color into a `--color-chart-*`
-> token in `theme.css`, not by silencing the check.
+> `verify`) will fail the build if it does. Fix it by going back to `<ChartBlock>` and its
+> `--color-chart-*` palette, not by silencing the check.
 
 ## Custom charts
 

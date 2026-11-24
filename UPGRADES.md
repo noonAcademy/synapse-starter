@@ -25,6 +25,122 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.11.24.3 — one Noon design system: tokens, font, logo and favicon
+
+### What changed
+
+Every app used to restyle itself in `client/app/theme.css` (three presets, any token), so no two
+Synapse apps looked alike and none looked like Noon. Now every app shares one Noon look, kept in
+sync by upgrades, and chooses only its logo's face colour.
+
+- **[`client/brand/noon.css`](client/brand/noon.css)** (new, synapse-owned — `client/brand/**`
+  joins `synapseOwned`): the Noon palette from noon-apps, in **light and dark** (dark follows the
+  device setting), as CSS variables behind the **same utility names** the starter always had
+  (`bg-surface`, `bg-card`, `text-ink`, `rounded-card`, `p-card`, …), so existing pages keep
+  working. New: `text-primary-ink` (green text), `bg-face` / `border-face` (the app's colour),
+  `shadow-card`. Radius 12/8 px, type 24/14/12 px, 8-point spacing. Font: **IBM Plex Sans
+  Arabic** (Latin + Arabic), vendored in `client/brand/fonts/` under the SIL Open Font Licence
+  (`OFL.txt` alongside). A few text and chart colours are darker than noon-apps so every text
+  pair passes WCAG AA and every chart colour 3:1 (`scripts/brand-tokens.test.ts`).
+- **`client/app/theme.css` (shared) shrinks** to `@import "../brand/noon.css";` and one value,
+  `--app-face`. **`npm run check:theme` now fails on anything else in it** (any other token,
+  selector, `@theme` block or import), with a message that says what to do — including after a
+  Design Canvas edit. The presets are gone.
+- **[`client/brand/NoonLogo.tsx`](client/brand/NoonLogo.tsx)**: the Noon logo (`variant="full"`)
+  and the face-only mark (`variant="mark"`); the face takes `--app-face`, the letters follow the
+  theme.
+- **Favicons from the face colour**: [`scripts/vite-brand.ts`](scripts/vite-brand.ts) (wired in
+  `vite.config.ts`) draws `favicon.svg`, `favicon-32.png`, `favicon.ico` and
+  `apple-touch-icon.png` with [`scripts/brand-icons.ts`](scripts/brand-icons.ts) (pure Node, no
+  new dependency) and injects the `<link>` tags.
+- **`ChartBlock`** reads the palette from the design system and re-reads it when the theme
+  changes. The splash in `client/main.tsx` uses `bg-surface`.
+- Template's own app files (builder-owned in clones): the login screen and header show the logo,
+  the active nav uses `text-primary-ink`, cards use `shadow-card`, the tab title is
+  `<page> · <APP_NAME>`, and `client/index.html`'s title is `noon`.
+- New skill **synapse-design-system**; AGENTS.md Conventions, skills table and "Where things
+  live", and the chart, add-page, plan-first and Arabic skills point at it.
+
+### Why a clone should care
+
+The app joins the shared Noon look (and dark mode) and gets the logo and favicon. **This changes
+how the app looks** — tell the builder before you run it, and show them the result.
+
+### Recipe
+
+1. **Copy** (synapse-owned):
+
+   ```bash
+   mkdir -p client/brand/fonts .agents/skills/synapse-design-system
+   cp -R <template>/client/brand/. client/brand/
+   for f in scripts/brand-icons.ts scripts/brand-icons.test.ts scripts/brand-tokens.test.ts \
+            scripts/vite-brand.ts scripts/check-theme-tokens.ts scripts/check-theme-tokens.test.ts \
+            client/main.tsx client/app/blocks/ChartBlock.tsx client/console/ConsoleApp.tsx \
+            client/console/WorkspaceLock.tsx .synapse/ownership.json \
+            .agents/skills/synapse-design-system/SKILL.md .agents/skills/synapse-chart/SKILL.md \
+            .agents/skills/synapse-add-page/SKILL.md .agents/skills/synapse-plan-first/SKILL.md \
+            .agents/skills/synapse-arabic-rtl/SKILL.md AGENTS.md; do
+     cp "<template>/$f" "$f"
+   done
+   ```
+
+   **Guided edit — `vite.config.ts`** (it may hold the builder's own plugins, so never copy it
+   over): if it does not contain `noonBrand(`, add
+   `import { noonBrand } from './scripts/vite-brand.js';` and, in `plugins`,
+   `noonBrand({ themeCssPath: resolve(here, 'client/app/theme.css') })` (with the `here` and
+   `resolve` lines from the template's `vite.config.ts` if the file lacks them). Keep everything else.
+
+2. **Guided edit — `client/app/theme.css` (shared). Do it in the same step as the copy above**:
+   the new `check:theme` fails on the old file, and a deploy runs it. Run
+   `npx tsx scripts/check-theme-tokens.ts`; if it reports any `client/app/theme.css` problem (the
+   import missing or not first, or any token other than `--app-face`, even after the import), do
+   this step. If the file already sets `--app-face`, keep that colour and skip the colour question:
+   - **This step is the one exception to "preserve the builder's additions"** for shared paths,
+     written into `.synapse/ownership.json` and AGENTS.md "Who owns what" in this version: one
+     shared design system means the builder's own tokens cannot stay. Say so to the builder
+     before you edit, and list what will go.
+   - Ask which colour the face in their logo should be (a hex colour). Offer Noon green
+     (`#64d8ae`), or their current `--color-primary` if it is a light or mid tone.
+   - Note every token name the old file defined that `client/brand/noon.css` does not (for
+     example `--color-brand`). Then replace the file with the template's `theme.css`, with
+     `--app-face` set to the chosen colour.
+   - For each noted token, `grep -rn "<utility>" client/app` (for `--color-brand`: `bg-brand`,
+     `text-brand`, `border-brand`, …), and also `grep -rn "var(--<token>" client` for direct uses
+     (for `--color-brand`: `var(--color-brand`). Nothing fails when a token disappears — the class
+     or `var()` just stops styling — so these searches are the only way to find them. Tell the builder each hit; changing
+     it to the nearest Noon token is app work (step 4).
+
+3. **Guided edit — `client/index.html` (shared):** if the `<title>` is still `Synapse starter`,
+   make it `noon`. Keep everything else (`dir`, `lang`, the builder's tags).
+
+4. **After the upgrade, as app work — not part of this recipe.** Law 5 keeps upgrades out of
+   builder-owned files, so do none of this automatically. Tell the builder what the template's
+   own app files now do, and make each change only if they say yes:
+   - `client/app/LoginScreen.tsx`: `<NoonLogo className="mx-auto h-8" />` instead of the text
+     logo. `client/app/AppShell.tsx`: `<NoonLogo className="h-6" />` before `APP_NAME`, and
+     `document.title`. `client/app/ui.tsx`: `shadow-sm` → `shadow-card`.
+   - **Green text.** Noon green (`--color-primary`) is a fill colour; as text on the light page
+     it is unreadable. The template's old `AppShell` used `text-primary` for the active nav item.
+     Run `grep -rnE "text-primary([^-]|$)" client/app` and suggest `text-primary-ink` for each hit
+     — tell the builder this one is a readability fix, not a style choice.
+   - **White and black.** `bg-white` / `text-black` stay fixed while `text-ink` and `bg-card` flip
+     in dark mode, and `text-white` on `bg-primary` is white on light green. `npm run check:theme`
+     prints them as warnings and does not fail on them, so `verify` stays green until the builder
+     decides. Run `grep -rnE "(bg|text|border)-(white|black)" client/app` and suggest
+     `bg-card`, `text-ink` or `text-on-primary` for each hit.
+   The template's versions of these files show the exact code.
+
+### Verify
+
+- `npm run verify` green, including `[check-theme-tokens] … theme.css sets only --app-face — OK`.
+- `npm run build` lists `favicon.svg`, `favicon-32.png`, `favicon.ico`, `apple-touch-icon.png`.
+- The app (`?surface=app`) shows Noon colours and the IBM Plex font; with the device in dark mode
+  it turns dark, charts included. The browser tab shows the face in the app's colour.
+- Add `--color-primary: #ff0000;` inside `:root` in `theme.css`: `npm run check:theme` fails
+  naming that line. Undo.
+
+---
+
 ## 2026.11.24.2 — no anonymous API in any mode: one access gate, a workspace key, and `check:api`
 
 ### What changed

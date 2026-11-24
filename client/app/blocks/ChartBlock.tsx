@@ -43,14 +43,14 @@ const SERIES_TOKENS = [
 ];
 
 // Fallbacks used only until the CSS variables resolve (and in jsdom, where they don't). They
-// match the shipped "calm" preset so a test render isn't visually meaningless.
+// match the Noon light palette (client/brand/noon.css), so a first frame is still on brand.
 //
 // These are the ONE place in client/app that may hold raw color values, because Recharts writes
 // colors into SVG attributes and cannot accept a class — so there has to be something to fall
 // back to when getComputedStyle has nothing yet. Each line carries `theme-tokens-ignore` so
 // scripts/check-theme-tokens.ts allows it and the exception stays visible in review. Do NOT copy
 // this pattern into a page: pages use token utilities.
-const FALLBACK_SERIES = ['#4f46e5', '#d97706', '#0d9488', '#be185d', '#0369a1', '#65a30d']; // theme-tokens-ignore
+const FALLBACK_SERIES = ['#179467', '#805db9', '#e0602b', '#006ccf', '#c4528a', '#c27400']; // theme-tokens-ignore
 
 interface Palette {
   series: string[];
@@ -62,15 +62,15 @@ interface Palette {
 
 const FALLBACK_PALETTE: Palette = {
   series: FALLBACK_SERIES,
-  ink: '#0f172a', // theme-tokens-ignore
-  inkMuted: '#64748b', // theme-tokens-ignore
-  line: '#e2e8f0', // theme-tokens-ignore
+  ink: '#141414', // theme-tokens-ignore
+  inkMuted: '#66625d', // theme-tokens-ignore
+  line: '#dfdcd5', // theme-tokens-ignore
   card: '#ffffff', // theme-tokens-ignore
 };
 
 // Recharts needs real color VALUES (it writes them into SVG fill/stroke), not Tailwind classes.
-// Reading them back off the document keeps client/app/theme.css the single source of truth: change
-// a token there and every chart follows, exactly like every other app component.
+// Reading them back off the document keeps the design tokens (client/brand/noon.css) the single
+// source of truth: change a token there and every chart follows, like every other app component.
 function readPalette(): Palette {
   if (typeof window === 'undefined' || typeof document === 'undefined') return FALLBACK_PALETTE;
   const styles = window.getComputedStyle(document.documentElement);
@@ -79,7 +79,7 @@ function readPalette(): Palette {
     return value === '' ? fallback : value;
   };
   return {
-    series: SERIES_TOKENS.map((token, i) => read(token, FALLBACK_SERIES[i] ?? '#4f46e5')), // theme-tokens-ignore
+    series: SERIES_TOKENS.map((token, i) => read(token, FALLBACK_SERIES[i] ?? '#179467')), // theme-tokens-ignore
     ink: read('--color-ink', FALLBACK_PALETTE.ink),
     inkMuted: read('--color-ink-muted', FALLBACK_PALETTE.inkMuted),
     line: read('--color-line', FALLBACK_PALETTE.line),
@@ -87,10 +87,29 @@ function readPalette(): Palette {
   };
 }
 
+// Re-reads when the theme changes (<html data-theme>, or the system colour scheme), so a chart
+// follows light and dark mode like the rest of the app.
 function usePalette(): Palette {
   const [palette, setPalette] = useState<Palette>(FALLBACK_PALETTE);
-  // After mount, when the stylesheet has actually applied.
-  useEffect(() => setPalette(readPalette()), []);
+  useEffect(() => {
+    // After mount, when the stylesheet has actually applied.
+    setPalette(readPalette());
+    const refresh = () => setPalette(readPalette());
+    const observer = typeof MutationObserver === 'undefined' ? null : new MutationObserver(refresh);
+    observer?.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+    const media =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-color-scheme: dark)')
+        : null;
+    media?.addEventListener('change', refresh);
+    return () => {
+      observer?.disconnect();
+      media?.removeEventListener('change', refresh);
+    };
+  }, []);
   return palette;
 }
 

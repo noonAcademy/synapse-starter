@@ -29,7 +29,7 @@ function Root() {
 
 // Brand-neutral holding screen for the one-request probe, so end users never glimpse console chrome.
 function Splash() {
-  return <div className="min-h-screen bg-slate-50" aria-hidden />;
+  return <div className="min-h-screen bg-surface" aria-hidden />;
 }
 
 // A new key (pasted, or from the link) remounts Root, which probes again with it.
