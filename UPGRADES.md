@@ -82,16 +82,24 @@ freely through `theme.css`.
 
 ### Recipe
 
-1. **Before copying anything, ask the builder:** "Noon's apps now default to the Ink & Light brand
-   (warm paper, terracotta, Quicksand titles). Move to it, or keep your current colours?" If
-   they want to keep the old colours, save the old palette now, inside the clone (`*.local` is
-   git-ignored, and unlike `/tmp` it survives a restart, so a retried upgrade can reuse it):
-   `git show HEAD:client/brand/noon.css > .synapse-noon-old.css.local`. Guard: skip if
-   `.synapse-noon-old.css.local` already exists and contains `--noon-primary: #64d8ae` (an
-   earlier attempt saved it); otherwise run it only if `git show HEAD:client/brand/noon.css`
-   contains `--noon-primary: #64d8ae`. Reading from `HEAD` rather than the working copy keeps
-   this right on a retry where the new `noon.css` has already been copied in, as long as the
-   upgrade isn't committed yet.
+1. **Before applying any pending entry, ask the builder:** "Noon's apps now default to the Ink &
+   Light brand (warm paper, terracotta, Quicksand titles). Move to it, or keep your current
+   colours?" Put the answer in the upgrade report.
+
+   If they want to keep their colours, save them from the **branch point**: the commit the
+   `kit-upgrade/<today>` branch was created from ([UPGRADE.md](UPGRADE.md) Gate 1), for example
+   `git merge-base HEAD <the branch the upgrade started from>`. Never read them from `HEAD` or
+   the working copy: when older entries are pending too, the `2026.11.24.3` and `.4` copies (each
+   committed on its own) bring in the new `noon.css` before this entry runs. Save inside the
+   clone, where a retried upgrade can find it again (`*.local` is git-ignored, and unlike `/tmp`
+   it survives a restart):
+   - **The branch point has `client/brand/noon.css` containing `--noon-primary: #64d8ae`**
+     (a clone on `2026.11.24.3`–`.5`): run
+     `git show <branch-point>:client/brand/noon.css > .synapse-noon-old.css.local`.
+   - **The branch point has no `client/brand/noon.css`** (a clone older than `2026.11.24.3`): its
+     look was its own tokens in `client/app/theme.css`. Run
+     `git show <branch-point>:client/app/theme.css > .synapse-theme-old.css.local`.
+   - Guard: skip a save whose `.local` file already exists (an earlier attempt made it).
 
 2. **Copy** (synapse-owned):
 
@@ -115,9 +123,11 @@ freely through `theme.css`.
    (`:root`, `:root[data-theme="dark"]`, and `:root:not([data-theme="light"])` inside
    `@media (prefers-color-scheme: dark)`), and add `@theme { --radius-card: 0.75rem; }` and
    `:root { --noon-shadow-card: 0 1px 2px rgb(20 20 20 / 0.06); }` (dark:
-   `0 1px 2px rgb(0 0 0 / 0.4)`) for the old shape. Record the choice in SPEC.md's Decisions log.
-   Delete `.synapse-noon-old.css.local` only after `npm run check:theme` passes on the edited
-   `theme.css`.
+   `0 1px 2px rgb(0 0 0 / 0.4)`) for the old shape. If you saved `.synapse-theme-old.css.local`
+   instead, copy the builder's own token declarations from it into `theme.css` under the import
+   (the `2026.11.24.3` entry removed them; they are allowed again), keeping their selectors.
+   Delete the `.local` file only after `npm run check:theme` passes on the edited `theme.css`.
+   Don't touch `SPEC.md` here: it is builder-owned (step 3).
 
 3. **After the upgrade, as app work — not part of this recipe.** Law 5 keeps upgrades out of
    builder-owned files. Tell the builder what the template's own app files now do, and make each
@@ -130,19 +140,25 @@ freely through `theme.css`.
      (the template's home page did, for its step numbers), keep it for links or the selection and
      use `text-primary-ink` for the rest: `grep -rn "text-accent" client/app`.
    - `shadow-card` now draws nothing; nothing to do unless the builder misses it.
+   - Record the look they chose (the Ink & Light default, or their kept colours) in `SPEC.md`'s
+     Decisions log.
    The template's versions of these files show the exact code.
 
 ### Verify
 
 - `npm run verify` green, including `[check-theme-tokens] client/app is token-clean and
   theme.css holds only tokens — OK`.
-- The app (`?surface=app`) shows a paper background, a terracotta sign-in button and Quicksand
-  titles (or the old look, if the builder kept it); in dark mode, espresso grounds with paper text,
-  charts included; in Arabic, titles in Tajawal with digits still in Quicksand.
+- Open the app (`?surface=app`) and, in the browser console, run
+  `getComputedStyle(document.documentElement).getPropertyValue('--color-primary')`: it prints
+  `#b75c38` (terracotta), or the builder's kept primary if they kept their colours. The page
+  background is paper (`#f7f1e6`) unless they kept their colours; with the device in dark mode
+  it turns espresso, charts included.
+- Only if the builder approved the title edits in step 3: page titles are in Quicksand, and in
+  Arabic in Tajawal with digits still in Quicksand.
 - `ls client/brand/illustrations/*.svg | wc -l` prints `38`.
 - Add `:root { --noon-primary: #2b6cb0; }` to `theme.css`: `npm run check:theme` passes and the
-  sign-in button turns blue. Add `.card { color: red; }`: the check fails naming that line. Undo
-  both.
+  console command above prints `#2b6cb0`. Add `.card { color: red; }`: the check fails naming that
+  line. Undo both.
 
 ---
 
