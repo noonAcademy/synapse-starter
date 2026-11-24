@@ -77,7 +77,7 @@ check its layout; a clone with `dir="rtl"` but `lang="en"` or no `lang` turns le
 1. **Copy** (synapse-owned):
 
    ```bash
-   for f in client/brand/preferences.ts client/brand/preferences.test.tsx client/brand/i18n.ts \
+   for f in client/brand/noon.css client/brand/preferences.ts client/brand/preferences.test.tsx client/brand/i18n.ts \
             client/brand/strings.ts client/brand/Toggles.tsx scripts/vite-brand.ts \
             scripts/brand-icons.test.ts client/main.tsx client/console/ConsoleApp.tsx \
             client/console/WorkspaceLock.tsx client/app/blocks/ViewBlock.tsx \
@@ -105,8 +105,13 @@ check its layout; a clone with `dir="rtl"` but `lang="en"` or no `lang` turns le
 ### Verify
 
 - `npm run verify` green.
-- In the app (`?surface=app`): the moon button turns the page dark, and a reload stays dark with
-  no light flash; `العربية` turns the page Arabic and right-to-left, and a reload stays Arabic.
+- If the builder added `<ThemeToggle />`: in the app (`?surface=app`) the moon button turns the
+  page dark, and a reload stays dark with no light flash.
+- If the builder added `<LanguageSwitch />`: `العربية` turns the page Arabic and right-to-left,
+  and a reload stays Arabic.
+- Whatever the builder chose: with the device in dark mode the app opens dark, and with
+  `lang="ar"` on `<html>` (or a saved Arabic choice, unless `data-fixed-lang` is set) the data
+  blocks show their loading, empty and error states in Arabic.
 - `curl -s localhost:3000/ | head -5` shows the inline `<script>` first in `<head>`.
 - The console (workspace `/`) stays English, left-to-right and light after both switches.
 

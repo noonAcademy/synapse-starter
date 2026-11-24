@@ -229,9 +229,7 @@ function ChartBlockBody({
   if (missing.length > 0) {
     return (
       <ChartFrame view={view} title={title}>
-        <AppEmptyState>
-          This chart is set up to show {missing.join(', ')}, which this data doesn't have.
-        </AppEmptyState>
+        <AppEmptyState>{t('chartMissingColumns', { columns: missing.join(', ') })}</AppEmptyState>
       </ChartFrame>
     );
   }

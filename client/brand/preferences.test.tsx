@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { formatNumber, formatRelative, translate } from './i18n';
 import {
+  forgetPreferenceMemory,
   installPreferences,
   LANGUAGE_KEY,
   language,
@@ -18,6 +19,7 @@ const html = document.documentElement;
 
 beforeEach(() => {
   window.localStorage.clear();
+  forgetPreferenceMemory();
   html.removeAttribute('lang');
   html.removeAttribute('dir');
   delete html.dataset.theme;
@@ -91,6 +93,17 @@ describe('theme', () => {
     expect(window.localStorage.getItem(THEME_KEY)).toBe('dark');
     setThemeChoice('system');
     expect(window.localStorage.getItem(THEME_KEY)).toBeNull();
+  });
+
+  it('drops both remembered choices when another tab clears storage', () => {
+    html.dataset.defaultLang = 'en';
+    installPreferences();
+    setThemeChoice('dark');
+    setLanguage('ar');
+    window.localStorage.clear();
+    window.dispatchEvent(new StorageEvent('storage', { key: null }));
+    expect(themeChoice()).toBe('system');
+    expect(language()).toBe('en');
   });
 
   it('toggles with the header button', () => {

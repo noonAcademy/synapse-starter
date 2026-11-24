@@ -42,6 +42,11 @@ function writeStorage(key: string, value: string | null): void {
   }
 }
 
+// Visible for tests: localStorage.clear() does not reset the in-memory copy.
+export function forgetPreferenceMemory(): void {
+  memory.clear();
+}
+
 const listeners = new Set<() => void>();
 function notify(): void {
   for (const listener of listeners) listener();
@@ -130,8 +135,15 @@ export function installPreferences(): void {
   if (listenersInstalled || typeof window === 'undefined') return;
   listenersInstalled = true;
   window.addEventListener('storage', (event) => {
-    if (event.key !== THEME_KEY && event.key !== LANGUAGE_KEY) return;
-    memory.delete(event.key);
+    // A null key means another tab cleared all of storage.
+    if (event.key === null) {
+      memory.delete(THEME_KEY);
+      memory.delete(LANGUAGE_KEY);
+    } else if (event.key === THEME_KEY || event.key === LANGUAGE_KEY) {
+      memory.delete(event.key);
+    } else {
+      return;
+    }
     applyTheme();
     applyLanguage();
     notify();

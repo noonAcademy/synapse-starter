@@ -21,6 +21,8 @@ const en = {
   chartUnavailable: "This chart isn't available right now. Reload the page to try again.",
   chartNotConnected: "This chart isn't connected to Noon data yet.",
   chartLoadFailed: "This chart couldn't load just now. Try again in a moment.",
+  chartMissingColumns:
+    "This chart is set up to show {columns}, which this data doesn't have. Check the column names in the chart's settings.",
   showNumbers: 'Show the numbers',
   updated: 'Updated {time}',
   truncated: 'Showing the first {count} rows.',
@@ -59,6 +61,8 @@ export const STARTER_STRINGS: { en: Record<StarterKey, string>; ar: Record<Start
     chartUnavailable: 'هذا الرسم البياني غير متاح الآن. أعد تحميل الصفحة للمحاولة مرة أخرى.',
     chartNotConnected: 'لم يُربط هذا الرسم البياني ببيانات نون بعد.',
     chartLoadFailed: 'تعذّر تحميل هذا الرسم البياني الآن. حاول مرة أخرى بعد قليل.',
+    chartMissingColumns:
+      'هذا الرسم البياني مُعدّ لعرض {columns}، وهذه البيانات لا تحتوي عليها. تحقّق من أسماء الأعمدة في إعدادات الرسم البياني.',
     showNumbers: 'عرض الأرقام',
     updated: 'آخر تحديث {time}',
     truncated: 'تُعرض الصفوف الأولى فقط ({count}).',

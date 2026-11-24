@@ -118,7 +118,8 @@ export function AppShell() {
             {navPages.length > 1 && (
               <AppNav pages={navPages} current={path} onNavigate={navigate} />
             )}
-            {/* Remove LanguageSwitch for a one-language app; the language is then <html lang>. */}
+            {/* One-language app: remove LanguageSwitch here and in LoginScreen.tsx, and add
+                data-fixed-lang to <html> in index.html so a saved choice cannot override lang. */}
             <LanguageSwitch />
             <ThemeToggle />
           </div>
