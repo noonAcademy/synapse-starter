@@ -1,7 +1,7 @@
 # AGENTS.md — working in the Synapse starter
 
-> **Kit compatibility: these rules describe kit `2026.11.24` or later.** Check this clone's
-> [`TEMPLATE_VERSION`](TEMPLATE_VERSION) file: if it is missing or older than `2026.11.24`
+> **Kit compatibility: these rules describe kit `2026.11.24.2` or later.** Check this clone's
+> [`TEMPLATE_VERSION`](TEMPLATE_VERSION) file: if it is missing or older than `2026.11.24.2`
 > (compare numerically, part by part — never as strings), your kit predates these rules — tell
 > the builder a kit upgrade is available and offer to run the **synapse-upgrade** skill
 > (fetching `UPGRADE.md` and `UPGRADES.md` live from the template repo) before other work.
@@ -108,7 +108,7 @@ things: **publishes events** and **runs reads**. Read this before adding either.
     `npm run check:api` (in `verify`, so in every deploy) fails on any of this.
     **The workspace key** — to call the console from the Shell, send it:
     `curl -s -H @.synapse-workspace.headers.local localhost:3000/__synapse/...` (kits older than
-    `2026.11.24` have no key: use plain `curl`). **Your own browser tests:** run
+    `2026.11.24.2` have no key: use plain `curl`). **Your own browser tests:** run
     `npm run workspace-key` and open the link it prints in your browser first. **When the builder
     sees the lock screen:** ask them to run `npm run workspace-key` in the Shell and paste the
     key into it — never print the key or the link in chat, a PR, SPEC.md or code; it is a

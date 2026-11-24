@@ -36,7 +36,7 @@ const OUT_DIR = resolve(process.cwd(), '.synapse-visual');
 // key. The page stores it the way the unlock link does, so the app's own fetch wrapper
 // (client/workspaceKey.ts) adds it to same-origin /api and /__synapse calls only — a header on
 // every request would hand the key to any third-party image or script the page loads.
-// Absent file (kit older than 2026.11.24): nothing to seed.
+// Absent file (kit older than 2026.11.24.2): nothing to seed.
 function workspaceKeySeed(): string {
   try {
     const line = readFileSync(resolve(process.cwd(), HEADERS_FILE), 'utf8').trim();

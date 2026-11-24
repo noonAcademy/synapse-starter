@@ -25,7 +25,7 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
-## 2026.11.24 — no anonymous API in any mode: one access gate, a workspace key, and `check:api`
+## 2026.11.24.2 — no anonymous API in any mode: one access gate, a workspace key, and `check:api`
 
 ### What changed
 
@@ -71,7 +71,7 @@ that switch. A route a builder added above the old gate line was also ungated in
 - **Docs:** AGENTS.md rule 9 corrected (the workspace is not open), new rule 10, skills table and
   "Where things live"; **synapse-access-control** gains "No anonymous data, ever"; the
   **synapse-verify-numbers** and SQL skills' `curl` calls send the key. Kit-compatibility header
-  → `2026.11.24`.
+  → `2026.11.24.2`.
 
 ### Why a clone should care
 

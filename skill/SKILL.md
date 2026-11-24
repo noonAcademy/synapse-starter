@@ -25,7 +25,7 @@ console's **Get data** tab. Its source of truth is Citadel's live `GET /api/regi
 [INTEGRATE.md §5](../INTEGRATE.md)); when that endpoint is reachable, trust it over the
 snapshot. In the workspace, read the freshest registry text from the running app —
 `curl -s -H @.synapse-workspace.headers.local localhost:3000/__synapse/registry` (it serves live when Citadel answers, else this
-snapshot; the `X-Registry-Source` response header says which you got). The `-H @…` part sends the workspace key (AGENTS.md rule 10); drop it on a kit older than `2026.11.24`.
+snapshot; the `X-Registry-Source` response header says which you got). The `-H @…` part sends the workspace key (AGENTS.md rule 10); drop it on a kit older than `2026.11.24.2`.
 
 ## How reads work in this app (the one rule that changes everything)
 

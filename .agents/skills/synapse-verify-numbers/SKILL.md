@@ -49,7 +49,7 @@ curl -s -H @.synapse-workspace.headers.local localhost:3000/__synapse/probe \
 ```
 
 `-H @.synapse-workspace.headers.local` sends the builder's workspace key: every `/__synapse` call
-needs it (AGENTS.md rule 10). On a kit older than `2026.11.24` that file does not exist; drop the
+needs it (AGENTS.md rule 10). On a kit older than `2026.11.24.2` that file does not exist; drop the
 `-H @…` part.
 
 Returns `{ sql, columns, rows, truncated, ranAt, configured, error }`. Notes that will save you:
