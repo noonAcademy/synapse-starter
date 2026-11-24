@@ -6,7 +6,7 @@ import { SYNAPSE_EVENT_TYPES } from '@noonacademy/synapse-catalog';
 import type { PublishEventResult } from '@noonacademy/synapse-sdk';
 import express, { type Application } from 'express';
 import { canAccessView } from './access.js';
-import { type GateMode, installAccessGate } from './access-gate.js';
+import { type GateMode, installAccessGate, routesOutsideDataPaths } from './access-gate.js';
 import { asAthenaClient } from './athena.js';
 import { buildEndUserAuthDeps, type EndUserAuthDeps } from './auth-routes.js';
 import { formatBootLog } from './boot.js';
@@ -349,6 +349,13 @@ async function createServerInstance(): Promise<Server> {
     );
   }
   const app = buildApp({ isReplitDeployment, authDeps, workspaceKey, trustLocalCalls });
+  if (!isReplitDeployment) {
+    for (const route of routesOutsideDataPaths(app)) {
+      console.error(
+        `[synapse] ${route} is outside /api/. In the workspace anyone with the dev URL can call it without the key. Move it under /api/ (npm run check:api fails on it).`,
+      );
+    }
+  }
   const httpServer = createHttpServer(app);
 
   if (isDev) {

@@ -5,14 +5,31 @@
 
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadWorkspaceKey } from '../server/workspace-key.js';
+import { loadWorkspaceKey, readStoredWorkspaceKey } from '../server/workspace-key.js';
 
 const rotate = process.argv.includes('--rotate');
-const key = loadWorkspaceKey({
-  rootDir: resolve(dirname(fileURLToPath(import.meta.url)), '..'),
-  replId: process.env.REPL_ID ?? null,
-  rotate,
-});
+const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const replId = process.env.REPL_ID ?? null;
+const stored = rotate ? null : readStoredWorkspaceKey(rootDir);
+
+// Only the app makes a key for a new Repl. A key made here, under another REPL_ID, would not be the
+// key the app holds, and the app would replace it again at its next start.
+if (stored && stored.replId !== replId && replId !== null) {
+  console.error(
+    'The workspace key file was made for another Repl (a fork or a remix copies it).\n' +
+      'Stop the app and press Run, so the app makes the key for this Repl. Then run this again.',
+  );
+  process.exit(1);
+}
+if (stored && stored.replId !== replId) {
+  console.log(
+    'This Shell has no REPL_ID. It shows the key that the app wrote at its last start.\n',
+  );
+}
+const key = stored?.key ?? loadWorkspaceKey({ rootDir, replId, rotate });
+if (!stored && !rotate) {
+  console.log('No workspace key yet: made one. Restart the app (Stop, then Run) to use it.\n');
+}
 const origin = process.env.REPLIT_DEV_DOMAIN
   ? `https://${process.env.REPLIT_DEV_DOMAIN}`
   : `http://localhost:${process.env.PORT ?? 3000}`;

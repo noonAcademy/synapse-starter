@@ -42,7 +42,8 @@ function workspaceKeySeed(): string {
     const line = readFileSync(resolve(process.cwd(), HEADERS_FILE), 'utf8').trim();
     const key = line.slice(line.indexOf(':') + 1).trim();
     return key
-      ? `try{window.localStorage.setItem('synapse.workspaceKey',${JSON.stringify(key)})}catch(e){}`
+      ? // Init scripts run in every frame; a third-party frame must not get the key.
+        `try{if(location.origin===${JSON.stringify(new URL(BASE).origin)})window.localStorage.setItem('synapse.workspaceKey',${JSON.stringify(key)})}catch(e){}`
       : '';
   } catch {
     return '';

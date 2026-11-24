@@ -12,10 +12,11 @@ import {
 export function WorkspaceLock() {
   const [key, setKey] = useState('');
   // A key was sent and refused: it is old (rotated) or mistyped. Say so, and drop it.
-  const [rejected] = useState(() => workspaceKey() !== null);
+  const [refusedKey] = useState(() => workspaceKey());
+  const rejected = refusedKey !== null;
   useEffect(() => {
-    if (rejected) forgetWorkspaceKey();
-  }, [rejected]);
+    if (refusedKey !== null) forgetWorkspaceKey(refusedKey);
+  }, [refusedKey]);
 
   const unlock = (event: FormEvent) => {
     event.preventDefault();

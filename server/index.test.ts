@@ -2,6 +2,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Application } from 'express';
 import { describe, expect, it } from 'vitest';
+import { routesOutsideDataPaths } from './access-gate.js';
 import { buildEndUserAuthDeps } from './auth-routes.js';
 import { buildApp } from './index.js';
 
@@ -162,6 +163,29 @@ describe('end-user auth gate wiring', () => {
     } finally {
       await close();
     }
+  });
+
+  it('locks other shapes of a data path, and never lets a near-miss path reach a data route', async () => {
+    const { port, close } = await serve(buildApp(workspace));
+    try {
+      for (const path of ['/api/views/', '/api?x', '/api/views?x=1']) {
+        expect((await get(port, path, PROXIED)).status, path).toBe(401);
+      }
+      for (const path of ['//api/views', '/%61pi/views', '/apix']) {
+        expect((await get(port, path, PROXIED)).status, path).toBe(404);
+      }
+    } finally {
+      await close();
+    }
+  });
+
+  it('lists app routes outside /api and /__synapse, so the boot log can name them', () => {
+    const app = buildApp(workspace);
+    expect(routesOutsideDataPaths(app)).toEqual([]);
+    app.get('/export.csv', (_req, res) => {
+      res.send('');
+    });
+    expect(routesOutsideDataPaths(app)).toEqual(['GET /export.csv']);
   });
 
   it('ignores the workspace key in a deployment: no session -> 401', async () => {

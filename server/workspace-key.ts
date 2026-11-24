@@ -19,6 +19,10 @@ interface StoredKey {
   key: string;
 }
 
+export function readStoredWorkspaceKey(rootDir: string): StoredKey | null {
+  return readStored(resolve(rootDir, KEY_FILE));
+}
+
 function readStored(path: string): StoredKey | null {
   try {
     const parsed = JSON.parse(readFileSync(path, 'utf8')) as Partial<StoredKey>;

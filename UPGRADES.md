@@ -138,11 +138,14 @@ signed-in users.
 ### Verify
 
 - `npm run verify` green, including `[check-api-gate] … OK`.
-- Restart the app. In a browser with no key, `/` shows **This workspace is locked to you**;
-  after opening the link from `npm run workspace-key`, the console loads, and
-  **Preview your app ↗** shows the app with its data.
-- From the Shell: `curl -s -o /dev/null -w '%{http_code}\n' localhost:3000/__synapse/overview`
-  prints `401`; with `-H @.synapse-workspace.headers.local` it prints `200`.
+- On Replit, restart the app. In a browser with no key, `/` shows **This workspace is locked to
+  you**; after opening the link from `npm run workspace-key`, the console loads, and
+  **Preview your app ↗** shows the app with its data. (With `npm run dev` on a laptop, a browser
+  on the same machine passes without a key and the console loads at once; a browser on another
+  machine sees the lock screen.)
+- From the Replit Shell: `curl -s -o /dev/null -w '%{http_code}\n' localhost:3000/__synapse/overview`
+  prints `401`; with `-H @.synapse-workspace.headers.local` it prints `200`. (With `npm run dev`
+  on a laptop the plain call prints `200`.)
 - From another machine, `curl -s -o /dev/null -w '%{http_code}\n' https://<dev-domain>/api/views`
   prints `401`, also as `/API/views`.
 - `git status` does not list `.synapse-workspace-key.local` or `.synapse-workspace.headers.local`.

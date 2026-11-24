@@ -76,6 +76,38 @@ describe('checkApp', () => {
     expect(problems.some((p) => p.includes('/api/other has no reason'))).toBe(true);
   });
 
+  it('scans a public GET that shares its route with a private POST', async () => {
+    const publicRoutes = [{ method: 'GET' as const, path: '/api/contact', reason: 'demo' }];
+    const app = express();
+    app.use(createWorkspaceGate({ workspaceKey: KEY, trustLocalCalls: false, publicRoutes }));
+    app
+      .route('/api/contact')
+      .get((_req, res) => {
+        res.json({ email: 'x@y.z' });
+      })
+      .post((_req, res) => {
+        res.json({ ok: true });
+      });
+    const problems = (await checkApp('workspace', app, publicRoutes)).map((p) => p.problem);
+    expect(problems.some((p) => p.includes('GET /api/contact') && p.includes('email'))).toBe(true);
+  });
+
+  it('reports a HEAD route that the gate lets through, though HEAD has no body', async () => {
+    const app = express();
+    app.use(
+      createWorkspaceGate({
+        workspaceKey: KEY,
+        trustLocalCalls: false,
+        publicRoutes: [{ method: 'HEAD', path: '/api/ping', reason: 'demo' }],
+      }),
+    );
+    app.head('/api/ping', (_req, res) => {
+      res.end();
+    });
+    const problems = (await checkApp('workspace', app, [])).map((p) => p.problem);
+    expect(problems.some((p) => p.includes('anonymous HEAD /api/ping reached'))).toBe(true);
+  });
+
   it('accepts a public route that returns no personal data', async () => {
     const publicRoutes = [{ method: 'GET' as const, path: '/api/health', reason: 'uptime' }];
     const app = express();

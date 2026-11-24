@@ -17,10 +17,13 @@ export function storedWorkspaceKey(): string | null {
   }
 }
 
-export function forgetWorkspaceKey(): void {
-  sessionKey = null;
+// Forgets the refused key only: another tab may already have saved a newer one.
+export function forgetWorkspaceKey(refusedKey: string): void {
+  if (sessionKey === refusedKey) sessionKey = null;
   try {
-    window.localStorage.removeItem(STORAGE_KEY);
+    if (window.localStorage.getItem(STORAGE_KEY) === refusedKey) {
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
   } catch {
     // Nothing stored.
   }
@@ -111,8 +114,14 @@ export async function openGatedText(path: string): Promise<void> {
   // A blocked pop-up: do nothing rather than navigate the console away and lose its state.
   if (!tab) return;
   tab.opener = null;
-  const res = await fetch(path);
-  const text = res.ok ? await res.text() : `Request failed (${res.status}). Reload the console.`;
+  let text: string;
+  try {
+    const res = await fetch(path);
+    text = res.ok ? await res.text() : `Request failed (${res.status}). Reload the console.`;
+  } catch {
+    text =
+      'Request failed (no answer from the server). Check that the app is running, then reload the console.';
+  }
   const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
   tab.location.href = url;
   setTimeout(() => URL.revokeObjectURL(url), 60_000);

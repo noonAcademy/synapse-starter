@@ -40,8 +40,10 @@ export function isDataPath(path: string): boolean {
 
 export function isPublicRoute(req: Request, routes: PublicRoute[] = PUBLIC_ROUTES): boolean {
   const path = lowerPath(req);
-  const method = req.method === 'HEAD' ? 'GET' : req.method;
-  return routes.some((r) => r.method === method && r.path.toLowerCase() === path);
+  // A GET entry also covers HEAD, as Express answers HEAD with the GET handler.
+  const methodMatches = (r: PublicRoute) =>
+    r.method === req.method || (req.method === 'HEAD' && r.method === 'GET');
+  return routes.some((r) => methodMatches(r) && r.path.toLowerCase() === path);
 }
 
 const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
@@ -154,4 +156,22 @@ export function installAccessGate(app: Application, mode: GateMode): void {
           trustLocalCalls: mode.trustLocalCalls,
         }),
   );
+}
+
+interface RouteLayer {
+  route?: { path: unknown; methods: Record<string, boolean> };
+}
+
+// Routes on the app itself that are outside /api and /__synapse. In the workspace the gate lets
+// GET requests to such paths through without the key, so a data route there is open to anyone.
+export function routesOutsideDataPaths(app: Application): string[] {
+  const stack = (app as unknown as { _router?: { stack: RouteLayer[] } })._router?.stack ?? [];
+  return stack.flatMap((layer) => {
+    if (!layer.route) return [];
+    const path = String(layer.route.path);
+    if (isDataPath(path.toLowerCase())) return [];
+    return Object.keys(layer.route.methods).map(
+      (method) => `${method === '_all' ? 'ALL' : method.toUpperCase()} ${path}`,
+    );
+  });
 }

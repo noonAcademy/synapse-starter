@@ -35,6 +35,7 @@ export interface ApiGateProblem {
 interface ExpressLayer {
   name: string;
   handle: RequestHandler & { stack?: ExpressLayer[] };
+  method?: string;
   regexp?: RegExp;
   route?: { path: string; methods: Record<string, boolean>; stack: ExpressLayer[] };
 }
@@ -43,11 +44,15 @@ export interface RouteInfo {
   method: string;
   path: string;
   layer: ExpressLayer;
+  // The method as Express stores it on the route (`get`, `_all`); undefined for app.use handlers.
+  routeMethod?: string;
 }
 
 const BUILT_IN_LAYERS = new Set(['query', 'expressInit']);
 export const GATE_NAME = 'synapseAccessGate';
 const REACHED = '__synapseCheckReached';
+// A HEAD response has no body, so the stub also marks its reply with this header.
+const REACHED_HEADER = 'x-synapse-check-reached';
 
 function stackOf(app: Application): ExpressLayer[] {
   const router = (app as unknown as { _router?: { stack: ExpressLayer[] } })._router;
@@ -74,7 +79,7 @@ export function listRoutes(
       for (const method of Object.keys(layer.route.methods)) {
         // `app.all()` is stored as `_all`; GET exercises it.
         const verb = method === '_all' ? 'GET' : method.toUpperCase();
-        routes.push({ method: verb, path: prefix + layer.route.path, layer });
+        routes.push({ method: verb, path: prefix + layer.route.path, layer, routeMethod: method });
       }
     } else if (layer.name === 'router' && layer.handle.stack) {
       const mount = mountPath(layer);
@@ -109,14 +114,20 @@ export function gateProblems(app: Application): string[] {
 
 function stubRoutes(routes: RouteInfo[]): void {
   const stub: RequestHandler = (_req, res) => {
+    res.setHeader(REACHED_HEADER, '1');
     res.json({ [REACHED]: true });
   };
-  for (const { layer } of routes) {
+  for (const { layer, routeMethod } of routes) {
     if (!layer.route) {
       layer.handle = stub;
       continue;
     }
-    for (const handler of layer.route.stack) handler.handle = stub;
+    // One app.route(path) chain keeps every method's handlers in one stack: stub only this
+    // method's handlers, so a public GET on the same path still runs for real.
+    const stubbedMethod = routeMethod === '_all' ? undefined : routeMethod;
+    for (const handler of layer.route.stack) {
+      if (handler.method === stubbedMethod) handler.handle = stub;
+    }
   }
 }
 
@@ -142,6 +153,7 @@ export function piiFields(value: unknown, path = ''): string[] {
 interface Reply {
   status: number;
   body: string;
+  reached: boolean;
 }
 
 function call(port: number, method: string, path: string): Promise<Reply> {
@@ -165,7 +177,13 @@ function call(port: number, method: string, path: string): Promise<Reply> {
         res.on('data', (chunk) => {
           body += chunk;
         });
-        res.on('end', () => resolve({ status: res.statusCode ?? 0, body }));
+        res.on('end', () =>
+          resolve({
+            status: res.statusCode ?? 0,
+            body,
+            reached: res.headers[REACHED_HEADER] === '1' || body.includes(REACHED),
+          }),
+        );
       },
     );
     req.on('error', reject);
@@ -227,7 +245,7 @@ export async function checkApp(
       }
       for (const variant of [path, path.toUpperCase()]) {
         const reply = await call(port, route.method, variant);
-        if (reply.body.includes(REACHED)) {
+        if (reply.reached) {
           problems.push(
             `an anonymous ${route.method} ${variant} reached its handler (status ${reply.status})`,
           );
