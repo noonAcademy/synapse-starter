@@ -246,12 +246,29 @@ export function checkThemeFile(css: string, file = THEME_FILE): TokenViolation[]
   // `topLevel`: the block is not inside @media or any other block. The favicon reader
   // (faceFromThemeCss) takes the last `:root` value without evaluating conditions, so a face set
   // under `@media print { :root { … } }` would draw a favicon the screen never shows.
-  const checkFace = (prelude: string, topLevel: boolean, at: number, text: string) => {
+  // `hasNested`: the same :root block also holds a nested block (CSS nesting, e.g. `@media print
+  // { … }` inside :root). The favicon reader's :root match ends at the first `}`, so it would miss
+  // a face declared in such a block and draw the default green instead.
+  const checkFace = (
+    prelude: string,
+    topLevel: boolean,
+    hasNested: boolean,
+    at: number,
+    text: string,
+  ) => {
     if (prelude !== ':root' || !topLevel) {
       fail(
         at,
         text,
         '--app-face belongs in a top-level :root { }, outside @media — the favicon is drawn from it',
+      );
+      return;
+    }
+    if (hasNested) {
+      fail(
+        at,
+        text,
+        '--app-face needs a :root { } of its own, with no nested blocks — move the nested rules to another :root { } (the favicon is drawn from it)',
       );
       return;
     }
@@ -275,7 +292,9 @@ export function checkThemeFile(css: string, file = THEME_FILE): TokenViolation[]
       .trim()
       .replace(/\s+/g, ' ');
     if (/^@font-face$/i.test(prelude)) return;
-    for (const child of cssStatements(source, block.bodyStart, block.bodyEnd)) {
+    const children = cssStatements(source, block.bodyStart, block.bodyEnd);
+    const hasNested = children.some((child) => child.kind === 'block');
+    for (const child of children) {
       if (child.kind === 'block') {
         checkBlock(child, false);
         continue;
@@ -291,7 +310,7 @@ export function checkThemeFile(css: string, file = THEME_FILE): TokenViolation[]
         );
         continue;
       }
-      if (/^--app-face\s*:/.test(text)) checkFace(prelude, topLevel, child.start, text);
+      if (/^--app-face\s*:/.test(text)) checkFace(prelude, topLevel, hasNested, child.start, text);
     }
   };
 
