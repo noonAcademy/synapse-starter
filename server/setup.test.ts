@@ -107,7 +107,7 @@ describe('GET /__synapse/setup', () => {
     // Pinned empty so the deploy verdict below is about the projection, not the dev machine's env.
     vi.stubEnv('APP_SESSION_SECRET', '');
     const app = buildApp({ isReplitDeployment: false, workspaceKey: 'k'.repeat(40) });
-    const server = app.listen(0);
+    const server = app.listen(0, '127.0.0.1');
     await new Promise<void>((resolve) => server.once('listening', () => resolve()));
     const { port } = server.address() as { port: number };
     try {

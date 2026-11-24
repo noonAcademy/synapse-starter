@@ -352,7 +352,7 @@ async function createServerInstance(): Promise<Server> {
   if (!isReplitDeployment) {
     for (const route of routesOutsideDataPaths(app)) {
       console.error(
-        `[synapse] ${route} is outside /api/. In the workspace anyone with the dev URL can call it without the key. Move it under /api/ (npm run check:api fails on it).`,
+        `[synapse] ${route} is outside /api/. In the Replit workspace anyone with the dev URL can call it without the workspace key. Move it under /api/ (npm run check:api fails on it).`,
       );
     }
   }

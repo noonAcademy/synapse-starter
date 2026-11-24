@@ -5,7 +5,11 @@
 
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadWorkspaceKey, readStoredWorkspaceKey } from '../server/workspace-key.js';
+import {
+  loadWorkspaceKey,
+  readStoredWorkspaceKey,
+  writeHeadersFile,
+} from '../server/workspace-key.js';
 
 const rotate = process.argv.includes('--rotate');
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -26,6 +30,16 @@ if (stored && stored.replId !== replId) {
     'This Shell has no REPL_ID. It shows the key that the app wrote at its last start.\n',
   );
 }
+// A Replit Shell without REPL_ID would write a key that the app (which has REPL_ID) replaces.
+const onReplit = Boolean(process.env.REPLIT_DEV_DOMAIN || process.env.REPL_SLUG);
+if (!stored && replId === null && onReplit) {
+  console.error(
+    'This Shell has no REPL_ID, so a key made here would not be the key the app uses.\n' +
+      'Stop the app and press Run (the app makes the key), then run this again without --rotate.',
+  );
+  process.exit(1);
+}
+if (stored) writeHeadersFile(rootDir, stored.key);
 const key = stored?.key ?? loadWorkspaceKey({ rootDir, replId, rotate });
 if (!stored && !rotate) {
   console.log('No workspace key yet: made one. Restart the app (Stop, then Run) to use it.\n');

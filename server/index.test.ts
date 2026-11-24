@@ -7,7 +7,7 @@ import { buildEndUserAuthDeps } from './auth-routes.js';
 import { buildApp } from './index.js';
 
 async function serve(app: Application): Promise<{ port: number; close: () => Promise<void> }> {
-  const server = app.listen(0);
+  const server = app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve) => server.once('listening', () => resolve()));
   const { port } = server.address() as AddressInfo;
   return {
@@ -185,7 +185,13 @@ describe('end-user auth gate wiring', () => {
     app.get('/export.csv', (_req, res) => {
       res.send('');
     });
-    expect(routesOutsideDataPaths(app)).toEqual(['GET /export.csv']);
+    app.post('/upload', (_req, res) => {
+      res.send('');
+    });
+    app.get(['/api/a', '/report'], (_req, res) => {
+      res.send('');
+    });
+    expect(routesOutsideDataPaths(app)).toEqual(['GET /export.csv', 'GET /report']);
   });
 
   it('ignores the workspace key in a deployment: no session -> 401', async () => {

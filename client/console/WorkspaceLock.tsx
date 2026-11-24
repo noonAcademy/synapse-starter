@@ -3,6 +3,7 @@ import {
   forgetWorkspaceKey,
   notifyUnlocked,
   saveWorkspaceKey,
+  storedWorkspaceKey,
   workspaceKey,
 } from '../workspaceKey';
 
@@ -15,7 +16,11 @@ export function WorkspaceLock() {
   const [refusedKey] = useState(() => workspaceKey());
   const rejected = refusedKey !== null;
   useEffect(() => {
-    if (refusedKey !== null) forgetWorkspaceKey(refusedKey);
+    if (refusedKey === null) return;
+    forgetWorkspaceKey(refusedKey);
+    // Another tab saved a newer key: try it before asking the builder.
+    const newer = storedWorkspaceKey();
+    if (newer && newer !== refusedKey) notifyUnlocked();
   }, [refusedKey]);
 
   const unlock = (event: FormEvent) => {

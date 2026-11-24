@@ -162,16 +162,19 @@ interface RouteLayer {
   route?: { path: unknown; methods: Record<string, boolean> };
 }
 
-// Routes on the app itself that are outside /api and /__synapse. In the workspace the gate lets
-// GET requests to such paths through without the key, so a data route there is open to anyone.
+// The workspace gate lets these methods through outside /api and /__synapse without the key.
+const KEYLESS_ROUTE_METHODS = new Set(['get', 'head', '_all']);
+
+// GET routes on the app itself that are outside /api and /__synapse. In the workspace the gate lets
+// such requests through without the key, so a data route there is open to anyone.
 export function routesOutsideDataPaths(app: Application): string[] {
   const stack = (app as unknown as { _router?: { stack: RouteLayer[] } })._router?.stack ?? [];
   return stack.flatMap((layer) => {
     if (!layer.route) return [];
-    const path = String(layer.route.path);
-    if (isDataPath(path.toLowerCase())) return [];
-    return Object.keys(layer.route.methods).map(
-      (method) => `${method === '_all' ? 'ALL' : method.toUpperCase()} ${path}`,
-    );
+    const methods = Object.keys(layer.route.methods).filter((m) => KEYLESS_ROUTE_METHODS.has(m));
+    const paths = [layer.route.path].flat().map(String);
+    return paths
+      .filter((path) => !isDataPath(path.toLowerCase()))
+      .flatMap((path) => methods.map((m) => `${m === '_all' ? 'ALL' : m.toUpperCase()} ${path}`));
   });
 }

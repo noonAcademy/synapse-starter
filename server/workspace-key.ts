@@ -46,10 +46,14 @@ export function loadWorkspaceKey(options: {
   if (key !== stored?.key) {
     writeFileSync(keyPath, `${JSON.stringify({ replId: options.replId, key })}\n`, { mode: 0o600 });
   }
-  writeFileSync(resolve(options.rootDir, HEADERS_FILE), `${WORKSPACE_KEY_HEADER}: ${key}\n`, {
+  writeHeadersFile(options.rootDir, key);
+  return key;
+}
+
+export function writeHeadersFile(rootDir: string, key: string): void {
+  writeFileSync(resolve(rootDir, HEADERS_FILE), `${WORKSPACE_KEY_HEADER}: ${key}\n`, {
     mode: 0o600,
   });
-  return key;
 }
 
 function digest(value: string): Buffer {
