@@ -303,4 +303,10 @@ source of truth is the template's `main`.
   tokens, fail-fast) before
   you're done. The
   same gate runs before every deployment, so a red check here is a blocked deploy there.
-- Don't commit a `package-lock.json` (the template ships without one — see the README) or `.env`.
+- Commit `package-lock.json`; never commit `.env`.
+- **Replit's Package Firewall blocks known-vulnerable package versions.** It is always on and
+  can't be configured. `npm install` fails with a 403 on any blocked tarball, even a deep
+  transitive one. So a dependency bump is done only when `npm install` still passes on Replit.
+  If the install fails there, move the package named in the 403 to a newer patch version, with
+  a version range in `package.json`, an `overrides` entry, or `npm update <name>`. Don't
+  downgrade to get past it.

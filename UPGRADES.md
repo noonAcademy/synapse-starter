@@ -25,6 +25,73 @@ which applies the pending entries below. Maintainers: the rules for adding an en
 
 ---
 
+## 2026.11.24 — `npm install` passes on Replit again (Package Firewall)
+
+### What changed
+
+Replit's Package Firewall is always on. It blocks package versions with known vulnerabilities,
+and it can't be configured or given an allow-list. Three tarballs in the template's lockfile are
+on its block list, so `npm install` on a fresh clone failed with a 403:
+
+| Package | Was | Now | Why it is in the tree |
+|---|---|---|---|
+| `vite` | 6.4.3 | 6.4.6 | direct dependency (`^6.0.7` → `^6.4.6`) |
+| `proxy-addr` | 2.0.7 | 2.0.8 | through `express` (`~2.0.7`), lockfile refresh only |
+| `tinypool` | 1.1.1 | 2.2.0 | through `vitest` 3.2.x (`^1.1.1`), new `overrides` entry `"tinypool": "^2.1.2"` |
+
+Every `tinypool` 1.x is blocked, and `vitest` 3.2.x asks for `^1.1.1`. The override moves it to
+2.x and keeps `vitest` on 3.2.7: the full test suite passes on the forks pool (the default) and
+on the threads pool. A `vitest` major upgrade was not necessary. No other package version
+changes in the lockfile.
+
+[`AGENTS.md`](AGENTS.md) Conventions also changes. It said not to commit `package-lock.json`,
+but the template commits one (see the README). It now says to commit the lockfile. A new rule
+says that a dependency bump is done only when `npm install` still passes on Replit.
+
+### Why a clone should care
+
+A clone on the old lockfile can't run `npm install` on Replit. The 403 names one of the
+packages above. Adopt this entry if you see that error, or before you add any dependency (an
+install that adds a package fetches the whole tree again). Runtime behaviour doesn't change.
+
+### Recipe (every step is an ensure — skip what's already true)
+
+1. **Copy from the template** (synapse-owned): `AGENTS.md`.
+2. **Guided edit — `package.json`** (shared; skip any part already true; leave builder-added
+   dependencies, scripts and overrides alone):
+   - If `dependencies.vite` is a `6.x` range lower than `^6.4.6`, set it to `"^6.4.6"`. Leave a
+     `7.x` or later range as it is.
+   - If `devDependencies.vitest` is a `3.x` range, add `"tinypool": "^2.1.2"` to `overrides`.
+     Keep the three `@noonacademy/*` entries in `overrides` the same as in `dependencies`.
+3. **Regenerate the lockfile** without fetching tarballs (the firewall blocks tarballs, not
+   package metadata), then install:
+
+   ```bash
+   npm install --package-lock-only --ignore-scripts
+   npm update proxy-addr --package-lock-only --ignore-scripts
+   npm install
+   ```
+
+   If `npm install` still gets a 403, the message names the blocked tarball. Move that package
+   to a newer patch version the same way (a range, an override, or `npm update <name>`). Don't
+   downgrade it.
+
+### Verify
+
+- `npm install` passes on Replit with no 403.
+- `npm ls vite proxy-addr tinypool` shows `vite@6.4.6` (or later), `proxy-addr@2.0.8` and
+  `tinypool@2.x` (2.1.2 or later).
+- This prints nothing:
+
+  ```bash
+  grep -E 'vite-6\.4\.[345]\.tgz|proxy-addr-2\.0\.[1-7]\.tgz|tinypool-(1\.|2\.0\.|2\.1\.[01]\.tgz)' package-lock.json
+  ```
+
+- `npm run verify` green.
+- `TEMPLATE_VERSION` reads `2026.11.24`.
+
+---
+
 ## 2026.11.23 — a rejected key no longer says "press Run again"
 
 ### What changed
