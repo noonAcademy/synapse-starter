@@ -202,6 +202,54 @@ describe('checkApp', () => {
     expect(problems.some((p) => p.includes('GET /api/contact') && p.includes('email'))).toBe(true);
   });
 
+  it('leaves error middleware alone, so a public GET under it is still scanned', async () => {
+    const publicRoutes = [{ method: 'GET' as const, path: '/api/contact', reason: 'demo' }];
+    const app = express();
+    app.use(createWorkspaceGate({ workspaceKey: KEY, trustLocalCalls: false, publicRoutes }));
+    app.use(
+      '/api',
+      (
+        _err: unknown,
+        _req: express.Request,
+        res: express.Response,
+        _next: express.NextFunction,
+      ) => {
+        res.status(500).json({ error: 'failed' });
+      },
+    );
+    app.get('/api/contact', (_req, res) => {
+      res.json({ email: 'x@y.z' });
+    });
+    const problems = (await checkApp('workspace', app, publicRoutes)).map((p) => p.problem);
+    expect(problems.some((p) => p.includes('GET /api/contact') && p.includes('email'))).toBe(true);
+  });
+
+  it('stubs prefix middleware for a private HEAD next to a public GET', async () => {
+    const publicRoutes = [{ method: 'GET' as const, path: '/api/ping', reason: 'demo' }];
+    const app = express();
+    app.use(
+      createWorkspaceGate({
+        workspaceKey: KEY,
+        trustLocalCalls: false,
+        publicRoutes: [...publicRoutes, { method: 'HEAD', path: '/api/ping', reason: 'demo' }],
+      }),
+    );
+    app.use('/api', (req, res, next) => {
+      if (req.method === 'HEAD') res.end();
+      else next();
+    });
+    app
+      .route('/api/ping')
+      .get((_req, res) => {
+        res.json({ ok: true });
+      })
+      .head((_req, res) => {
+        res.end();
+      });
+    const problems = (await checkApp('workspace', app, publicRoutes)).map((p) => p.problem);
+    expect(problems.some((p) => p.includes('anonymous HEAD /api/ping reached'))).toBe(true);
+  });
+
   it('builds a matching probe for a numeric param, and reports a pattern it cannot call', async () => {
     const app = express();
     app.use(

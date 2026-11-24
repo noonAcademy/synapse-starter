@@ -99,7 +99,12 @@ export function listRoutes(
         continue;
       }
       routes.push(...listRoutes(layer.handle.stack, prefix + mount, problems));
-    } else if (!BUILT_IN_LAYERS.has(layer.name) && layer.name !== GATE_NAME) {
+    } else if (
+      !BUILT_IN_LAYERS.has(layer.name) &&
+      layer.name !== GATE_NAME &&
+      // Error middleware (err, req, res, next) runs only when a request fails; leave it as is.
+      layer.handle.length !== 4
+    ) {
       // `app.use('/api/x', handler)`: a handler mounted at a path answers like a route. A
       // middleware mounted at the root (express.json(), logging) is left alone.
       const mount = mountPath(layer);
@@ -264,8 +269,7 @@ export async function checkApp(
       .filter((path): path is string => path !== undefined),
   );
   const isRealCall = (req: Request) =>
-    (req.method === 'GET' || req.method === 'HEAD') &&
-    realPaths.has((req.originalUrl.split('?')[0] ?? '').toLowerCase());
+    req.method === 'GET' && realPaths.has((req.originalUrl.split('?')[0] ?? '').toLowerCase());
   stubRoutes(
     routes.filter((route) => !callForReal(route)),
     isRealCall,
