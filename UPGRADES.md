@@ -85,6 +85,11 @@ signed-in users.
 
 ### Recipe
 
+0. **Check first, before any copy:** if `vite.config.ts` sets `server.fs.strict: false`, stop
+   and ask the builder whether they still need it. Vite then ignores `fs.deny`, so anyone with
+   the dev URL could read the workspace key through `/@fs/`. Do not change it without their yes,
+   and do not start this upgrade while it stays `false`.
+
 1. **Copy** (synapse-owned):
 
    ```bash
@@ -106,10 +111,7 @@ signed-in users.
    **Guided edit — `vite.config.ts`** (it may hold the builder's own changes, so never copy it
    over): ensure `server.fs.deny` lists `'**/*.local'` and `'**/.synapse-visual/**'` besides
    Vite's defaults (`'.env'`, `'.env.*'`, `'*.{crt,pem}'`, `'**/.git/**'`), as in the template's
-   `vite.config.ts`. Add only what is missing; keep everything else in the file. If the file sets
-   `server.fs.strict: false`, stop and ask the builder whether they still need it: Vite then
-   ignores `fs.deny`, and anyone with the dev URL could read the workspace key through `/@fs/`.
-   Do not change it without their yes, and do not finish this upgrade while it stays `false`.
+   `vite.config.ts`. Add only what is missing; keep everything else in the file.
 
 2. **Create if missing** `server/public-routes.ts` (copy the template's). If the clone has one,
    leave it.
