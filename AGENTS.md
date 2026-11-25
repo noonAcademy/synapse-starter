@@ -1,7 +1,7 @@
 # AGENTS.md — working in the Synapse starter
 
-> **Kit compatibility: these rules describe kit `2026.11.24.4` or later.** Check this clone's
-> [`TEMPLATE_VERSION`](TEMPLATE_VERSION) file: if it is missing or older than `2026.11.24.4`
+> **Kit compatibility: these rules describe kit `2026.11.24.6` or later.** Check this clone's
+> [`TEMPLATE_VERSION`](TEMPLATE_VERSION) file: if it is missing or older than `2026.11.24.6`
 > (compare numerically, part by part — never as strings), your kit predates these rules — tell
 > the builder a kit upgrade is available and offer to run the **synapse-upgrade** skill
 > (fetching `UPGRADE.md` and `UPGRADES.md` live from the template repo) before other work.
@@ -147,9 +147,9 @@ path in the repo has exactly one owner. The machine-readable contract is
   `UPGRADES.md` entry, preserving the builder's additions: `package.json` (+ lockfile —
   regenerated, never copied), `server/index.ts`, `server/public-routes.ts`, the two registries
   (`server/queries/index.ts`, `client/app/pages/index.ts`), `client/app/theme.css`,
-  `client/index.html` (RTL lives here), `.replit`. One exception to "preserving": from kit
-  `2026.11.24.3`, `client/app/theme.css` holds only the Noon brand import and `--app-face`, so
-  the upgrade to that shape drops the builder's other tokens (after telling them).
+  `client/index.html` (RTL lives here), `.replit`. `client/app/theme.css` holds the app's token
+  overrides on top of the Noon defaults (from kit `2026.11.24.6`; kits `2026.11.24.3`–`.5`
+  allowed only `--app-face` there).
 
 Precedence is most-specific-wins (`client/app/pages/synapse.tsx` beats `client/app/**`).
 
@@ -266,7 +266,7 @@ source of truth is the template's `main`.
 | [`.agents/skills/synapse-chart/SKILL.md`](.agents/skills/synapse-chart/SKILL.md) (**synapse-chart**) | Any chart, graph, trend or visual breakdown — `<ChartBlock>`, choosing the form from the data's shape, the theme's chart palette, and keeping the figures reachable. |
 | [`.agents/skills/synapse-scheduled-job/SKILL.md`](.agents/skills/synapse-scheduled-job/SKILL.md) (**synapse-scheduled-job**) | Anything recurring — "every Monday", "each morning", "alert me when" — a job in `server/jobs/` run by a Replit Scheduled Deployment. |
 | [`.agents/skills/synapse-access-control/SKILL.md`](.agents/skills/synapse-access-control/SKILL.md) (**synapse-access-control**) | **Adding any server route**, a public endpoint or webhook, "only X should see this", managers-only, anything confidential — the access gate (no anonymous API in any mode), `server/public-routes.ts`, the workspace key, and roles by email/domain in `server/access.ts`. |
-| [`.agents/skills/synapse-design-system/SKILL.md`](.agents/skills/synapse-design-system/SKILL.md) (**synapse-design-system**) | Any UI work, "change the colour/font/look", a logo, favicon, dark mode, the language switch — the Noon tokens and utilities, `<NoonLogo />`, the favicon, and the one thing an app may change (its face colour). |
+| [`.agents/skills/synapse-design-system/SKILL.md`](.agents/skills/synapse-design-system/SKILL.md) (**synapse-design-system**) | Any UI work, "change the colour/font/look", a logo, favicon, dark mode, the language switch — the Noon brand (Ink & Light) as the default tokens and its rules for screens (`brand.md`), `<NoonLogo />`, the favicon, and how an app overrides any token in `theme.css`. |
 | [`.agents/skills/synapse-arabic-rtl/SKILL.md`](.agents/skills/synapse-arabic-rtl/SKILL.md) (**synapse-arabic-rtl**) | Any UI text, Arabic-first or bilingual apps — `useI18n` / `defineStrings`, the default language, logical properties, bidi-safe Latin runs, Arabic number/date formatting, mirrored charts. |
 | [`.agents/skills/synapse-workflow/SKILL.md`](.agents/skills/synapse-workflow/SKILL.md) (**synapse-workflow**) | Any form → workflow feature — "submit a request", "log an incident", "approve", "track status", "let people report/log X" — the three-stores rule, per-app Postgres storage, and the row-first-event-second recipe. |
 | [`.agents/skills/synapse-event-design/SKILL.md`](.agents/skills/synapse-event-design/SKILL.md) (**synapse-event-design**) | Tracking or instrumenting anything — which moments deserve events, `publishEvent` vs `sendEvent`, `declareEvent`, payload and naming rules, verifying delivery. |
@@ -290,14 +290,14 @@ source of truth is the template's `main`.
 | [`server/jobs/`](server/jobs/) | Scheduled work (`<name>.job.ts`) + its registry, run by `npm run job -- <name>` from a Replit Scheduled Deployment — a separate process with its own secrets and no read cache. |
 | [`client/app/blocks/ChartBlock.tsx`](client/app/blocks/ChartBlock.tsx) | `ViewBlock`'s sibling: the same read drawn as a chart, bound to the theme's `--color-chart-*` palette, RTL-aware, with the figures kept reachable as a table. |
 | [`scripts/visual-check.ts`](scripts/visual-check.ts) | `npm run visual` — an **optional** layout pass for non-Replit use (local `npm run dev`, INTEGRATE.md apps): drives the app at phone and desktop widths, asserts layout, writes screenshots to `.synapse-visual/`. On Replit the Agent's own browser testing covers this; there is no skill for it. Playwright is installed on demand, not a template dependency. |
-| [`scripts/check-theme-tokens.ts`](scripts/check-theme-tokens.ts) | `npm run check:theme` (in `verify`) — fails when `client/app/**` holds a raw hex, a Tailwind palette class, an arbitrary value, or an inline style. **A check, not a rule**: Replit's Design Canvas writes visual edits straight to the codebase without running an agent loop, so no skill can defend the token convention. Mark a genuine exception with a `theme-tokens-ignore` comment. |
+| [`scripts/check-theme-tokens.ts`](scripts/check-theme-tokens.ts) | `npm run check:theme` (in `verify`) — fails when `client/app/**` holds a raw hex, a Tailwind palette class, an arbitrary value, or an inline style, or `theme.css` holds a style rule instead of tokens. **A check, not a rule**: Replit's Design Canvas writes visual edits straight to the codebase without running an agent loop, so no skill can defend the token convention. Mark a genuine exception with a `theme-tokens-ignore` comment. |
 | [`server/synapse.ts`](server/synapse.ts) | Constructs the SDK client from secrets; exports `null` (not a throw) when secrets are missing. |
 | [`server/reads.ts`](server/reads.ts), [`server/athena.ts`](server/athena.ts), [`server/query-cache.ts`](server/query-cache.ts) | Read orchestration, the `athenaQuery` wrapper + result normaliser, and the in-memory cache. |
 | [`server/index.ts`](server/index.ts) | Express server. `buildApp` installs the access gate first, then mounts the workspace-only `/__synapse/*` endpoints (the builder console's data) **only when `REPLIT_DEPLOYMENT` is unset**, and the app's `/api/views*` (data in) and `/api/events` (events out) endpoints in every mode — behind the gate. |
 | [`client/console/`](client/console/) | The workspace-only **Synapse** management console (Home / Get data / Views / Events / Settings tabs). |
 | [`client/app/`](client/app/) | The **shipped app** rendered at `/` for end users. Pages live in `client/app/pages/<name>.tsx` (a registry, like `server/queries/`); views render as blocks via `client/app/blocks/ViewBlock.tsx`. The `/synapse` page there is the starter's frozen scaffolding corner (example views + status). |
-| [`client/brand/`](client/brand/) | **The Noon design system** (synapse-owned): `noon.css` (tokens, light + dark, the font), `NoonLogo.tsx` (full logo and face-only mark), the vendored IBM Plex Sans Arabic fonts (SIL OFL, licence in `fonts/OFL.txt`). Favicons are drawn from the face colour by `scripts/vite-brand.ts` at build time. |
-| [`client/app/theme.css`](client/app/theme.css) | **The app's one design choice** — its logo face colour, `--app-face`. Nothing else is allowed here (`npm run check:theme`). |
+| [`client/brand/`](client/brand/) | **The Noon design system** (synapse-owned): `noon.css` (the Ink & Light default tokens, light + dark, the fonts), `NoonLogo.tsx` (full logo and face-only mark), the vendored IBM Plex Sans Arabic, Quicksand and Tajawal fonts (SIL OFL, licences in `fonts/`), and Noon's illustration cast (`illustrations/`, 38 SVGs). Favicons are drawn from the face colour by `scripts/vite-brand.ts` at build time. |
+| [`client/app/theme.css`](client/app/theme.css) | **The app's tokens** — its logo face colour (`--app-face`) and any override of the Noon defaults or token of its own. Tokens only, no style rules (`npm run check:theme`). |
 | [`client/useView.ts`](client/useView.ts), [`client/sendEvent.ts`](client/sendEvent.ts) | The app's two building blocks: **`useView(name)`** loads a view's rows (data in); **`sendEvent(type, payload)`** reports to Noon (events out). Build any page/feature/game on these two. |
 
 ## Schema / dialect facts
@@ -314,28 +314,34 @@ source of truth is the template's `main`.
 
 ## Conventions
 
-- **The app's look is the Noon design system** ([`client/brand/noon.css`](client/brand/noon.css),
-  synapse-owned, kept in sync by kit upgrades): Noon colours in light and dark, the IBM Plex Sans
-  Arabic font, radius, type and spacing. App pages and components consume the semantic utilities
-  those tokens generate (`bg-surface`, `bg-card`, `text-ink`, `text-ink-muted`, `bg-primary`,
-  `text-primary-ink`, `rounded-card`, `p-card`, …) and never hardcode colors, radii, fonts, or
-  density. **An app chooses exactly one thing:** its logo face colour, `--app-face` in
-  [`client/app/theme.css`](client/app/theme.css) (plus its name, `APP_NAME` in
-  `client/app/config.ts`). The logo is `<NoonLogo />` (`client/brand/NoonLogo.tsx`) and the
-  favicon is generated from the face colour at build time. Recipes: **synapse-design-system**.
+- **The app's look starts as Noon's brand, Ink & Light** ([`client/brand/noon.css`](client/brand/noon.css),
+  synapse-owned, kept in sync by kit upgrades): paper and oak surfaces, espresso text,
+  terracotta for weight, deep terracotta titles, one teal accent, Quicksand titles and IBM Plex
+  Sans text (Tajawal and IBM Plex Sans Arabic in Arabic), light and dark, radius, type and
+  spacing. **It is the default, not a lock.** With no ask from the builder, build on brand
+  (the rules for screens are in the skill's `brand.md`); when the builder wants a different
+  look, change it by overriding or adding tokens in [`client/app/theme.css`](client/app/theme.css)
+  and record it in SPEC.md. App pages and components consume the semantic utilities the tokens
+  generate (`bg-surface`, `bg-card`, `bg-muted`, `text-ink`, `text-ink-muted`, `bg-primary`,
+  `text-primary-ink`, `text-accent`, `font-display`, `rounded-card`, `p-card`, …) and never
+  hardcode colors, radii, fonts, or density, so a token change reaches every page and dark mode.
+  The app's name is `APP_NAME` in `client/app/config.ts`; the logo is `<NoonLogo />`
+  (`client/brand/NoonLogo.tsx`) with its face colour `--app-face`, and the favicon is generated
+  from it at build time. Recipes: **synapse-design-system**.
   The console (`client/console/`, `client/ui.tsx`) keeps its own fixed styling and is never
   themed. Every app has a light/dark button and an English/Arabic switch; UI strings go through
   `t()` from `client/brand/i18n.ts` (**synapse-arabic-rtl**), and the default language is the
   `lang` on `<html>` in `client/index.html`.
-  **This one is enforced, not just stated:** `npm run check:theme` (inside `verify`) fails the
-  build when `theme.css` holds anything but the brand import and `--app-face`, and on a raw hex,
-  a Tailwind palette class (`bg-slate-700`), an arbitrary value (`bg-[#fff]`), or an inline style
-  anywhere in `client/app/**`. It is a check rather than a rule because Replit's Design Canvas
-  applies visual edits **straight to the codebase without running an agent loop** — nothing
-  reads this file on that path, so prose alone can't hold the line. If a value genuinely can't be
-  a token (Recharts needs literal colors, for instance), mark the line `theme-tokens-ignore` so
-  the exception is visible in review. If a canvas edit trips the check, don't add the marker —
-  use the nearest existing token; a colour the Noon system lacks is a request to the Synapse team.
+  **The token convention is enforced, not just stated:** `npm run check:theme` (inside `verify`)
+  fails the build when `theme.css` holds anything but tokens (custom properties, `@theme`,
+  `@font-face`, after the brand import), and on a raw hex, a Tailwind palette class
+  (`bg-slate-700`), an arbitrary value (`bg-[#fff]`), or an inline style anywhere in
+  `client/app/**`. It is a check rather than a rule because Replit's Design Canvas applies visual
+  edits **straight to the codebase without running an agent loop** — nothing reads this file on
+  that path, so prose alone can't hold the line. If a value genuinely can't be a token (Recharts
+  needs literal colors, for instance), mark the line `theme-tokens-ignore` so the exception is
+  visible in review. If a canvas edit trips the check, don't add the marker — turn the value into
+  a token in `theme.css` and use its utility.
 - TypeScript, ESM (`type: module`). Server uses NodeNext resolution — **relative imports need a
   `.js` extension** (e.g. `import { runRead } from './reads.js'`).
 - Verify with **`npm run verify`** (secret scan → typecheck → lint → tests → link check → theme

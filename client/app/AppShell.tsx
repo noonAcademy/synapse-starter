@@ -108,7 +108,7 @@ export function AppShell() {
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="flex items-center gap-3 text-lg font-semibold text-ink"
+            className="flex items-center gap-3 font-display text-lg font-bold text-ink"
           >
             <NoonLogo className="h-6" />
             <span className="border-s border-line ps-3">{APP_NAME}</span>

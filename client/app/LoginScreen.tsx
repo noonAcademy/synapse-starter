@@ -41,7 +41,9 @@ export function LoginScreen() {
         <div className="w-full max-w-sm rounded-card border border-line bg-card p-8 shadow-card">
           <div className="mb-6 text-center">
             <NoonLogo className="mx-auto h-8" />
-            <h1 className="mt-4 text-lg font-medium text-ink">{t('signInTitle')}</h1>
+            <h1 className="mt-4 font-display text-lg font-bold text-primary-ink">
+              {t('signInTitle')}
+            </h1>
             <p className="mt-1 text-body text-ink-muted">{t('signInHint')}</p>
           </div>
 

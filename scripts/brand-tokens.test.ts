@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-// The Noon palette in client/brand/noon.css must stay readable in both themes: every text colour
+// The Noon palette (Ink & Light) in client/brand/noon.css must stay readable in both themes: every text colour
 // passes WCAG AA (4.5:1) on the page and on a card, and every chart colour 3:1 on a card.
 const css = readFileSync('client/brand/noon.css', 'utf8');
 
@@ -68,6 +68,13 @@ describe.each([
     expect(
       contrast(palette.danger as string, palette['danger-surface'] as string),
     ).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('keeps text on a teal fill and body text on a quiet (oak) card readable', () => {
+    expect(
+      contrast(palette['on-accent'] as string, palette.accent as string),
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(palette.ink as string, palette.muted as string)).toBeGreaterThanOrEqual(4.5);
   });
 });
 

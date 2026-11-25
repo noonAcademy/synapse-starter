@@ -1,5 +1,5 @@
 // Enforce the convention that keeps every app on the Noon design system: the shipped app's look
-// lives in design tokens (client/brand/noon.css, plus the one `--app-face` in client/app/theme.css),
+// lives in design tokens (client/brand/noon.css, plus any overrides in client/app/theme.css),
 // and app components consume the utilities those tokens generate — never a raw color, radius, or font.
 //
 // WHY THIS IS A CHECK AND NOT A RULE IN A SKILL. A rule in AGENTS.md only binds whoever reads
@@ -16,10 +16,11 @@
 // Scope: client/app/** only — the SHIPPED app. The builder console (client/console/,
 // client/ui.tsx) keeps its own fixed styling on purpose and is never themed, so it is exempt.
 //
-// theme.css gets its own, stricter check (checkThemeFile). The Noon design system lives in the
-// synapse-owned client/brand/noon.css, which upgrades keep in sync; theme.css may only import it
-// and set the app's one choice, its logo face colour (`--app-face`). Any other value there would
-// fork the app away from the shared Noon look, so it fails here.
+// theme.css gets its own check (checkThemeFile). The Noon defaults (Ink & Light) live in the
+// synapse-owned client/brand/noon.css, which upgrades keep in sync; theme.css imports them first
+// and may then override any token or add new ones — an app is free to change its look. What it
+// may not hold is a style rule: the look reaches pages only through tokens, so a style rule there
+// would bypass dark mode and every other page.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
@@ -138,9 +139,12 @@ export function findViolations(files: string[], read = readFileSync): TokenViola
 
 const THEME_FILE = join(APP_DIR, 'theme.css');
 const BRAND_IMPORT = /^@import\s+(["'])\.\.\/brand\/noon\.css\1\s*;$/;
+const CUSTOM_PROPERTY = /^--[\w-]+\s*:/;
+// Tailwind's namespace resets, valid only inside @theme: `--color-*: initial` clears one
+// namespace before the app defines its own, `--*: initial` clears the whole theme.
+const THEME_RESET = /^--(?:[\w-]+-)?\*\s*:\s*initial\s*;?$/;
 // A hex colour only: the favicon is drawn from it (scripts/brand-icons.ts).
 const FACE_DECLARATION = /^--app-face\s*:\s*#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?\s*;?$/;
-const ALLOWED_SELECTORS = new Set([':root']);
 // The logo's smile (--color-logo-smile in client/brand/noon.css) is drawn on the face.
 const LOGO_SMILE = '#151515';
 const MIN_SMILE_CONTRAST = 3;
@@ -160,7 +164,79 @@ export function smileContrast(face: string): number {
   return ((high ?? 0) + 0.05) / ((low ?? 0) + 0.05);
 }
 
-// Checks client/app/theme.css: only the brand import and `--app-face` blocks are allowed.
+interface CssStatement {
+  // `statement`: a declaration or at-rule ending in `;` (or the last one in a block, which may
+  // omit it). `block`: a prelude and a `{ … }` body, whose bounds are bodyStart / bodyEnd.
+  kind: 'statement' | 'block';
+  text: string;
+  start: number;
+  bodyStart: number;
+  bodyEnd: number;
+}
+
+// Splits source[from, to) into statements and blocks at one nesting level, matching braces and
+// skipping quoted strings and parentheses (a font or data URL may hold a `;`, quoted or not, as in
+// `url(data:image/png;base64,…)`). Small on purpose: theme.css is a token list.
+function cssStatements(source: string, from: number, to: number): CssStatement[] {
+  const out: CssStatement[] = [];
+  let i = from;
+  while (i < to) {
+    while (i < to && /\s/.test(source[i] ?? '')) i++;
+    if (i >= to) break;
+    const start = i;
+    let depth = 0;
+    let open = -1;
+    let quote = '';
+    let parens = 0;
+    let ended = false;
+    for (; i < to; i++) {
+      const ch = source[i];
+      if (quote) {
+        if (ch === '\\') i++;
+        else if (ch === quote) quote = '';
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        quote = ch;
+      } else if (ch === '(') {
+        parens++;
+      } else if (ch === ')') {
+        if (parens > 0) parens--;
+      } else if (parens > 0) {
+        // Inside a value's parentheses: a `;`, `{` or `}` here is part of the value.
+      } else if (ch === '{') {
+        if (depth === 0) open = i;
+        depth++;
+      } else if (ch === '}') {
+        depth--;
+        if (depth <= 0) {
+          const text = source.slice(start, i + 1);
+          out.push({ kind: 'block', text, start, bodyStart: open + 1, bodyEnd: i });
+          i++;
+          ended = true;
+          break;
+        }
+      } else if (ch === ';' && depth === 0) {
+        const text = source.slice(start, i + 1);
+        out.push({ kind: 'statement', text, start, bodyStart: -1, bodyEnd: -1 });
+        i++;
+        ended = true;
+        break;
+      }
+    }
+    if (!ended) {
+      const text = source.slice(start, to);
+      out.push({ kind: 'statement', text, start, bodyStart: -1, bodyEnd: -1 });
+    }
+  }
+  return out;
+}
+
+// Checks client/app/theme.css. It holds the app's TOKENS: the brand import first, then any custom
+// properties (override a --noon-* value, a --font-* or --radius-* token, or add a token of the
+// app's own) in any selector, @theme or @media block, plus @font-face for a font of the app's own.
+// What it may not hold is a style rule (`.card { color: … }`): elements are styled by token
+// utilities in components, which is what lets one override reach every page and dark mode.
 export function checkThemeFile(css: string, file = THEME_FILE): TokenViolation[] {
   const violations: TokenViolation[] = [];
   // Blank out comments but keep their newlines, so reported line numbers stay right.
@@ -170,66 +246,100 @@ export function checkThemeFile(css: string, file = THEME_FILE): TokenViolation[]
     violations.push({ file, line, text: text.trim().slice(0, 100), reason });
   };
 
-  let hasImport = false;
-  let seenRule = false;
-  let index = 0;
-  const statement = /\s*([^{};]+;|[^{};]+\{[^{}]*\})/y;
-  while (index < source.length) {
-    if (source.slice(index).trim() === '') break;
-    statement.lastIndex = index;
-    const match = statement.exec(source);
-    if (!match?.[1]) {
-      fail(index, source.slice(index, index + 100), 'cannot read this part of theme.css');
-      break;
-    }
-    const text = match[1].trim();
-    const start = match.index + match[0].indexOf(match[1]);
-    index = statement.lastIndex;
-    if (text.startsWith('@import')) {
-      if (!BRAND_IMPORT.test(text))
-        fail(start, text, 'theme.css may import only "../brand/noon.css"');
-      // CSS ignores an @import that comes after a rule, which would drop the whole design system.
-      else if (seenRule) fail(start, text, 'the @import must come first in theme.css');
-      else hasImport = true;
-      continue;
-    }
-    seenRule = true;
-    const open = text.indexOf('{');
-    if (open === -1) {
-      fail(start, text, 'theme.css may only set --app-face inside :root { }');
-      continue;
-    }
-    const selector = text.slice(0, open).trim().replace(/\s+/g, ' ');
-    if (!ALLOWED_SELECTORS.has(selector)) {
+  // `topLevel`: the block is not inside @media or any other block. The favicon reader
+  // (faceFromThemeCss) takes the last `:root` value without evaluating conditions, so a face set
+  // under `@media print { :root { … } }` would draw a favicon the screen never shows.
+  // `hasNested`: the same :root block also holds a nested block (CSS nesting, e.g. `@media print
+  // { … }` inside :root). The favicon reader's :root match ends at the first `}`, so it would miss
+  // a face declared in such a block and draw the default green instead.
+  const checkFace = (
+    prelude: string,
+    topLevel: boolean,
+    hasNested: boolean,
+    at: number,
+    text: string,
+  ) => {
+    if (prelude !== ':root' || !topLevel) {
       fail(
-        start,
+        at,
         text,
-        `"${selector}" is not allowed in theme.css — the Noon look lives in client/brand/noon.css; an app sets only --app-face`,
+        '--app-face belongs in a top-level :root { }, outside @media — the favicon is drawn from it',
       );
-      continue;
+      return;
     }
-    const body = text.slice(open + 1, -1);
-    for (const declaration of body.split(';')) {
-      const trimmed = declaration.trim();
-      if (trimmed === '') continue;
-      const at = start + open + 1 + body.indexOf(trimmed);
-      if (!FACE_DECLARATION.test(trimmed)) {
+    if (hasNested) {
+      fail(
+        at,
+        text,
+        '--app-face needs a :root { } of its own, with no nested blocks — move the nested rules to another :root { } (the favicon is drawn from it)',
+      );
+      return;
+    }
+    if (!FACE_DECLARATION.test(text)) {
+      fail(at, text, '--app-face must be a hex colour — the favicon is drawn from it');
+      return;
+    }
+    const face = text.match(/#[0-9a-fA-F]+/)?.[0] ?? '';
+    if (smileContrast(face) < MIN_SMILE_CONTRAST) {
+      fail(
+        at,
+        text,
+        `--app-face ${face} is too dark for the logo's dark smile (contrast ${smileContrast(face).toFixed(1)}:1, needs ${MIN_SMILE_CONTRAST}:1) — pick a light or mid tone`,
+      );
+    }
+  };
+
+  const checkBlock = (block: CssStatement, topLevel: boolean, inTheme = false) => {
+    const prelude = source
+      .slice(block.start, block.bodyStart - 1)
+      .trim()
+      .replace(/\s+/g, ' ');
+    if (/^@font-face$/i.test(prelude)) return;
+    // `@theme`, `@theme inline`, `@theme static`, …
+    const isTheme = /^@theme\b/i.test(prelude);
+    const children = cssStatements(source, block.bodyStart, block.bodyEnd);
+    const hasNested = children.some((child) => child.kind === 'block');
+    for (const child of children) {
+      if (child.kind === 'block') {
+        checkBlock(child, false, inTheme || isTheme);
+        continue;
+      }
+      const text = child.text.trim();
+      if (text === '' || text === ';') continue;
+      if ((inTheme || isTheme) && THEME_RESET.test(text)) continue;
+      if (!CUSTOM_PROPERTY.test(text)) {
+        const property = text.split(':')[0]?.trim() ?? text;
         fail(
-          at,
-          trimmed,
-          'theme.css may set only --app-face, as a hex colour — every other token comes from client/brand/noon.css',
+          child.start,
+          text,
+          `"${property}" is a style, not a token — theme.css holds tokens (custom properties such as --noon-primary); style elements with token utilities in components`,
         );
         continue;
       }
-      const face = trimmed.match(/#[0-9a-fA-F]+/)?.[0] ?? '';
-      if (smileContrast(face) < MIN_SMILE_CONTRAST) {
-        fail(
-          at,
-          trimmed,
-          `--app-face ${face} is too dark for the logo's dark smile (contrast ${smileContrast(face).toFixed(1)}:1, needs ${MIN_SMILE_CONTRAST}:1) — pick a light or mid tone`,
-        );
-      }
+      if (/^--app-face\s*:/.test(text)) checkFace(prelude, topLevel, hasNested, child.start, text);
     }
+  };
+
+  let hasImport = false;
+  let seenRule = false;
+  for (const statement of cssStatements(source, 0, source.length)) {
+    const text = statement.text.trim();
+    if (statement.kind === 'block') {
+      seenRule = true;
+      checkBlock(statement, true);
+      continue;
+    }
+    if (text.startsWith('@import')) {
+      // CSS ignores an @import that comes after a rule, which would drop the whole design system.
+      if (seenRule) fail(statement.start, text, 'an @import must come first in theme.css');
+      else if (BRAND_IMPORT.test(text)) hasImport = true;
+      continue;
+    }
+    fail(
+      statement.start,
+      text,
+      'put tokens inside a block, for example :root { --noon-primary: … }',
+    );
   }
   if (!hasImport) {
     violations.push({
@@ -267,19 +377,20 @@ function main(): void {
   }
   if (violations.length === 0 && themeViolations.length === 0) {
     console.log(
-      '[check-theme-tokens] client/app is token-clean and theme.css sets only --app-face — OK.',
+      '[check-theme-tokens] client/app is token-clean and theme.css holds only tokens — OK.',
     );
     return;
   }
 
   if (themeViolations.length > 0) {
     console.error(
-      `[check-theme-tokens] client/app/theme.css changes the Noon design system.\n` +
-        'Every Synapse app shares one Noon look (client/brand/noon.css, kept in sync by kit\n' +
-        'upgrades). theme.css may only `@import "../brand/noon.css";` and set `--app-face` (the\n' +
-        "logo's face colour) in `:root { }`. If a visual edit (for example Replit's Design Canvas)\n" +
-        'put a colour, font or size here, remove it and keep only --app-face. The\n' +
-        'synapse-design-system skill says what an app may change.\n',
+      '[check-theme-tokens] client/app/theme.css holds something other than tokens.\n' +
+        'theme.css imports the Noon defaults first (`@import "../brand/noon.css";`) and may then\n' +
+        'override any token or add new ones, as custom properties (`:root { --noon-primary: … }`,\n' +
+        '`@theme { --color-brand: … }`), plus @font-face. Style rules (`.card { color: … }`) do not\n' +
+        'belong here: style elements with token utilities in components. If a visual edit (for\n' +
+        "example Replit's Design Canvas) put a style here, turn it into a token or remove it. The\n" +
+        'synapse-design-system skill shows how to change the look.\n',
     );
     printViolations(themeViolations);
   }

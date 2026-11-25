@@ -29,17 +29,17 @@ function NotBuiltYet() {
   return (
     <div className="mx-auto max-w-md space-y-stack py-stack text-center">
       <div className="space-y-2">
-        <h2 className="text-title font-semibold tracking-tight text-ink">{t('notBuiltTitle')}</h2>
+        <h2 className="font-display text-title font-bold text-primary-ink">{t('notBuiltTitle')}</h2>
         <p className="text-body leading-relaxed text-ink-muted">{t('notBuiltIntro')}</p>
       </div>
 
       <ol className="space-y-3 text-start text-body text-ink">
         <li className="flex gap-3 rounded-card border border-line bg-card p-card">
-          <span className="font-semibold text-accent">1</span>
+          <span className="font-display font-bold text-primary-ink">1</span>
           <span>{t('notBuiltStep1')}</span>
         </li>
         <li className="flex gap-3 rounded-card border border-line bg-card p-card">
-          <span className="font-semibold text-accent">2</span>
+          <span className="font-display font-bold text-primary-ink">2</span>
           <span>{t('notBuiltStep2')}</span>
         </li>
       </ol>

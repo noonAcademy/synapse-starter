@@ -1,13 +1,20 @@
 /* ────────────────────────────────────────────────────────────────────────────
-   theme.css — this app's one design choice: its logo face colour.
+   theme.css — this app's design tokens.
 
-   The whole Noon look (colours, font, radius, spacing, light and dark) comes
-   from client/brand/noon.css, which kit upgrades keep in sync across every
-   Synapse app. This file may only import it and set `--app-face`: the round
-   face in the Noon logo, the favicon, and the `bg-face` / `border-face`
-   accents. `npm run check:theme` fails on anything else here.
+   The default look is Noon's "Ink & Light" brand, from client/brand/noon.css
+   (colours in light and dark, Quicksand and IBM Plex Sans, radius, spacing),
+   which kit upgrades keep current. Leave this file alone and the app is on
+   brand.
 
-   Pick a hex colour that the dark smile reads on (a light or mid tone).
+   To change the look, override tokens below the import — any `--noon-*`
+   colour, a `--font-*`, `--radius-*`, `--text-*` or `--spacing-*` token — or
+   add tokens of your own. Tokens only, no style rules: pages pick them up
+   through utilities (bg-primary, text-ink, font-display, …), so one change
+   reaches every page and dark mode keeps working. `npm run check:theme`
+   enforces that. Recipes: the synapse-design-system skill.
+
+   `--app-face` is the round face in the Noon logo and the favicon: a hex
+   colour that the dark smile reads on (a light or mid tone).
    ──────────────────────────────────────────────────────────────────────────── */
 
 @import "../brand/noon.css";

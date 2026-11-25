@@ -50,7 +50,7 @@ const SERIES_TOKENS = [
 // back to when getComputedStyle has nothing yet. Each line carries `theme-tokens-ignore` so
 // scripts/check-theme-tokens.ts allows it and the exception stays visible in review. Do NOT copy
 // this pattern into a page: pages use token utilities.
-const FALLBACK_SERIES = ['#179467', '#805db9', '#e0602b', '#006ccf', '#c4528a', '#c27400']; // theme-tokens-ignore
+const FALLBACK_SERIES = ['#b75c38', '#3a2318', '#647067', '#c08055', '#6b6152', '#848f86']; // theme-tokens-ignore
 
 interface Palette {
   series: string[];
@@ -62,10 +62,10 @@ interface Palette {
 
 const FALLBACK_PALETTE: Palette = {
   series: FALLBACK_SERIES,
-  ink: '#141414', // theme-tokens-ignore
-  inkMuted: '#66625d', // theme-tokens-ignore
-  line: '#dfdcd5', // theme-tokens-ignore
-  card: '#ffffff', // theme-tokens-ignore
+  ink: '#3a2318', // theme-tokens-ignore
+  inkMuted: '#6b6152', // theme-tokens-ignore
+  line: '#e4d9c7', // theme-tokens-ignore
+  card: '#fdfbf6', // theme-tokens-ignore
 };
 
 // Recharts needs real color VALUES (it writes them into SVG fill/stroke), not Tailwind classes.
@@ -245,7 +245,7 @@ function ChartBlockBody({
     },
     formatter: (value: unknown) => exactNumber(value, locale),
   };
-  const grid = <CartesianGrid stroke={palette.line} strokeDasharray="3 3" vertical={false} />;
+  const grid = <CartesianGrid stroke={palette.line} vertical={false} />;
   // RTL charts read right-to-left: the earliest category belongs on the right.
   const xAxis = (
     <XAxis
